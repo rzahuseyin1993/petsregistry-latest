@@ -1,0 +1,1 @@
+ALTER TABLE public.admin_messages ADD COLUMN audience_group text DEFAULT 'individual';

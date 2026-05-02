@@ -1,0 +1,1 @@
+UPDATE public.payment_settings SET is_active = true WHERE provider = 'stripe';

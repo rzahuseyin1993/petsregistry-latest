@@ -1,0 +1,1 @@
+ALTER TABLE public.map_custom_pins ADD COLUMN IF NOT EXISTS icon_url text DEFAULT NULL;

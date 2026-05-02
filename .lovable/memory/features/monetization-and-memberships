@@ -1,0 +1,33 @@
+---
+name: Monetization and memberships
+description: Guardian/Partner tiers with monthly/yearly/one-time billing via Stripe, admin-configurable per-service pricing and billing modes
+type: feature
+---
+Monetization is driven by membership plans ('Guardian Member' and 'Verified Partner') with flexible billing intervals.
+
+## Billing
+- Members choose monthly, yearly, or one-time at checkout (admin-controlled per service)
+- Yearly billing includes a configurable discount (default 20%), stored in `site_settings` key `yearly_discount_percent`
+- Monthly & Yearly use Stripe auto-recurring subscriptions (mode: "subscription")
+- One-Time uses Stripe single payment (mode: "payment")
+- `membership_plans` table has `price` (yearly) and `monthly_price` (monthly, 0 = auto-calculate from yearly/12)
+- `memberships` table tracks `billing_interval`, `stripe_subscription_id`, `stripe_customer_id`
+
+## Service Pricing Configuration (site_settings)
+- `service_billing_<service>` = comma-separated allowed billing types (monthly,yearly,one_time)
+- `service_price_<service>_monthly`, `_yearly`, `_one_time` = prices per service
+- Services: membership, flyer, certificate, directory
+- Admin configures all from Payment Settings page
+
+## Flyer Builder Access
+- Supports monthly/yearly subscriptions and one-time via `flyer_subscriptions` table
+- Legacy keys: `flyer_monthly_price`, `flyer_yearly_price` (synced with new service_price keys)
+
+## Stripe Webhook
+- `stripe-webhook` edge function handles: checkout.session.completed (subscriptions + one-time), invoice.paid (renewal), customer.subscription.deleted (cancel), customer.subscription.updated (past_due)
+
+## Admin Controls
+- Payment Settings page has per-service billing mode checkboxes and price inputs
+- Admin can enable/disable monthly, yearly, one-time per service
+- Service Subscriptions page shows all subscriptions with billing interval column
+- Admin can toggle status on/off for any subscription

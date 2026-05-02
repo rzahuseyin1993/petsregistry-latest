@@ -1,0 +1,19 @@
+project_id = "aqaausjzzkqcubgfjgnc"
+
+[functions.pet-expert]
+verify_jwt = false
+
+[functions.flyer-checkout]
+verify_jwt = false
+
+[functions.membership-checkout]
+verify_jwt = false
+
+[functions.donation-checkout]
+verify_jwt = false
+
+[functions.save-payment-settings]
+verify_jwt = false
+
+[functions.ai-site-editor]
+verify_jwt = false

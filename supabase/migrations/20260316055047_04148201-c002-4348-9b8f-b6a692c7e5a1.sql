@@ -1,0 +1,1 @@
+ALTER TABLE public.pets ADD COLUMN microchip_number text DEFAULT NULL;

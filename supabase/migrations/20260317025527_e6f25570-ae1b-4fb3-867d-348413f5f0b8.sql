@@ -1,0 +1,1 @@
+ALTER TABLE public.pet_adoptions ALTER COLUMN admin_approved SET DEFAULT true;

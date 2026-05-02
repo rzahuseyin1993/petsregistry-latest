@@ -1,0 +1,1 @@
+ALTER VIEW public.pets_public SET (security_invoker = off);
