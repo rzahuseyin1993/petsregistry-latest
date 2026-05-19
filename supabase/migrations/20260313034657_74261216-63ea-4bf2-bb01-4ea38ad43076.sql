@@ -207,10 +207,16 @@ AFTER INSERT ON auth.users
 FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 -- Storage bucket for pet photos
-INSERT INTO storage.buckets (id, name, public) VALUES ('pet-photos', 'pet-photos', true);
+INSERT INTO storage.buckets (id, name, public) VALUES ('pet-photos', 'pet-photos', true)
+ON CONFLICT (id) DO NOTHING;
 
+DROP POLICY IF EXISTS "Pet photos publicly accessible" ON storage.objects;
 CREATE POLICY "Pet photos publicly accessible" ON storage.objects FOR SELECT USING (bucket_id = 'pet-photos');
+
+DROP POLICY IF EXISTS "Authenticated users can upload pet photos" ON storage.objects;
 CREATE POLICY "Authenticated users can upload pet photos" ON storage.objects FOR INSERT 
   WITH CHECK (bucket_id = 'pet-photos' AND auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "Users can delete own pet photos" ON storage.objects;
 CREATE POLICY "Users can delete own pet photos" ON storage.objects FOR DELETE
   USING (bucket_id = 'pet-photos' AND auth.uid()::text = (storage.foldername(name))[1]);

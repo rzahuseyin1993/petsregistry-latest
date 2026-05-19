@@ -1,5 +1,6 @@
 -- Create storage bucket for flyer templates
-INSERT INTO storage.buckets (id, name, public) VALUES ('flyer-templates', 'flyer-templates', true);
+INSERT INTO storage.buckets (id, name, public) VALUES ('flyer-templates', 'flyer-templates', true)
+ON CONFLICT (id) DO NOTHING;
 
 -- Storage policies
 CREATE POLICY "Anyone can view flyer templates" ON storage.objects FOR SELECT USING (bucket_id = 'flyer-templates');

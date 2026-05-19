@@ -40,7 +40,8 @@ FOR EACH ROW
 EXECUTE FUNCTION public.update_updated_at_column();
 
 -- Storage bucket for blog images
-INSERT INTO storage.buckets (id, name, public) VALUES ('blog-images', 'blog-images', true);
+INSERT INTO storage.buckets (id, name, public) VALUES ('blog-images', 'blog-images', true)
+ON CONFLICT (id) DO NOTHING;
 
 -- Storage policies for blog images
 CREATE POLICY "Anyone can view blog images"

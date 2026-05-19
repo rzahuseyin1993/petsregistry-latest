@@ -6,7 +6,8 @@ ALTER TABLE public.admin_messages ADD COLUMN attachment_urls jsonb DEFAULT '[]':
 ALTER TABLE public.admin_messages ADD COLUMN is_html boolean NOT NULL DEFAULT false;
 
 -- Create storage bucket for admin message attachments
-INSERT INTO storage.buckets (id, name, public) VALUES ('admin-attachments', 'admin-attachments', true);
+INSERT INTO storage.buckets (id, name, public) VALUES ('admin-attachments', 'admin-attachments', true)
+ON CONFLICT (id) DO NOTHING;
 
 -- RLS for admin-attachments bucket: admins can upload
 CREATE POLICY "Admins can upload attachments" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'admin-attachments' AND public.has_role(auth.uid(), 'admin'));
