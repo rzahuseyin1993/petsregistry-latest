@@ -34,6 +34,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isStaff, setIsStaff] = useState(false);
   const [membership, setMembership] = useState<MembershipInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  const [roleChecksAvailable, setRoleChecksAvailable] = useState(true);
+  const [membershipChecksAvailable, setMembershipChecksAvailable] = useState(true);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -61,43 +63,54 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // Fetch profile
     supabase.from("profiles").select("full_name, email, phone, show_name, show_phone, address, city, country").eq("user_id", user.id).single()
       .then(({ data }) => { if (data) setProfile(data as any); });
-    // Check admin role
-    supabase.rpc("has_role", { _user_id: user.id, _role: "admin" })
-      .then(({ data }) => {
-        const admin = data === true;
-        setIsAdmin(admin);
-        if (admin) setIsStaff(true);
-      });
-    // Check moderator role (staff = admin OR moderator OR seo_admin)
-    supabase.rpc("has_role", { _user_id: user.id, _role: "moderator" })
-      .then(({ data }) => {
-        if (data === true) setIsStaff(true);
-      });
-    supabase.rpc("has_role", { _user_id: user.id, _role: "seo_admin" })
-      .then(({ data }) => {
-        if (data === true) setIsStaff(true);
-      });
+    // Check role membership via user_roles table to avoid dependency on has_role RPC.
+    if (roleChecksAvailable) {
+      supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .then(({ data, error }) => {
+          if (error) {
+            setRoleChecksAvailable(false);
+            setIsAdmin(false);
+            setIsStaff(false);
+            return;
+          }
+          const roles = new Set((data ?? []).map((row) => row.role));
+          const admin = roles.has("admin");
+          const staff = admin || roles.has("moderator") || roles.has("seo_admin");
+          setIsAdmin(admin);
+          setIsStaff(staff);
+        });
+    }
     // Fetch active membership
-    supabase.from("memberships")
-      .select("*, membership_plans(name, plan_type, badge_icon_url)")
-      .eq("user_id", user.id)
-      .eq("status", "active")
-      .gte("expires_at", new Date().toISOString())
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data && (data as any).membership_plans) {
-          setMembership({
-            planType: (data as any).membership_plans.plan_type,
-            planName: (data as any).membership_plans.name,
-            badgeIconUrl: (data as any).membership_plans.badge_icon_url || null,
-            expiresAt: data.expires_at,
-          });
-        } else {
-          setMembership(null);
-        }
-      });
+    if (membershipChecksAvailable) {
+      supabase.from("memberships")
+        .select("*, membership_plans(name, plan_type, badge_icon_url)")
+        .eq("user_id", user.id)
+        .eq("status", "active")
+        .gte("expires_at", new Date().toISOString())
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+        .then(({ data, error }) => {
+          if (error) {
+            setMembershipChecksAvailable(false);
+            setMembership(null);
+            return;
+          }
+          if (data && (data as any).membership_plans) {
+            setMembership({
+              planType: (data as any).membership_plans.plan_type,
+              planName: (data as any).membership_plans.name,
+              badgeIconUrl: (data as any).membership_plans.badge_icon_url || null,
+              expiresAt: data.expires_at,
+            });
+          } else {
+            setMembership(null);
+          }
+        });
+    }
   }, [user]);
 
   const signOut = async () => {

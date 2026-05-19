@@ -6,6 +6,7 @@
  *
  * The Supabase SDK is NO LONGER used for storage — only for the database.
  */
+import { supabase } from "@/integrations/supabase/client";
 
 /* ── Upload endpoint ────────────────────────────────────────────────── */
 const UPLOAD_ENDPOINT = "https://petsregistry.org/upload.php";
@@ -98,19 +99,51 @@ export const uploadRaw = async ({
   formData.append("path", path);
   formData.append("upsert", String(upsert));
 
-  const res = await fetch(UPLOAD_ENDPOINT, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${UPLOAD_TOKEN}` },
-    body: formData,
-  });
+  const uploadToSupabaseStorage = async () => {
+    const { error } = await supabase.storage.from(bucket).upload(path, body, {
+      contentType: "type" in body ? body.type : undefined,
+      upsert,
+    });
+    if (error) {
+      throw new Error(error.message || "Upload failed");
+    }
+    const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+    if (!data?.publicUrl) {
+      throw new Error("Upload succeeded but URL could not be generated");
+    }
+    return data.publicUrl;
+  };
 
-  if (!res.ok) {
+  // Primary path: cPanel upload.php endpoint.
+  // Fallback path: Supabase Storage if token/endpoint is misconfigured.
+  try {
+    const headers: Record<string, string> = {};
+    if (UPLOAD_TOKEN) {
+      headers.Authorization = `Bearer ${UPLOAD_TOKEN}`;
+    }
+
+    const res = await fetch(UPLOAD_ENDPOINT, {
+      method: "POST",
+      headers,
+      body: formData,
+    });
+
+    if (res.ok) {
+      const { publicUrl } = await res.json();
+      return publicUrl;
+    }
+
     const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error || `Upload failed (${res.status})`);
-  }
+    const uploadErr = new Error(err.error || `Upload failed (${res.status})`);
 
-  const { publicUrl } = await res.json();
-  return publicUrl;
+    if (res.status === 401 || res.status === 404 || !UPLOAD_TOKEN) {
+      return uploadToSupabaseStorage();
+    }
+
+    throw uploadErr;
+  } catch {
+    return uploadToSupabaseStorage();
+  }
 };
 
 /* ── High-level: compress image then upload ─────────────────────────── */
