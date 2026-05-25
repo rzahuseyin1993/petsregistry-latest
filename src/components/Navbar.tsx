@@ -1,15 +1,59 @@
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
-import { Menu, Search, ShoppingCart, User, LogIn, Shield, Sparkles, Heart, AlertTriangle, Building2, Smartphone, HandHeart, ShieldCheck, Tag } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Menu,
+  Search,
+  ShoppingCart,
+  User,
+  LogIn,
+  Sparkles,
+  Heart,
+  AlertTriangle,
+  Building2,
+  Smartphone,
+  HandHeart,
+  ShieldCheck,
+  Tag,
+  Bell,
+  ChevronDown,
+} from "lucide-react";
 import logo from "@/assets/logo.png";
 import NotificationBell from "@/components/NotificationBell";
 import MembershipBadge from "@/components/MembershipBadge";
 import CartDrawer from "@/components/CartDrawer";
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCart } from "@/contexts/CartContext";
 import CmsRenderer from "@/components/CmsRenderer";
 import { useIsMobileRoute } from "@/hooks/useIsMobileRoute";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+
+function getUserAbbreviation(fullName: string | null | undefined, email: string | undefined): string {
+  const name = fullName?.trim();
+  if (name) {
+    const parts = name.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+  }
+  const local = email?.split("@")[0] ?? "";
+  if (!local) return "?";
+  const segments = local.split(/[._-]+/).filter(Boolean);
+  if (segments.length >= 2) {
+    return (segments[0][0] + segments[1][0]).toUpperCase();
+  }
+  return local.slice(0, 2).toUpperCase();
+}
 
 const navLinks = [
   { to: "/search", label: "Search", icon: Search },
@@ -26,13 +70,40 @@ const navLinks = [
 const Navbar = () => {
   const location = useLocation();
   const [open, setOpen] = useState(false);
-  const { user, isAdmin, membership } = useAuth();
+  const [cartOpen, setCartOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const { user, profile, membership } = useAuth();
+  const userAbbreviation = getUserAbbreviation(profile?.full_name, user?.email);
+  const { totalItems } = useCart();
   const isMobileRoute = useIsMobileRoute();
+
+  const { data: notifications = [] } = useQuery({
+    queryKey: ["notifications", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("notifications")
+        .select("is_read")
+        .eq("user_id", user!.id)
+        .order("created_at", { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
 
   if (isMobileRoute) return null;
 
   const defaultNavbar = (
     <header className="sticky top-0 z-50 border-b border-border bg-card/95 backdrop-blur-md">
+      {user && (
+        <>
+          <CartDrawer open={cartOpen} onOpenChange={setCartOpen} showTrigger={false} />
+          <NotificationBell open={notifOpen} onOpenChange={setNotifOpen} showTrigger={false} />
+        </>
+      )}
       <div className="container flex h-16 items-center justify-between">
         <Link to="/" className="flex items-center">
           <img src={logo} alt="Pets Registry" className="h-10 w-auto" width={147} height={40} />
@@ -59,29 +130,75 @@ const Navbar = () => {
         </nav>
 
         <div className="hidden items-center gap-2 lg:flex">
-          <Link to="/m" title="Switch to Mobile View">
-            <Button variant="ghost" size="icon" className="text-muted-foreground" aria-label="Switch to mobile view">
-              <Smartphone className="h-4 w-4" />
-            </Button>
-          </Link>
-          <CartDrawer />
-          <NotificationBell />
-          {/* Admin link hidden from navbar for security — admins are auto-redirected on login */}
           {user ? (
-            <div className="flex items-center gap-2">
-              {membership && <MembershipBadge planType={membership.planType} size="sm" showLabel={false} />}
-              <Link to="/dashboard">
-                <Button size="sm" className="gap-2 rounded-lg">
-                  <User className="h-4 w-4" /> Dashboard
+            <>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="gap-2 rounded-lg" aria-label="Account menu">
+                    {membership && (
+                      <MembershipBadge planType={membership.planType} size="sm" showLabel={false} />
+                    )}
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                      {userAbbreviation}
+                    </span>
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52">
+                  <DropdownMenuItem asChild>
+                    <Link to="/m" className="flex cursor-pointer items-center gap-2">
+                      <Smartphone className="h-4 w-4" />
+                      Mobile View
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="flex cursor-pointer items-center gap-2"
+                    onClick={() => setCartOpen(true)}
+                  >
+                    <ShoppingCart className="h-4 w-4" />
+                    Shopping Cart
+                    {totalItems > 0 && (
+                      <span className="ml-auto rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground">
+                        {totalItems}
+                      </span>
+                    )}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="flex cursor-pointer items-center gap-2"
+                    onClick={() => setNotifOpen(true)}
+                  >
+                    <Bell className="h-4 w-4" />
+                    Notifications
+                    {unreadCount > 0 && (
+                      <span className="ml-auto rounded-full bg-destructive px-2 py-0.5 text-[10px] font-bold text-destructive-foreground">
+                        {unreadCount > 9 ? "9+" : unreadCount}
+                      </span>
+                    )}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link to="/dashboard" className="flex cursor-pointer items-center gap-2">
+                      <User className="h-4 w-4" />
+                      Dashboard
+                    </Link>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          ) : (
+            <>
+              <Link to="/m" title="Switch to Mobile View">
+                <Button variant="ghost" size="icon" className="text-muted-foreground" aria-label="Switch to mobile view">
+                  <Smartphone className="h-4 w-4" />
                 </Button>
               </Link>
-            </div>
-          ) : (
-            <Link to="/login">
-              <Button size="sm" className="gap-2 rounded-lg">
-                <LogIn className="h-4 w-4" /> Sign In
-              </Button>
-            </Link>
+              <CartDrawer />
+              <Link to="/login">
+                <Button size="sm" className="gap-2 rounded-lg">
+                  <LogIn className="h-4 w-4" /> Sign In
+                </Button>
+              </Link>
+            </>
           )}
         </div>
 
@@ -97,8 +214,12 @@ const Navbar = () => {
               {navLinks.map((link) => {
                 const Icon = link.icon;
                 return (
-                  <Link key={link.to} to={link.to} onClick={() => setOpen(false)}
-                    className="flex items-center gap-3 rounded-lg px-4 py-3 text-base font-medium text-foreground hover:bg-muted">
+                  <Link
+                    key={link.to}
+                    to={link.to}
+                    onClick={() => setOpen(false)}
+                    className="flex items-center gap-3 rounded-lg px-4 py-3 text-base font-medium text-foreground hover:bg-muted"
+                  >
                     <Icon className="h-5 w-5 text-muted-foreground" />
                     {link.label}
                   </Link>
@@ -107,14 +228,57 @@ const Navbar = () => {
               <hr className="my-2 border-border" />
               {user ? (
                 <>
-                  <Link to="/dashboard" onClick={() => setOpen(false)}>
-                    <Button className="w-full gap-2"><User className="h-4 w-4" /> Dashboard</Button>
+                  <Link
+                    to="/m"
+                    onClick={() => setOpen(false)}
+                    className="flex items-center gap-3 rounded-lg px-4 py-3 text-base font-medium text-foreground hover:bg-muted"
+                  >
+                    <Smartphone className="h-5 w-5 text-muted-foreground" />
+                    Mobile View
                   </Link>
-                   {/* Admin link hidden from mobile nav for security */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpen(false);
+                      setCartOpen(true);
+                    }}
+                    className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-base font-medium text-foreground hover:bg-muted"
+                  >
+                    <ShoppingCart className="h-5 w-5 text-muted-foreground" />
+                    Shopping Cart
+                    {totalItems > 0 && (
+                      <span className="ml-auto rounded-full bg-primary px-2 py-0.5 text-xs font-bold text-primary-foreground">
+                        {totalItems}
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpen(false);
+                      setNotifOpen(true);
+                    }}
+                    className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-base font-medium text-foreground hover:bg-muted"
+                  >
+                    <Bell className="h-5 w-5 text-muted-foreground" />
+                    Notifications
+                    {unreadCount > 0 && (
+                      <span className="ml-auto rounded-full bg-destructive px-2 py-0.5 text-xs font-bold text-destructive-foreground">
+                        {unreadCount > 9 ? "9+" : unreadCount}
+                      </span>
+                    )}
+                  </button>
+                  <Link to="/dashboard" onClick={() => setOpen(false)}>
+                    <Button className="w-full gap-2">
+                      <User className="h-4 w-4" /> Dashboard
+                    </Button>
+                  </Link>
                 </>
               ) : (
                 <Link to="/login" onClick={() => setOpen(false)}>
-                  <Button className="w-full gap-2"><LogIn className="h-4 w-4" /> Sign In</Button>
+                  <Button className="w-full gap-2">
+                    <LogIn className="h-4 w-4" /> Sign In
+                  </Button>
                 </Link>
               )}
             </div>

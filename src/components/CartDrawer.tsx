@@ -9,11 +9,19 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
-const CartDrawer = () => {
+interface CartDrawerProps {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  showTrigger?: boolean;
+}
+
+const CartDrawer = ({ open: controlledOpen, onOpenChange, showTrigger = true }: CartDrawerProps = {}) => {
   const { items, removeItem, updateQuantity, clearCart, totalItems, totalPrice } = useCart();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = onOpenChange ?? setInternalOpen;
   const [processing, setProcessing] = useState(false);
 
   const handleCheckout = async () => {
@@ -80,16 +88,18 @@ const CartDrawer = () => {
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative text-muted-foreground" aria-label="Shopping cart">
-          <ShoppingCart className="h-5 w-5" />
-          {totalItems > 0 && (
-            <Badge className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full p-0 text-[10px]">
-              {totalItems}
-            </Badge>
-          )}
-        </Button>
-      </SheetTrigger>
+      {showTrigger && (
+        <SheetTrigger asChild>
+          <Button variant="ghost" size="icon" className="relative text-muted-foreground" aria-label="Shopping cart">
+            <ShoppingCart className="h-5 w-5" />
+            {totalItems > 0 && (
+              <Badge className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full p-0 text-[10px]">
+                {totalItems}
+              </Badge>
+            )}
+          </Button>
+        </SheetTrigger>
+      )}
       <SheetContent className="flex flex-col overflow-y-auto">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">

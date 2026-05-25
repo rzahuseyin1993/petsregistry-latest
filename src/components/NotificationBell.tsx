@@ -17,10 +17,18 @@ const typeIcons: Record<string, string> = {
   info: "ℹ️",
 };
 
-const NotificationBell = () => {
+interface NotificationBellProps {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  showTrigger?: boolean;
+}
+
+const NotificationBell = ({ open: controlledOpen, onOpenChange, showTrigger = true }: NotificationBellProps = {}) => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = onOpenChange ?? setInternalOpen;
 
   const { data: notifications = [] } = useQuery({
     queryKey: ["notifications", user?.id],
@@ -75,16 +83,18 @@ const NotificationBell = () => {
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative" aria-label="Notifications">
-          <Bell className="h-5 w-5" />
-          {unreadCount > 0 && (
-            <span className="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground">
-              {unreadCount > 9 ? "9+" : unreadCount}
-            </span>
-          )}
-        </Button>
-      </PopoverTrigger>
+      {showTrigger && (
+        <PopoverTrigger asChild>
+          <Button variant="ghost" size="icon" className="relative" aria-label="Notifications">
+            <Bell className="h-5 w-5" />
+            {unreadCount > 0 && (
+              <span className="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+          </Button>
+        </PopoverTrigger>
+      )}
       <PopoverContent className="w-80 p-0" align="end">
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <h4 className="font-display font-semibold text-foreground">Notifications</h4>
