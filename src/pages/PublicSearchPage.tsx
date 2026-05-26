@@ -89,13 +89,17 @@ const PublicSearchPage = () => {
 
           {/* Filters */}
           <div className="mx-auto mt-6 grid max-w-4xl gap-3 md:grid-cols-[1fr_220px_220px]">
-            <div className="flex items-center rounded-lg border border-border bg-card px-3 shadow-sm">
-              <Search className="h-4 w-4 text-muted-foreground" />
-              <Input
-                className="border-0 bg-transparent shadow-none focus-visible:ring-0"
+            <div className="flex min-w-0 items-center gap-2 rounded-lg border border-border bg-card px-3 shadow-sm">
+              <Search className="pointer-events-none h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+              <input
+                type="text"
+                className="min-w-0 flex-1 border-0 bg-transparent py-2 text-base text-foreground outline-none placeholder:text-muted-foreground md:text-sm"
                 placeholder="Search by name, species..."
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
+                autoComplete="off"
+                spellCheck={false}
+                aria-label="Search pets by name or species"
               />
             </div>
             <Select value={breedFilter || "all"} onValueChange={(v) => setBreedFilter(v === "all" ? "" : v)}>

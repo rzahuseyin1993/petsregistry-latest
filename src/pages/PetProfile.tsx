@@ -19,8 +19,8 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
 const QR_DOWNLOAD_SIZES = [
-  { label: "0.5cm × 0.5cm", cmSize: 0.5, pxSize: 59 },
   { label: "1cm × 1cm", cmSize: 1, pxSize: 118 },
+  { label: "1.5cm × 1.5cm", cmSize: 1.5, pxSize: 177 },
   { label: "2cm × 2cm", cmSize: 2, pxSize: 236 },
   { label: "3cm × 3cm", cmSize: 3, pxSize: 354 },
 ];

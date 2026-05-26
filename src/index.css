@@ -23,6 +23,15 @@ input, textarea, [contenteditable="true"], .allow-select, .allow-select * {
   user-select: text;
 }
 
+/* Remove decorative pseudo-elements leaked from CMS/custom CSS (e.g. < > or ( ) on inputs) */
+input::before,
+input::after,
+textarea::before,
+textarea::after {
+  content: none !important;
+  display: none !important;
+}
+
 /* Privileged areas (admin + dashboards): full native selection everywhere */
 body.privileged-area, body.privileged-area * {
   -webkit-user-select: auto;

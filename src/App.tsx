@@ -1,6 +1,8 @@
 import { lazy, Suspense, useEffect } from "react";
+import NavigationOverlay from "@/components/NavigationOverlay";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route } from "react-router-dom";
+import DeferredNavigation from "@/components/DeferredNavigation";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -92,12 +94,6 @@ const MobilePetExpert = lazy(() => import("./pages/mobile/MobilePetExpert"));
 const MobileMembership = lazy(() => import("./pages/mobile/MobileMembership"));
 const MobileScan = lazy(() => import("./pages/mobile/MobileScan"));
 const MobileOrders = lazy(() => import("./pages/mobile/MobileOrders"));
-
-const PageLoader = () => (
-  <main className="flex min-h-screen items-center justify-center">
-    <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-  </main>
-);
 
 const queryClient = new QueryClient();
 
@@ -199,8 +195,8 @@ function AppWithProviders() {
         <Sonner />
         <BrowserRouter>
           <TrackingCodeInjector />
-          <Suspense fallback={<PageLoader />}>
-            <Routes>
+          <Suspense fallback={<NavigationOverlay />}>
+          <DeferredNavigation>
               {/* Desktop routes */}
               <Route path="/" element={<Index />} />
               <Route path="/about" element={<AboutPage />} />
@@ -308,7 +304,7 @@ function AppWithProviders() {
               </Route>
 
               <Route path="*" element={<NotFound />} />
-            </Routes>
+          </DeferredNavigation>
           </Suspense>
         </BrowserRouter>
       </TooltipProvider>
