@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 /* ─── Authentication ─────────────────────────────────────────────────── */
 // IMPORTANT: change this to a long random string and set the SAME value
 // in Lovable as VITE_UPLOAD_TOKEN. Or set it as an env var on cPanel.
-$TOKEN = getenv('UPLOAD_TOKEN') ?: 'CHANGE_ME_TO_A_LONG_RANDOM_STRING';
+$TOKEN = getenv('UPLOAD_TOKEN') ?: '522c46cb6b45cc0153a25483134e32d7bb6f17dcf0aa0f5a41cb4bf7cb3a5abd';
 
 $auth = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
 if (!preg_match('/^Bearer\s+(.+)$/i', $auth, $m) || !hash_equals($TOKEN, $m[1])) {

@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.ai-site-editor]
 verify_jwt = false
+
+[functions.visitor-country]
+verify_jwt = false

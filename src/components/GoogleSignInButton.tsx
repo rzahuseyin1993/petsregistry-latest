@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useState } from "react";
-import { lovable } from "@/integrations/lovable/index";
+import { supabase } from "@/integrations/supabase/client";
 
 interface GoogleSignInButtonProps {
   label?: string;
@@ -22,26 +22,20 @@ const GoogleSignInButton = ({ label = "Continue with Google" }: GoogleSignInButt
   const handleClick = async () => {
     setLoading(true);
     try {
-      const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin,
+      const redirectTo = `${window.location.origin}${window.location.pathname.startsWith("/m/") ? "/m/dashboard" : "/dashboard"}`;
+
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo },
       });
 
-      if (result.error) {
-        const message = result.error instanceof Error ? result.error.message : String(result.error);
+      if (error) {
         toast.error("Google sign-in failed", {
-          description: message || "Google authentication is not configured. Please contact the administrator.",
+          description: error.message || "Google authentication is not configured in Supabase.",
         });
         setLoading(false);
-        return;
       }
-
-      if (result.redirected) {
-        // Browser is redirecting to Google
-        return;
-      }
-
-      // Authenticated — full reload so AuthContext picks up the session
-      window.location.href = "/dashboard";
+      // On success the browser redirects to Google — keep loading state
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
       toast.error("Google sign-in failed", { description: message });

@@ -9,7 +9,8 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useVisitorGeo } from "@/contexts/VisitorGeoContext";
+import { fetchBrowseAdoptions, fetchBrowseLostReports, fetchBrowsePets } from "@/lib/geoBrowseQueries";
 import { useQuery } from "@tanstack/react-query";
 import LostPetsBanner from "@/components/LostPetsBanner";
 
@@ -30,43 +31,21 @@ const quickActions = [
 const MobileHome = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const navigate = useNavigate();
+  const { visitorCountry, countryFilter } = useVisitorGeo();
 
   const { data: recentPets = [] } = useQuery({
-    queryKey: ["mobile-recent-pets"],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("pets_public" as any)
-        .select("*, pet_images(image_url, sort_order)")
-        .order("created_at", { ascending: false })
-        .limit(6);
-      return data || [];
-    },
+    queryKey: ["mobile-recent-pets", countryFilter],
+    queryFn: () => fetchBrowsePets(visitorCountry, 6),
   });
 
   const { data: adoptPets = [] } = useQuery({
-    queryKey: ["mobile-home-adopt"],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("pet_adoptions")
-        .select("*, pets(*, pet_images(image_url, sort_order))")
-        .eq("status", "available")
-        .order("created_at", { ascending: false })
-        .limit(6);
-      return data || [];
-    },
+    queryKey: ["mobile-home-adopt", countryFilter],
+    queryFn: () => fetchBrowseAdoptions(visitorCountry, 6),
   });
 
   const { data: lostPets = [] } = useQuery({
-    queryKey: ["mobile-home-lost"],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("lost_reports_public" as any)
-        .select("*, pets(*, pet_images(image_url, sort_order))")
-        .eq("status", "active")
-        .order("created_at", { ascending: false })
-        .limit(6);
-      return data || [];
-    },
+    queryKey: ["mobile-home-lost", countryFilter],
+    queryFn: () => fetchBrowseLostReports(visitorCountry, 6),
   });
 
   const handleSearch = (e: React.FormEvent) => {

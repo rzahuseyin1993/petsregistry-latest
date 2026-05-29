@@ -12,19 +12,14 @@ import { AlertTriangle, MapPin, Clock, Gift, FileDown } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { generateLostFlyer } from "@/lib/generateLostFlyer";
 import { motion } from "framer-motion";
+import { useVisitorGeo } from "@/contexts/VisitorGeoContext";
+import { fetchBrowseLostReports } from "@/lib/geoBrowseQueries";
 
 const LostPetsPage = () => {
+  const { visitorCountry, countryFilter } = useVisitorGeo();
   const { data: lostReports = [], isLoading } = useQuery({
-    queryKey: ["all-lost-reports"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("lost_reports_public" as any)
-        .select("*, pets(id, name, species, breed, color, owner_id, pet_images(image_url, sort_order))")
-        .eq("status", "active")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
+    queryKey: ["all-lost-reports", countryFilter],
+    queryFn: () => fetchBrowseLostReports(visitorCountry),
   });
 
   // Build a set of user IDs who have flyer-builder access (active membership OR flyer subscription).

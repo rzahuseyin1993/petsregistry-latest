@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Search, Camera, X } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import BarcodeScanner from "react-qr-barcode-scanner";
+import { useVisitorGeo } from "@/contexts/VisitorGeoContext";
+import { fetchBrowsePets, searchBrowsePets } from "@/lib/geoBrowseQueries";
 
 const MobileSearch = () => {
   const [params] = useSearchParams();
@@ -16,6 +17,7 @@ const MobileSearch = () => {
   const [searchTerm, setSearchTerm] = useState(params.get("q") || "");
   const [showScanner, setShowScanner] = useState(false);
   const navigate = useNavigate();
+  const { visitorCountry, countryFilter } = useVisitorGeo();
 
   const handleScanResult = useCallback((err: any, result: any) => {
     if (result) {
@@ -37,20 +39,10 @@ const MobileSearch = () => {
   }, [navigate]);
 
   const { data: pets = [], isLoading } = useQuery({
-    queryKey: ["mobile-search", searchTerm],
+    queryKey: ["mobile-search", searchTerm, countryFilter],
     queryFn: async () => {
-      if (!searchTerm.trim()) {
-        const { data } = await supabase.from("pets_public" as any).select("*, pet_images(image_url, sort_order)").order("created_at", { ascending: false }).limit(50);
-        return data || [];
-      }
-      const { data: matchIds } = await supabase.rpc("search_pets_global" as any, { _query: searchTerm });
-      const ids = (matchIds || []).map((r: any) => r.id);
-      if (ids.length === 0) return [];
-      const { data: results } = await supabase.from("pets_public" as any)
-        .select("*, pet_images(image_url, sort_order)")
-        .in("id", ids)
-        .order("created_at", { ascending: false });
-      return results || [];
+      if (!searchTerm.trim()) return fetchBrowsePets(visitorCountry, 50);
+      return searchBrowsePets(searchTerm, visitorCountry);
     },
   });
 

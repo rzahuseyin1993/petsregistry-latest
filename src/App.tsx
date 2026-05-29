@@ -7,6 +7,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { VisitorGeoProvider } from "@/contexts/VisitorGeoContext";
 import { CartProvider } from "@/contexts/CartContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import MaintenancePage from "@/pages/MaintenancePage";
@@ -194,6 +195,7 @@ function AppWithProviders() {
         <Toaster />
         <Sonner />
         <BrowserRouter>
+          <VisitorGeoProvider>
           <TrackingCodeInjector />
           <Suspense fallback={<NavigationOverlay />}>
           <DeferredNavigation>
@@ -306,6 +308,7 @@ function AppWithProviders() {
               <Route path="*" element={<NotFound />} />
           </DeferredNavigation>
           </Suspense>
+          </VisitorGeoProvider>
         </BrowserRouter>
       </TooltipProvider>
       </CartProvider>

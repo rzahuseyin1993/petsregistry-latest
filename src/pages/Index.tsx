@@ -12,12 +12,13 @@ import {
   ArrowRight, Globe, CheckCircle, ScanLine, X, Camera
 } from "lucide-react";
 import { motion } from "framer-motion";
-import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { useState, useCallback, lazy, Suspense } from "react";
 import { toast } from "sonner";
 import PetCard from "@/components/PetCard";
 import LostPetsBanner from "@/components/LostPetsBanner";
+import { useVisitorGeo } from "@/contexts/VisitorGeoContext";
+import { fetchBrowseAdoptions, fetchBrowsePets } from "@/lib/geoBrowseQueries";
 
 
 const BarcodeScanner = lazy(() => import("react-qr-barcode-scanner"));
@@ -56,39 +57,26 @@ const Index = () => {
     }
   }, [navigate]);
 
+  const { visitorCountry, countryFilter } = useVisitorGeo();
+
   const { data: recentPets = [] } = useQuery({
-    queryKey: ["recent-pets"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("pets_public" as any)
-        .select("*, pet_images(image_url, sort_order)")
-        .order("created_at", { ascending: false })
-        .limit(4);
-      if (error) throw error;
-      return data as any[];
-    },
+    queryKey: ["recent-pets", countryFilter],
+    queryFn: () => fetchBrowsePets(visitorCountry, 4),
   });
 
   const { data: adoptionPets = [] } = useQuery({
-    queryKey: ["home-adoptions"],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("pet_adoptions")
-        .select("*, pets(id, name, species, breed, age, pet_images(image_url, sort_order))")
-        .eq("status", "available")
-        .eq("admin_approved", true)
-        .order("created_at", { ascending: false })
-        .limit(4);
-      return data || [];
-    },
+    queryKey: ["home-adoptions", countryFilter],
+    queryFn: () => fetchBrowseAdoptions(visitorCountry, 4),
   });
 
   const { data: stats } = useQuery({
-    queryKey: ["home-stats"],
+    queryKey: ["home-stats", countryFilter],
     queryFn: async () => {
-      const { count: petCount } = await supabase.from("pets_public" as any).select("*", { count: "exact", head: true });
-      const { count: lostCount } = await supabase.from("pets_public" as any).select("*", { count: "exact", head: true }).eq("status", "lost");
-      return { pets: petCount || 0, lost: lostCount || 0 };
+      const pets = await fetchBrowsePets(visitorCountry, 500);
+      return {
+        pets: pets.length,
+        lost: pets.filter((p: { status?: string }) => p.status === "lost").length,
+      };
     },
   });
 

@@ -11,40 +11,24 @@ import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import ProtectedImage from "@/components/ProtectedImage";
+import { useVisitorGeo } from "@/contexts/VisitorGeoContext";
+import { fetchBrowseAdoptions, fetchBrowseLostReports } from "@/lib/geoBrowseQueries";
 
 const PublicSearchPage = () => {
   const [query, setQuery] = useState("");
   const [breedFilter, setBreedFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
   const [tab, setTab] = useState<"all" | "lost" | "adopt">("all");
+  const { visitorCountry, countryFilter } = useVisitorGeo();
 
   const { data: lostReports = [] } = useQuery({
-    queryKey: ["public-search-lost"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("lost_reports_public" as any)
-        .select("*, pets(id, name, species, breed, color, pet_images(image_url, sort_order))")
-        .eq("status", "active")
-        .order("created_at", { ascending: false })
-        .limit(200);
-      if (error) throw error;
-      return data || [];
-    },
+    queryKey: ["public-search-lost", countryFilter],
+    queryFn: () => fetchBrowseLostReports(visitorCountry, 200),
   });
 
   const { data: adoptions = [] } = useQuery({
-    queryKey: ["public-search-adoptions"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("pet_adoptions")
-        .select("*, pets(id, name, species, breed, age, pet_images(image_url, sort_order))")
-        .eq("status", "available")
-        .eq("admin_approved", true)
-        .order("created_at", { ascending: false })
-        .limit(200);
-      if (error) throw error;
-      return data || [];
-    },
+    queryKey: ["public-search-adoptions", countryFilter],
+    queryFn: () => fetchBrowseAdoptions(visitorCountry, 200),
   });
 
   const breeds = useMemo(() => {

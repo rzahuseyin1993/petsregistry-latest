@@ -6,36 +6,26 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Search, ScanLine, X, Camera, ArrowRight } from "lucide-react";
 import PetCard from "@/components/PetCard";
-import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { useState, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import BarcodeScanner from "react-qr-barcode-scanner";
+import { useVisitorGeo } from "@/contexts/VisitorGeoContext";
+import { fetchBrowsePets, searchBrowsePets } from "@/lib/geoBrowseQueries";
 
 const SearchPage = () => {
   const [searchParams] = useSearchParams();
   const [query, setQuery] = useState(searchParams.get("q") || "");
   const [showScanner, setShowScanner] = useState(false);
   const navigate = useNavigate();
+  const { visitorCountry, countryFilter } = useVisitorGeo();
 
   const { data: pets = [], isLoading } = useQuery({
-    queryKey: ["search-pets", query],
+    queryKey: ["search-pets", query, countryFilter],
     queryFn: async () => {
-      if (!query.trim()) {
-        const { data, error } = await supabase.from("pets_public" as any).select("*, pet_images(image_url, sort_order)").order("created_at", { ascending: false }).limit(50);
-        if (error) throw error;
-        return data as any[];
-      }
-      // Use secure global search RPC (covers name, species, breed, pet_code, microchip, UUID, owner name)
-      const { data: matchIds } = await supabase.rpc("search_pets_global" as any, { _query: query });
-      const ids = (matchIds || []).map((r: any) => r.id);
-      if (ids.length === 0) return [];
-      const { data: results } = await supabase.from("pets_public" as any)
-        .select("*, pet_images(image_url, sort_order)")
-        .in("id", ids)
-        .order("created_at", { ascending: false });
-      return results || [];
+      if (!query.trim()) return fetchBrowsePets(visitorCountry, 50);
+      return searchBrowsePets(query, visitorCountry);
     },
   });
 

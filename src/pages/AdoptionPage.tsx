@@ -12,20 +12,18 @@ import { Link } from "react-router-dom";
 import ContactOwnerDialog from "@/components/ContactOwnerDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { useVisitorGeo } from "@/contexts/VisitorGeoContext";
+import { fetchBrowseAdoptions } from "@/lib/geoBrowseQueries";
 
 const AdoptionPage = () => {
   const { user } = useAuth();
+  const { visitorCountry, countryFilter } = useVisitorGeo();
 
   const { data: listings = [], refetch } = useQuery({
-    queryKey: ["adoption-listings"],
+    queryKey: ["adoption-listings", countryFilter],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("pet_adoptions")
-        .select("*, pets(id, name, species, breed, age, color, pet_code, pet_images(image_url, sort_order))")
-        .eq("status", "available")
-        .eq("admin_approved", true)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
+      const data = await fetchBrowseAdoptions(visitorCountry);
+      if (!data.length) return [];
       // Fetch owner memberships for all listings
       const ownerIds = [...new Set((data || []).map((l: any) => l.owner_id))];
       const { data: membershipData } = await supabase
@@ -40,7 +38,7 @@ const AdoptionPage = () => {
           membershipMap.set(m.user_id, { planType: m.membership_plans.plan_type, planName: m.membership_plans.name, badgeIconUrl: m.membership_plans.badge_icon_url || null });
         }
       });
-      return (data || []).map((l: any) => ({ ...l, _ownerMembership: membershipMap.get(l.owner_id) || null }));
+      return data.map((l: any) => ({ ...l, _ownerMembership: membershipMap.get(l.owner_id) || null }));
     },
   });
 

@@ -4,24 +4,19 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, MapPin, HeartHandshake, PlusCircle } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import { useVisitorGeo } from "@/contexts/VisitorGeoContext";
+import { fetchBrowseLostReports } from "@/lib/geoBrowseQueries";
 
 const FOUND_TAG = "[FOUND PET SIGHTING]";
 
 const MobileLostPets = () => {
   const [tab, setTab] = useState<"lost" | "found">("lost");
+  const { visitorCountry, countryFilter } = useVisitorGeo();
 
   const { data: reports = [], isLoading } = useQuery({
-    queryKey: ["mobile-lost-reports-all"],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("lost_reports_public" as any)
-        .select("*, pets(*, pet_images(image_url, sort_order))")
-        .eq("status", "active")
-        .order("created_at", { ascending: false });
-      return data || [];
-    },
+    queryKey: ["mobile-lost-reports-all", countryFilter],
+    queryFn: () => fetchBrowseLostReports(visitorCountry),
   });
 
   const { lost, found } = useMemo(() => {

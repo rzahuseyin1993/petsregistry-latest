@@ -9,22 +9,19 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import ContactOwnerDialog from "@/components/ContactOwnerDialog";
 import MembershipBadge from "@/components/MembershipBadge";
+import { useVisitorGeo } from "@/contexts/VisitorGeoContext";
+import { fetchBrowseAdoptions } from "@/lib/geoBrowseQueries";
 
 const MobileAdopt = () => {
   const { user } = useAuth();
+  const { visitorCountry, countryFilter } = useVisitorGeo();
 
   const { data: adoptions = [], isLoading, refetch } = useQuery({
-    queryKey: ["mobile-adoptions"],
+    queryKey: ["mobile-adoptions", countryFilter],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("pet_adoptions")
-        .select("*, pets(*, pet_images(image_url, sort_order))")
-        .eq("status", "available")
-        .eq("admin_approved", true)
-        .order("created_at", { ascending: false });
-      // Fetch owner memberships
-      const ownerIds = [...new Set((data || []).map((l: any) => l.owner_id))];
-      if (ownerIds.length === 0) return data || [];
+      const data = await fetchBrowseAdoptions(visitorCountry);
+      const ownerIds = [...new Set(data.map((l: any) => l.owner_id))];
+      if (ownerIds.length === 0) return [];
       const { data: membershipData } = await supabase
         .from("memberships")
         .select("user_id, membership_plans(name, plan_type, badge_icon_url)")
@@ -37,7 +34,7 @@ const MobileAdopt = () => {
           membershipMap.set(m.user_id, { planType: m.membership_plans.plan_type, planName: m.membership_plans.name, badgeIconUrl: m.membership_plans.badge_icon_url || null });
         }
       });
-      return (data || []).map((l: any) => ({ ...l, _ownerMembership: membershipMap.get(l.owner_id) || null }));
+      return data.map((l: any) => ({ ...l, _ownerMembership: membershipMap.get(l.owner_id) || null }));
     },
   });
 

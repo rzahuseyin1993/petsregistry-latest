@@ -1,26 +1,19 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Link } from "react-router-dom";
 import { AlertTriangle, MapPin, ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { useMobilePath } from "@/hooks/useIsMobileRoute";
+import { useVisitorGeo } from "@/contexts/VisitorGeoContext";
+import { fetchBrowseLostReports } from "@/lib/geoBrowseQueries";
 
 const LostPetsBanner = () => {
   const mp = useMobilePath();
+  const { visitorCountry, countryFilter } = useVisitorGeo();
   const { data: lostPets = [] } = useQuery({
-    queryKey: ["lost-pets-banner"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("lost_reports_public" as any)
-        .select("*, pets(id, name, species, breed, pet_images(image_url, sort_order))")
-        .eq("status", "active")
-        .order("created_at", { ascending: false })
-        .limit(5);
-      if (error) throw error;
-      return data;
-    },
+    queryKey: ["lost-pets-banner", countryFilter],
+    queryFn: () => fetchBrowseLostReports(visitorCountry, 5),
     refetchInterval: 30000,
   });
 
