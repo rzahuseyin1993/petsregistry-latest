@@ -10,7 +10,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { VisitorGeoProvider } from "@/contexts/VisitorGeoContext";
 import { CartProvider } from "@/contexts/CartContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import MaintenancePage from "@/pages/MaintenancePage";
+import MaintenanceGate from "@/components/MaintenanceGate";
 const Index = lazy(() => import("./pages/Index"));
 const MobileGuard = lazy(() => import("./components/MobileGuard"));
 
@@ -317,11 +317,10 @@ function AppWithProviders() {
   );
 }
 
-const App = () => {
-  if (import.meta.env.VITE_MAINTENANCE_MODE === "true") {
-    return <MaintenancePage />;
-  }
-  return <AppWithProviders />;
-};
+const App = () => (
+  <MaintenanceGate>
+    <AppWithProviders />
+  </MaintenanceGate>
+);
 
 export default App;

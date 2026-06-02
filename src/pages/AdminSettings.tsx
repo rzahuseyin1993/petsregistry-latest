@@ -39,6 +39,7 @@ const AdminSettings = () => {
     if (settings.length > 0) {
       const map: Record<string, string> = {};
       settings.forEach((s: any) => { map[s.key] = s.value; });
+      if (map.maintenance_mode == null) map.maintenance_mode = "false";
       setValues(map);
     }
   }, [settings]);
@@ -99,6 +100,28 @@ const AdminSettings = () => {
 
   const handleMobileToggle = (checked: boolean) => {
     setValues((prev) => ({ ...prev, mobile_site_enabled: checked ? "true" : "false" }));
+  };
+
+  const maintenanceEnabled = values["maintenance_mode"] === "true";
+
+  const handleMaintenanceToggle = async (checked: boolean) => {
+    const value = checked ? "true" : "false";
+    setValues((prev) => ({ ...prev, maintenance_mode: value }));
+    try {
+      const { error } = await supabase.from("site_settings").upsert(
+        {
+          key: "maintenance_mode",
+          value,
+          description: "When true, the public site shows the maintenance page.",
+        },
+        { onConflict: "key" },
+      );
+      if (error) throw error;
+      toast.success(checked ? "Maintenance mode enabled" : "Site is now live");
+      queryClient.invalidateQueries({ queryKey: ["site-settings"] });
+    } catch {
+      toast.error("Failed to update maintenance mode");
+    }
   };
 
   const smtpEnabled = values["smtp_enabled"] === "true";
@@ -212,6 +235,33 @@ const AdminSettings = () => {
         </div>
 
         <div className="mt-8 space-y-6">
+          {/* Maintenance mode */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <AlertTriangle className="h-5 w-5 text-primary" />
+                Maintenance Mode
+              </CardTitle>
+              <CardDescription>
+                Show a maintenance page to all visitors. Overrides the build-time{" "}
+                <code className="text-xs">VITE_MAINTENANCE_MODE</code> setting when saved here.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between max-w-md">
+                <div>
+                  <p className="text-sm font-medium">
+                    {maintenanceEnabled ? "Maintenance mode is ON" : "Site is LIVE"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Build default: {import.meta.env.VITE_MAINTENANCE_MODE === "true" ? "maintenance" : "live"}
+                  </p>
+                </div>
+                <Switch checked={maintenanceEnabled} onCheckedChange={handleMaintenanceToggle} />
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Mobile Site Toggle */}
           <Card>
             <CardHeader>
