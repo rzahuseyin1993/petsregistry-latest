@@ -6,6 +6,30 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const getPayPalAccessToken = async (clientId: string, clientSecret: string) => {
+  const auth = `Basic ${btoa(`${clientId}:${clientSecret}`)}`;
+  const bases = ["https://api-m.sandbox.paypal.com", "https://api-m.paypal.com"];
+  let lastError: any = null;
+
+  for (const base of bases) {
+    const tokenRes = await fetch(`${base}/v1/oauth2/token`, {
+      method: "POST",
+      headers: {
+        Authorization: auth,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: "grant_type=client_credentials",
+    });
+    const tokenData = await tokenRes.json().catch(() => ({}));
+    if (tokenRes.ok && tokenData.access_token) {
+      return { base, accessToken: tokenData.access_token as string };
+    }
+    lastError = tokenData;
+  }
+
+  throw new Error(lastError?.error_description || "Failed to authenticate with PayPal");
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -112,29 +136,23 @@ serve(async (req) => {
       }
       const clientId = paymentSettings.publishable_key;
       const clientSecret = paymentSettings.secret_key;
-      const paypalBase = clientId.includes("sandbox") || clientSecret.includes("sandbox")
-        ? "https://api-m.sandbox.paypal.com"
-        : "https://api-m.paypal.com";
 
-      const tokenRes = await fetch(`${paypalBase}/v1/oauth2/token`, {
-        method: "POST",
-        headers: {
-          Authorization: `Basic ${btoa(`${clientId}:${clientSecret}`)}`,
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: "grant_type=client_credentials",
-      });
-      const tokenData = await tokenRes.json();
-      if (!tokenData.access_token) {
-        console.error("PayPal token error:", tokenData);
+      let paypalBase = "";
+      let accessToken = "";
+      try {
+        const token = await getPayPalAccessToken(clientId, clientSecret);
+        paypalBase = token.base;
+        accessToken = token.accessToken;
+      } catch (tokenErr) {
+        console.error("PayPal token error:", tokenErr);
         await supabase.from("donations").delete().eq("id", donationRowId);
-        throw new Error("Failed to authenticate with PayPal");
+        throw tokenErr;
       }
 
       const orderRes = await fetch(`${paypalBase}/v2/checkout/orders`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${tokenData.access_token}`,
+          Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -169,8 +187,9 @@ serve(async (req) => {
       }
       const approvalLink = orderData.links?.find((l: any) => l.rel === "approve")?.href;
       if (!approvalLink) {
+        console.error("PayPal order missing approval link:", orderData);
         await supabase.from("donations").delete().eq("id", donationRowId);
-        throw new Error("PayPal did not return an approval link");
+        throw new Error(orderData?.message || orderData?.details?.[0]?.description || "PayPal did not return an approval link");
       }
 
       await supabase.from("donations").update({ payment_id: orderData.id }).eq("id", donationRowId);

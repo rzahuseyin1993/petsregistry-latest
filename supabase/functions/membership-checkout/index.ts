@@ -6,6 +6,31 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const getPayPalAccessToken = async (clientId: string, clientSecret: string) => {
+  const auth = `Basic ${btoa(`${clientId}:${clientSecret}`)}`;
+  const bases = ["https://api-m.sandbox.paypal.com", "https://api-m.paypal.com"];
+  let lastError: any = null;
+
+  for (const base of bases) {
+    const tokenRes = await fetch(`${base}/v1/oauth2/token`, {
+      method: "POST",
+      headers: {
+        Authorization: auth,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: "grant_type=client_credentials",
+    });
+
+    const tokenData = await tokenRes.json().catch(() => ({}));
+    if (tokenRes.ok && tokenData.access_token) {
+      return { base, accessToken: tokenData.access_token as string };
+    }
+    lastError = tokenData;
+  }
+
+  throw new Error(lastError?.error_description || "Failed to authenticate with PayPal");
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -160,31 +185,13 @@ serve(async (req) => {
       const clientId = paymentSettings.publishable_key;
       const clientSecret = paymentSettings.secret_key;
 
-      // PayPal live by default; switch to sandbox if key looks like sandbox
-      const paypalBase = clientId.includes("sandbox") || clientSecret.includes("sandbox")
-        ? "https://api-m.sandbox.paypal.com"
-        : "https://api-m.paypal.com";
-
-      // 1) Get OAuth token
-      const tokenRes = await fetch(`${paypalBase}/v1/oauth2/token`, {
-        method: "POST",
-        headers: {
-          Authorization: `Basic ${btoa(`${clientId}:${clientSecret}`)}`,
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: "grant_type=client_credentials",
-      });
-      const tokenData = await tokenRes.json();
-      if (!tokenData.access_token) {
-        console.error("PayPal token error:", tokenData);
-        throw new Error("Failed to authenticate with PayPal");
-      }
+      const { base: paypalBase, accessToken } = await getPayPalAccessToken(clientId, clientSecret);
 
       // 2) Create order (PayPal subscriptions need pre-created billing plans, so we use one-time orders for all intervals)
       const orderRes = await fetch(`${paypalBase}/v2/checkout/orders`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${tokenData.access_token}`,
+          Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -212,7 +219,10 @@ serve(async (req) => {
         throw new Error(orderData.message || "Failed to create PayPal order");
       }
       const approvalLink = orderData.links?.find((l: any) => l.rel === "approve")?.href;
-      if (!approvalLink) throw new Error("PayPal did not return an approval link");
+      if (!approvalLink) {
+        console.error("PayPal order missing approval link:", orderData);
+        throw new Error(orderData?.message || orderData?.details?.[0]?.description || "PayPal did not return an approval link");
+      }
 
       return new Response(JSON.stringify({ url: approvalLink }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

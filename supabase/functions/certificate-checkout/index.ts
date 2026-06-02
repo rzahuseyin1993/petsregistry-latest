@@ -6,6 +6,27 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const getPayPalAccessToken = async (clientId: string, clientSecret: string) => {
+  const auth = `Basic ${btoa(`${clientId}:${clientSecret}`)}`;
+  const bases = ["https://api-m.sandbox.paypal.com", "https://api-m.paypal.com"];
+  let lastError: any = null;
+
+  for (const base of bases) {
+    const tokenRes = await fetch(`${base}/v1/oauth2/token`, {
+      method: "POST",
+      headers: { Authorization: auth, "Content-Type": "application/x-www-form-urlencoded" },
+      body: "grant_type=client_credentials",
+    });
+    const tokenData = await tokenRes.json().catch(() => ({}));
+    if (tokenRes.ok && tokenData.access_token) {
+      return { base, accessToken: tokenData.access_token as string };
+    }
+    lastError = tokenData;
+  }
+
+  throw new Error(lastError?.error_description || "Failed to authenticate with PayPal");
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -73,19 +94,11 @@ serve(async (req) => {
     }
 
     if (provider === "paypal") {
-      const isSandbox = settings.secret_key.includes("sandbox") || settings.publishable_key?.includes("sandbox");
-      const baseUrl = isSandbox ? "https://api-m.sandbox.paypal.com" : "https://api-m.paypal.com";
-      const auth = btoa(`${settings.publishable_key}:${settings.secret_key}`);
-      const tokenRes = await fetch(`${baseUrl}/v1/oauth2/token`, {
-        method: "POST",
-        headers: { Authorization: `Basic ${auth}`, "Content-Type": "application/x-www-form-urlencoded" },
-        body: "grant_type=client_credentials",
-      });
-      const { access_token } = await tokenRes.json();
+      const { base: baseUrl, accessToken } = await getPayPalAccessToken(settings.publishable_key, settings.secret_key);
 
       const orderRes = await fetch(`${baseUrl}/v2/checkout/orders`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${access_token}`, "Content-Type": "application/json" },
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           intent: "CAPTURE",
           purchase_units: [{
@@ -105,7 +118,10 @@ serve(async (req) => {
       });
       const order = await orderRes.json();
       const approvalLink = order.links?.find((l: any) => l.rel === "approve")?.href;
-      if (!approvalLink) throw new Error("PayPal approval URL not returned");
+      if (!approvalLink) {
+        console.error("PayPal order missing approval link:", order);
+        throw new Error(order?.message || order?.details?.[0]?.description || "PayPal approval URL not returned");
+      }
       return new Response(JSON.stringify({ url: approvalLink }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
