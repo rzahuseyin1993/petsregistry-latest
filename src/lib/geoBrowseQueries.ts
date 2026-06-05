@@ -34,7 +34,6 @@ export async function fetchBrowseLostReports(visitor: VisitorCountry | null, lim
   let q = supabase
     .from("lost_reports_public" as any)
     .select("*, pets(id, name, species, breed, color, owner_id, pet_images(image_url, sort_order))")
-    .eq("status", "active")
     .order("created_at", { ascending: false });
   if (limit) q = q.limit(limit);
   const { data, error } = await q;

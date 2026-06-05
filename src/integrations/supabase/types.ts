@@ -594,9 +594,11 @@ export type Database = {
           is_guest: boolean
           is_paused: boolean
           last_seen_address: string | null
+          last_seen_date: string | null
           last_seen_lat: number | null
           last_seen_lng: number | null
           pet_id: string
+          reporter_country: string | null
           reporter_id: string | null
           reward: string | null
           status: string
@@ -617,9 +619,11 @@ export type Database = {
           is_guest?: boolean
           is_paused?: boolean
           last_seen_address?: string | null
+          last_seen_date?: string | null
           last_seen_lat?: number | null
           last_seen_lng?: number | null
           pet_id: string
+          reporter_country?: string | null
           reporter_id?: string | null
           reward?: string | null
           status?: string
@@ -643,6 +647,7 @@ export type Database = {
           last_seen_lat?: number | null
           last_seen_lng?: number | null
           pet_id?: string
+          reporter_country?: string | null
           reporter_id?: string | null
           reward?: string | null
           status?: string
@@ -1651,10 +1656,17 @@ export type Database = {
         Row: {
           created_at: string | null
           description: string | null
+          guest_pet_breed: string | null
+          guest_pet_name: string | null
+          guest_pet_photo_url: string | null
+          guest_pet_species: string | null
           id: string | null
+          is_guest: boolean | null
           last_seen_address: string | null
+          last_seen_date: string | null
           last_seen_lat: number | null
           last_seen_lng: number | null
+          owner_country: string | null
           pet_id: string | null
           reporter_id: string | null
           reward: string | null
@@ -1664,10 +1676,17 @@ export type Database = {
         Insert: {
           created_at?: string | null
           description?: string | null
+          guest_pet_breed?: string | null
+          guest_pet_name?: string | null
+          guest_pet_photo_url?: string | null
+          guest_pet_species?: string | null
           id?: string | null
+          is_guest?: boolean | null
           last_seen_address?: string | null
+          last_seen_date?: string | null
           last_seen_lat?: number | null
           last_seen_lng?: number | null
+          owner_country?: string | null
           pet_id?: string | null
           reporter_id?: string | null
           reward?: string | null
@@ -1677,10 +1696,17 @@ export type Database = {
         Update: {
           created_at?: string | null
           description?: string | null
+          guest_pet_breed?: string | null
+          guest_pet_name?: string | null
+          guest_pet_photo_url?: string | null
+          guest_pet_species?: string | null
           id?: string | null
+          is_guest?: boolean | null
           last_seen_address?: string | null
+          last_seen_date?: string | null
           last_seen_lat?: number | null
           last_seen_lng?: number | null
+          owner_country?: string | null
           pet_id?: string | null
           reporter_id?: string | null
           reward?: string | null

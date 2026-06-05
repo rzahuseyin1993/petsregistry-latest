@@ -15,9 +15,12 @@ import { toast } from "sonner";
 import { uploadImage } from "@/lib/imageUpload";
 import { extractPhotoGps, reverseGeocode, formatCoords } from "@/lib/geo";
 import WebcamCaptureDialog from "@/components/WebcamCaptureDialog";
+import { useVisitorGeo } from "@/contexts/VisitorGeoContext";
+import { getCountryLabel } from "@/lib/geoCountry";
 
 const ReportLostPage = () => {
   const { user } = useAuth();
+  const { visitorCountry } = useVisitorGeo();
   const navigate = useNavigate();
   const [reportType, setReportType] = useState<"lost" | "found">("lost");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -27,6 +30,7 @@ const ReportLostPage = () => {
   const [showAuthChoice, setShowAuthChoice] = useState(false);
   const [showSignup, setShowSignup] = useState(false);
   const [webcamOpen, setWebcamOpen] = useState(false);
+  const [locationFromPhoto, setLocationFromPhoto] = useState(false);
   const [signupForm, setSignupForm] = useState({ email: "", password: "", fullName: "" });
 
   const isFound = reportType === "found";
@@ -53,6 +57,7 @@ const ReportLostPage = () => {
     species: "",
     breed: "",
     description: "",
+    last_seen_date: new Date().toISOString().slice(0, 10),
     last_seen_address: "",
     last_seen_lat: null as number | null,
     last_seen_lng: null as number | null,
@@ -81,7 +86,8 @@ const ReportLostPage = () => {
             : f.last_seen_address,
       }));
     }
-    toast.success(source === "photo" ? "Location read from photo" : "Location captured");
+    if (source === "photo") setLocationFromPhoto(true);
+    toast.success(source === "photo" ? "Location read from photo GPS" : "Location captured");
   };
 
   const handlePhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -172,6 +178,13 @@ const ReportLostPage = () => {
         }).select("id").single();
         if (petErr) throw petErr;
         petId = petData.id;
+        if (photoUrl) {
+          await supabase.from("pet_images").insert({
+            pet_id: petId,
+            image_url: photoUrl,
+            sort_order: 0,
+          });
+        }
       } else {
         // Guest OR found-pet report: use the shared placeholder pet
         const { data: setting } = await supabase
@@ -197,10 +210,12 @@ const ReportLostPage = () => {
         guest_name: treatAsGuestData ? form.contact_name : null,
         guest_email: treatAsGuestData ? form.contact_email : null,
         guest_phone: treatAsGuestData ? form.contact_phone : null,
-        guest_pet_name: treatAsGuestData ? effectivePetName : null,
-        guest_pet_species: treatAsGuestData ? form.species : null,
-        guest_pet_breed: treatAsGuestData ? form.breed : null,
-        guest_pet_photo_url: treatAsGuestData ? photoUrl : null,
+        guest_pet_name: treatAsGuestData ? effectivePetName : (form.pet_name.trim() || null),
+        guest_pet_species: treatAsGuestData ? form.species : (form.species.trim() || null),
+        guest_pet_breed: treatAsGuestData ? form.breed : (form.breed.trim() || null),
+        guest_pet_photo_url: photoUrl,
+        last_seen_date: form.last_seen_date || null,
+        reporter_country: getCountryLabel(visitorCountry),
       });
       if (reportErr) throw reportErr;
 
@@ -317,7 +332,9 @@ const ReportLostPage = () => {
                         </label>
                       </Button>
                     </div>
-                    <p className="text-xs text-muted-foreground">A clear photo greatly improves chances of being reunited. On mobile, "Take photo" opens your camera.</p>
+                    <p className="text-xs text-muted-foreground">
+                      A clear photo greatly improves chances of being reunited. If your photo has GPS data (most phone camera photos), we will auto-fill the last seen location.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -348,6 +365,17 @@ const ReportLostPage = () => {
               </div>
 
               <div>
+                <Label>{isFound ? "Date spotted" : "Date last seen"}</Label>
+                <Input
+                  type="date"
+                  className="mt-1"
+                  value={form.last_seen_date}
+                  max={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => setForm({ ...form, last_seen_date: e.target.value })}
+                />
+              </div>
+
+              <div>
                 <Label>{labels.locationLabel}</Label>
                 <div className="mt-1 flex gap-2">
                   <Input
@@ -359,6 +387,11 @@ const ReportLostPage = () => {
                     {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
                   </Button>
                 </div>
+                {locationFromPhoto && (
+                  <p className="mt-1 text-xs text-primary flex items-center gap-1">
+                    <MapPin className="h-3 w-3" /> Location auto-filled from photo GPS
+                  </p>
+                )}
               </div>
 
               <div>

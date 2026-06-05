@@ -12,6 +12,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, MapPin, Phone, Globe, Mail, Star, Building2, Check, X, Crown, ArrowRight, ChevronLeft, ChevronRight, MessageCircle } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useVisitorGeo } from "@/contexts/VisitorGeoContext";
+import { filterByCountryField } from "@/lib/geoCountry";
 
 const categories = [
   { value: "all", label: "All Categories" },
@@ -28,6 +30,7 @@ const BusinessDirectory = () => {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
   const [page, setPage] = useState(1);
+  const { visitorCountry, countryFilter, countryLabel } = useVisitorGeo();
 
   // Fetch admin-configured directory pricing
   const { data: directoryPricing } = useQuery({
@@ -76,7 +79,7 @@ const BusinessDirectory = () => {
   const perPage = perPageSetting || 8;
 
   const { data: listings = [], isLoading } = useQuery({
-    queryKey: ["business-listings", search, category],
+    queryKey: ["business-listings", search, category, countryFilter],
     queryFn: async () => {
       let query = supabase
         .from("business_listings")
@@ -124,11 +127,12 @@ const BusinessDirectory = () => {
         });
       }
 
-      return (data || []).map((l: any) => ({
+      const mapped = (data || []).map((l: any) => ({
         ...l,
         _ownerMembership: memMap.get(l.owner_id) || null,
         _firstImage: imgMap.get(l.id) || null,
       }));
+      return filterByCountryField(mapped, visitorCountry);
     },
   });
 
@@ -151,7 +155,10 @@ const BusinessDirectory = () => {
       <div className="bg-gradient-to-br from-primary/10 via-background to-accent/10 py-16">
         <div className="container text-center">
           <h1 className="font-display text-4xl font-bold text-foreground">Pet Business Directory</h1>
-          <p className="mt-3 text-lg text-muted-foreground">Find local pet shops, vets, groomers and more</p>
+          <p className="mt-3 text-lg text-muted-foreground">
+            Find local pet shops, vets, groomers and more
+            {countryLabel ? ` in ${countryLabel}` : ""}
+          </p>
           <div className="mx-auto mt-8 flex max-w-2xl gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />

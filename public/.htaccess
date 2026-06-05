@@ -1,0 +1,16 @@
+# SPA fallback for React Router (BrowserRouter) on Apache/cPanel
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # Serve existing files/directories as-is (assets, upload.php, etc.)
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # All other routes -> index.html (client-side routing)
+  RewriteRule ^ index.html [L]
+</IfModule>
+
+# Prefer index.html for directory requests
+DirectoryIndex index.html

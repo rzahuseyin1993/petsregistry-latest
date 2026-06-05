@@ -9,6 +9,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { reverseGeocode, formatCoords } from "@/lib/geo";
 import { toast } from "sonner";
+import { useVisitorGeo } from "@/contexts/VisitorGeoContext";
+import { getCountryLabel } from "@/lib/geoCountry";
 
 interface ReportLostDialogProps {
   open: boolean;
@@ -20,9 +22,11 @@ interface ReportLostDialogProps {
 
 const ReportLostDialog = ({ open, onOpenChange, petId, petName, onReported }: ReportLostDialogProps) => {
   const { user } = useAuth();
+  const { visitorCountry } = useVisitorGeo();
   const [loading, setLoading] = useState(false);
   const [locating, setLocating] = useState(false);
   const [form, setForm] = useState({
+    last_seen_date: new Date().toISOString().slice(0, 10),
     last_seen_address: "",
     last_seen_lat: null as number | null,
     last_seen_lng: null as number | null,
@@ -79,6 +83,8 @@ const ReportLostDialog = ({ open, onOpenChange, petId, petName, onReported }: Re
         last_seen_lat: form.last_seen_lat,
         last_seen_lng: form.last_seen_lng,
         last_seen_address: form.last_seen_address || null,
+        last_seen_date: form.last_seen_date || null,
+        reporter_country: getCountryLabel(visitorCountry),
         description: form.description || null,
         reward: form.reward || null,
         contact_phone: form.contact_phone || null,
@@ -127,6 +133,16 @@ const ReportLostDialog = ({ open, onOpenChange, petId, petName, onReported }: Re
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4 pt-2">
+          <div>
+            <Label>Date Last Seen</Label>
+            <Input
+              type="date"
+              className="mt-1"
+              value={form.last_seen_date}
+              max={new Date().toISOString().slice(0, 10)}
+              onChange={(e) => setForm({ ...form, last_seen_date: e.target.value })}
+            />
+          </div>
           <div>
             <Label>Last Seen Location</Label>
             <div className="mt-1 flex gap-2">

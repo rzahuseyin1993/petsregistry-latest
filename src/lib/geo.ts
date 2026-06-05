@@ -47,3 +47,22 @@ export async function extractPhotoGps(file: File): Promise<Coords | null> {
 export function formatCoords(lat: number, lng: number): string {
   return `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
 }
+
+/** Geocode a country name to approximate map center coordinates. */
+export async function geocodeCountry(country: string): Promise<Coords | null> {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(country)}&limit=1`,
+      { headers: { Accept: "application/json" } },
+    );
+    if (!res.ok) return null;
+    const results = await res.json();
+    if (!results?.length) return null;
+    const lat = parseFloat(results[0].lat);
+    const lng = parseFloat(results[0].lon);
+    if (isNaN(lat) || isNaN(lng)) return null;
+    return { lat, lng };
+  } catch {
+    return null;
+  }
+}

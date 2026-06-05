@@ -1,30 +1,16 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  buildPayPalOrderBody,
+  createPayPalOrder,
+  getBlockedPayPalEmails,
+  getPayPalAccessToken,
+  sanitizePayerEmail,
+} from "./paypal.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-const getPayPalAccessToken = async (clientId: string, clientSecret: string) => {
-  const auth = `Basic ${btoa(`${clientId}:${clientSecret}`)}`;
-  const bases = ["https://api-m.sandbox.paypal.com", "https://api-m.paypal.com"];
-  let lastError: any = null;
-
-  for (const base of bases) {
-    const tokenRes = await fetch(`${base}/v1/oauth2/token`, {
-      method: "POST",
-      headers: { Authorization: auth, "Content-Type": "application/x-www-form-urlencoded" },
-      body: "grant_type=client_credentials",
-    });
-    const tokenData = await tokenRes.json().catch(() => ({}));
-    if (tokenRes.ok && tokenData.access_token) {
-      return { base, accessToken: tokenData.access_token as string };
-    }
-    lastError = tokenData;
-  }
-
-  throw new Error(lastError?.error_description || "Failed to authenticate with PayPal");
 };
 
 serve(async (req) => {
@@ -96,33 +82,33 @@ serve(async (req) => {
     if (provider === "paypal") {
       const { base: baseUrl, accessToken } = await getPayPalAccessToken(settings.publishable_key, settings.secret_key);
 
-      const orderRes = await fetch(`${baseUrl}/v2/checkout/orders`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          intent: "CAPTURE",
-          purchase_units: [{
-            amount: { currency_code: "USD", value: totalAmount.toFixed(2) },
-            description: `${quantity} Pet Certificate Credit(s)`,
-            custom_id: JSON.stringify({
-              type: "certificate_credit",
-              user_id,
-              quantity: String(quantity),
-            }),
-          }],
-          application_context: {
-            return_url: `${origin}/dashboard/certificates?credits_added=true`,
-            cancel_url: `${origin}/dashboard/certificates?canceled=true`,
-          },
-        }),
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("email")
+        .eq("user_id", user_id)
+        .maybeSingle();
+
+      const blockedEmails = await getBlockedPayPalEmails(supabase);
+      const payerEmail = sanitizePayerEmail(profile?.email, blockedEmails);
+
+      const orderBody = buildPayPalOrderBody({
+        returnUrl: `${origin}/dashboard/certificates?credits_added=true`,
+        cancelUrl: `${origin}/dashboard/certificates?canceled=true`,
+        payerEmail,
+        purchase_units: [{
+          amount: { currency_code: "USD", value: totalAmount.toFixed(2) },
+          description: `${quantity} Pet Certificate Credit(s)`,
+          custom_id: JSON.stringify({
+            type: "certificate_credit",
+            user_id,
+            quantity: String(quantity),
+          }),
+        }],
       });
-      const order = await orderRes.json();
-      const approvalLink = order.links?.find((l: any) => l.rel === "approve")?.href;
-      if (!approvalLink) {
-        console.error("PayPal order missing approval link:", order);
-        throw new Error(order?.message || order?.details?.[0]?.description || "PayPal approval URL not returned");
-      }
-      return new Response(JSON.stringify({ url: approvalLink }), {
+
+      const { approvalUrl } = await createPayPalOrder(baseUrl, accessToken, orderBody);
+
+      return new Response(JSON.stringify({ url: approvalUrl }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

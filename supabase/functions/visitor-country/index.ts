@@ -34,11 +34,19 @@ serve(async (req) => {
       return json({ countryCode: code, countryName: override, source: "override" });
     }
 
+    const CF_NAMES: Record<string, string> = {
+      SG: "Singapore", US: "United States", GB: "United Kingdom", UK: "United Kingdom",
+      AU: "Australia", MY: "Malaysia", IN: "India", PH: "Philippines", ID: "Indonesia",
+      TH: "Thailand", VN: "Vietnam", CA: "Canada", JP: "Japan", CN: "China",
+      HK: "Hong Kong", NZ: "New Zealand", DE: "Germany", FR: "France",
+    };
+
     const cfCountry = req.headers.get("cf-ipcountry");
     if (cfCountry && cfCountry !== "XX") {
+      const code = cfCountry.toUpperCase();
       return json({
-        countryCode: cfCountry,
-        countryName: cfCountry,
+        countryCode: code,
+        countryName: CF_NAMES[code] || code,
         source: "cf-ipcountry",
       });
     }

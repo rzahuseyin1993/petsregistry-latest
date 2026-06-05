@@ -1,34 +1,16 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  buildPayPalOrderBody,
+  createPayPalOrder,
+  getBlockedPayPalEmails,
+  getPayPalAccessToken,
+  sanitizePayerEmail,
+} from "./paypal.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-const getPayPalAccessToken = async (clientId: string, clientSecret: string) => {
-  const auth = `Basic ${btoa(`${clientId}:${clientSecret}`)}`;
-  const bases = ["https://api-m.sandbox.paypal.com", "https://api-m.paypal.com"];
-  let lastError: any = null;
-
-  for (const base of bases) {
-    const tokenRes = await fetch(`${base}/v1/oauth2/token`, {
-      method: "POST",
-      headers: {
-        Authorization: auth,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: "grant_type=client_credentials",
-    });
-
-    const tokenData = await tokenRes.json().catch(() => ({}));
-    if (tokenRes.ok && tokenData.access_token) {
-      return { base, accessToken: tokenData.access_token as string };
-    }
-    lastError = tokenData;
-  }
-
-  throw new Error(lastError?.error_description || "Failed to authenticate with PayPal");
 };
 
 serve(async (req) => {
@@ -153,7 +135,9 @@ serve(async (req) => {
         params.set("subscription_data[metadata][plan_id]", planId);
         params.set("subscription_data[metadata][billing_interval]", billingInterval);
       }
-      if (profile?.email) params.set("customer_email", profile.email);
+      const blockedEmails = await getBlockedPayPalEmails(supabase);
+      const stripeEmail = sanitizePayerEmail(profile?.email, blockedEmails);
+      if (stripeEmail) params.set("customer_email", stripeEmail);
 
       const stripeRes = await fetch("https://api.stripe.com/v1/checkout/sessions", {
         method: "POST",
@@ -186,45 +170,27 @@ serve(async (req) => {
       const clientSecret = paymentSettings.secret_key;
 
       const { base: paypalBase, accessToken } = await getPayPalAccessToken(clientId, clientSecret);
+      const blockedEmails = await getBlockedPayPalEmails(supabase);
+      const payerEmail = sanitizePayerEmail(profile?.email, blockedEmails);
 
-      // 2) Create order (PayPal subscriptions need pre-created billing plans, so we use one-time orders for all intervals)
-      const orderRes = await fetch(`${paypalBase}/v2/checkout/orders`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          intent: "CAPTURE",
-          purchase_units: [{
-            reference_id: `membership_${planId}_${userId}`,
-            description: `${plan.name} — ${billingInterval}`,
-            custom_id: JSON.stringify({ user_id: userId, plan_id: planId, billing_interval: billingInterval, type: "membership" }),
-            amount: {
-              currency_code: "USD",
-              value: price.toFixed(2),
-            },
-          }],
-          application_context: {
-            return_url: `${origin}/membership?success=true&provider=paypal&plan=${planId}`,
-            cancel_url: `${origin}/membership?canceled=true`,
-            brand_name: "PetsRegistry",
-            user_action: "PAY_NOW",
+      const orderBody = buildPayPalOrderBody({
+        returnUrl: `${origin}/membership?success=true&provider=paypal&plan=${planId}`,
+        cancelUrl: `${origin}/membership?canceled=true`,
+        payerEmail,
+        purchase_units: [{
+          reference_id: `membership_${planId}_${userId}`,
+          description: `${plan.name} — ${billingInterval}`,
+          custom_id: JSON.stringify({ user_id: userId, plan_id: planId, billing_interval: billingInterval, type: "membership" }),
+          amount: {
+            currency_code: "USD",
+            value: price.toFixed(2),
           },
-        }),
+        }],
       });
-      const orderData = await orderRes.json();
-      if (!orderData.id) {
-        console.error("PayPal order error:", orderData);
-        throw new Error(orderData.message || "Failed to create PayPal order");
-      }
-      const approvalLink = orderData.links?.find((l: any) => l.rel === "approve")?.href;
-      if (!approvalLink) {
-        console.error("PayPal order missing approval link:", orderData);
-        throw new Error(orderData?.message || orderData?.details?.[0]?.description || "PayPal did not return an approval link");
-      }
 
-      return new Response(JSON.stringify({ url: approvalLink }), {
+      const { approvalUrl } = await createPayPalOrder(paypalBase, accessToken, orderBody);
+
+      return new Response(JSON.stringify({ url: approvalUrl }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

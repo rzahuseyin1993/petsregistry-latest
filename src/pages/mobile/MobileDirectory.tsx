@@ -6,9 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Building2, MapPin, Star, ChevronLeft, ChevronRight, MessageCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import { useVisitorGeo } from "@/contexts/VisitorGeoContext";
+import { filterByCountryField } from "@/lib/geoCountry";
 
 const MobileDirectory = () => {
   const [page, setPage] = useState(1);
+  const { visitorCountry, countryFilter, countryLabel } = useVisitorGeo();
 
   const { data: perPageSetting } = useQuery({
     queryKey: ["directory-per-page-setting"],
@@ -25,7 +28,7 @@ const MobileDirectory = () => {
   const perPage = perPageSetting || 8;
 
   const { data: listings = [], isLoading } = useQuery({
-    queryKey: ["mobile-directory"],
+    queryKey: ["mobile-directory", countryFilter],
     queryFn: async () => {
       const { data } = await supabase
         .from("business_listings")
@@ -35,7 +38,7 @@ const MobileDirectory = () => {
         .order("is_featured", { ascending: false })
         .order("is_paid", { ascending: false })
         .order("created_at", { ascending: false });
-      return data || [];
+      return filterByCountryField(data || [], visitorCountry);
     },
   });
 
@@ -53,7 +56,10 @@ const MobileDirectory = () => {
         <h1 className="font-display text-lg font-bold text-foreground flex items-center gap-2">
           <Building2 className="h-5 w-5 text-orange-500" /> Business Directory
         </h1>
-        <p className="text-xs text-muted-foreground mt-1">{sorted.length} listings</p>
+        <p className="text-xs text-muted-foreground mt-1">
+          {sorted.length} listing{sorted.length === 1 ? "" : "s"}
+          {countryLabel ? ` in ${countryLabel}` : ""}
+        </p>
       </div>
 
       {isLoading ? (

@@ -9,14 +9,20 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { AlertTriangle, MapPin, Clock, Gift, FileDown } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
 import { generateLostFlyer } from "@/lib/generateLostFlyer";
 import { motion } from "framer-motion";
 import { useVisitorGeo } from "@/contexts/VisitorGeoContext";
 import { fetchBrowseLostReports } from "@/lib/geoBrowseQueries";
+import {
+  formatLostReportDate,
+  getLostReportDetailLink,
+  getLostReportImageUrl,
+  getLostReportPetName,
+  getLostReportSpeciesBreed,
+} from "@/lib/lostReportDisplay";
 
 const LostPetsPage = () => {
-  const { visitorCountry, countryFilter } = useVisitorGeo();
+  const { visitorCountry, countryFilter, countryLabel } = useVisitorGeo();
   const { data: lostReports = [], isLoading } = useQuery({
     queryKey: ["all-lost-reports", countryFilter],
     queryFn: () => fetchBrowseLostReports(visitorCountry),
@@ -61,18 +67,17 @@ const LostPetsPage = () => {
 
   const handleDownloadFlyer = async (report: any) => {
     const pet = report.pets;
-    const image = pet?.pet_images?.sort((a: any, b: any) => a.sort_order - b.sort_order)[0];
     await generateLostFlyer({
-      petName: pet.name,
-      species: pet.species,
-      breed: pet.breed || "",
-      color: pet.color || undefined,
+      petName: getLostReportPetName(report),
+      species: report.guest_pet_species || pet?.species || "Unknown",
+      breed: report.guest_pet_breed || pet?.breed || "",
+      color: pet?.color || undefined,
       description: report.description || undefined,
       lastSeenAddress: report.last_seen_address || undefined,
       reward: report.reward || undefined,
-      contactPhone: undefined, // Hidden in public view for privacy
-      petId: pet.id,
-      imageUrl: image?.image_url,
+      contactPhone: undefined,
+      petId: pet?.id || report.id,
+      imageUrl: getLostReportImageUrl(report),
     });
   };
 
@@ -88,7 +93,8 @@ const LostPetsPage = () => {
             </div>
             <h1 className="font-display text-3xl font-bold text-foreground">Lost Pets</h1>
             <p className="mt-2 text-muted-foreground">
-              Help reunite these pets with their families. If you spot any of them, please contact the owner.
+              Help reunite these pets with their families
+              {countryLabel ? ` in ${countryLabel}` : ""}. If you spot any of them, please contact the owner.
             </p>
           </div>
 
@@ -104,8 +110,8 @@ const LostPetsPage = () => {
             <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {lostReports.map((report: any, i: number) => {
                 const pet = report.pets;
-                if (!pet) return null;
-                const image = pet.pet_images?.sort((a: any, b: any) => a.sort_order - b.sort_order)[0];
+                const name = getLostReportPetName(report);
+                const detailLink = getLostReportDetailLink(report);
                 return (
                   <motion.div
                     key={report.id}
@@ -114,11 +120,11 @@ const LostPetsPage = () => {
                     transition={{ delay: i * 0.05 }}
                   >
                     <Card className="overflow-hidden border-destructive/20 transition-shadow hover:shadow-lg">
-                      <Link to={`/pet/${pet.id}`}>
+                      <Link to={detailLink}>
                         <div className="relative aspect-[4/3] overflow-hidden">
                           <ProtectedImage
-                            src={image?.image_url || "/placeholder.svg"}
-                            alt={pet.name}
+                            src={getLostReportImageUrl(report)}
+                            alt={name}
                           />
                           <Badge className="absolute left-3 top-3 bg-destructive text-destructive-foreground animate-pulse">
                             LOST
@@ -131,10 +137,10 @@ const LostPetsPage = () => {
                         </div>
                       </Link>
                       <CardContent className="p-4">
-                        <Link to={`/pet/${pet.id}`}>
-                          <h3 className="font-display text-lg font-bold text-foreground">{pet.name}</h3>
+                        <Link to={detailLink}>
+                          <h3 className="font-display text-lg font-bold text-foreground">{name}</h3>
                         </Link>
-                        <p className="text-sm text-muted-foreground">{pet.species} • {pet.breed}</p>
+                        <p className="text-sm text-muted-foreground">{getLostReportSpeciesBreed(report)}</p>
                         {report.last_seen_address && (
                           <div className="mt-2 space-y-1.5">
                             <p className="flex items-center gap-1 text-sm text-destructive">
@@ -161,9 +167,9 @@ const LostPetsPage = () => {
                         <div className="mt-3 flex items-center justify-between">
                           <span className="flex items-center gap-1 text-xs text-muted-foreground">
                             <Clock className="h-3 w-3" />
-                            {formatDistanceToNow(new Date(report.created_at), { addSuffix: true })}
+                            Last seen {formatLostReportDate(report)}
                           </span>
-                          {pet.owner_id && flyerEnabledOwners.has(pet.owner_id) && (
+                          {pet?.owner_id && flyerEnabledOwners.has(pet.owner_id) && (
                             <Button
                               variant="outline"
                               size="sm"

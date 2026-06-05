@@ -7,6 +7,13 @@ import { AlertTriangle, MapPin, HeartHandshake, PlusCircle } from "lucide-react"
 import { useQuery } from "@tanstack/react-query";
 import { useVisitorGeo } from "@/contexts/VisitorGeoContext";
 import { fetchBrowseLostReports } from "@/lib/geoBrowseQueries";
+import {
+  formatLostReportDate,
+  getLostReportDetailLink,
+  getLostReportImageUrl,
+  getLostReportPetName,
+  getLostReportSpeciesBreed,
+} from "@/lib/lostReportDisplay";
 
 const FOUND_TAG = "[FOUND PET SIGHTING]";
 
@@ -95,19 +102,19 @@ const MobileLostPets = () => {
       ) : (
         <div className="space-y-2.5">
           {list.map((r: any) => {
-            const pet = r.pets;
-            const img = pet?.pet_images?.sort((a: any, b: any) => a.sort_order - b.sort_order)[0];
+            const name = getLostReportPetName(r);
+            const detailLink = getLostReportDetailLink(r).replace("/lost-pets", "/m/lost-pets").replace("/pet/", "/m/pet/");
             const cleanDesc = isFoundView && r.description
               ? r.description.replace(FOUND_TAG, "").trim()
               : r.description;
             return (
-              <Link key={r.id} to={`/m/pet/${pet?.id}`}>
+              <Link key={r.id} to={detailLink}>
                 <Card className="overflow-hidden border-border/60 shadow-sm">
                   <div className="flex">
                     <div className="h-20 w-20 shrink-0 bg-muted">
                       <img
-                        src={img?.image_url || "/placeholder.svg"}
-                        alt={pet?.name || "Pet"}
+                        src={getLostReportImageUrl(r)}
+                        alt={name}
                         className="h-full w-full object-cover"
                         loading="lazy"
                       />
@@ -115,7 +122,7 @@ const MobileLostPets = () => {
                     <CardContent className="flex-1 p-2.5 space-y-0.5">
                       <div className="flex items-center justify-between">
                         <p className="font-semibold text-xs text-foreground truncate">
-                          {pet?.name || (isFoundView ? "Unknown pet" : "—")}
+                          {name}
                         </p>
                         <Badge
                           variant={isFoundView ? "default" : "destructive"}
@@ -124,7 +131,10 @@ const MobileLostPets = () => {
                           {isFoundView ? "FOUND" : "LOST"}
                         </Badge>
                       </div>
-                      <p className="text-[10px] text-muted-foreground">{pet?.breed || pet?.species}</p>
+                      <p className="text-[10px] text-muted-foreground">{getLostReportSpeciesBreed(r)}</p>
+                      {!isFoundView && (
+                        <p className="text-[10px] text-muted-foreground">Last seen {formatLostReportDate(r)}</p>
+                      )}
                       {r.last_seen_address && (
                         <>
                           <p className="text-[10px] text-muted-foreground flex items-center gap-0.5 leading-tight">

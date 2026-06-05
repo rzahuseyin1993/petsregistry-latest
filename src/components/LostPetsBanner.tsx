@@ -7,6 +7,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useMobilePath } from "@/hooks/useIsMobileRoute";
 import { useVisitorGeo } from "@/contexts/VisitorGeoContext";
 import { fetchBrowseLostReports } from "@/lib/geoBrowseQueries";
+import {
+  getLostReportDetailLink,
+  getLostReportImageUrl,
+  getLostReportPetName,
+  getLostReportSpeciesBreed,
+} from "@/lib/lostReportDisplay";
 
 const LostPetsBanner = () => {
   const mp = useMobilePath();
@@ -38,9 +44,7 @@ const LostPetsBanner = () => {
         <div className="flex gap-3 overflow-x-auto pb-1">
           <AnimatePresence>
             {lostPets.map((report: any) => {
-              const pet = report.pets;
-              if (!pet) return null;
-              const image = pet.pet_images?.sort((a: any, b: any) => a.sort_order - b.sort_order)[0];
+              const name = getLostReportPetName(report);
               return (
                 <motion.div
                   key={report.id}
@@ -48,19 +52,19 @@ const LostPetsBanner = () => {
                   animate={{ opacity: 1, scale: 1 }}
                   className="flex-shrink-0"
                 >
-                  <Link to={mp(`/pet/${pet.id}`)}>
+                  <Link to={mp(getLostReportDetailLink(report))}>
                     <div className="flex items-center gap-3 rounded-xl border border-destructive/20 bg-card px-4 py-3 shadow-sm transition-shadow hover:shadow-md w-[280px] h-[76px]">
                       <img
-                        src={image?.image_url || "/placeholder.svg"}
-                        alt={pet.name}
+                        src={getLostReportImageUrl(report)}
+                        alt={name}
                         className="h-12 w-12 shrink-0 rounded-lg object-cover"
                       />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <p className="font-display font-semibold text-foreground truncate flex-1">{pet.name}</p>
+                          <p className="font-display font-semibold text-foreground truncate flex-1">{name}</p>
                           <Badge className="bg-destructive text-destructive-foreground shrink-0 text-[9px] h-4 px-1.5">LOST</Badge>
                         </div>
-                        <p className="text-xs text-muted-foreground truncate">{pet.species}{pet.breed ? ` • ${pet.breed}` : ""}</p>
+                        <p className="text-xs text-muted-foreground truncate">{getLostReportSpeciesBreed(report)}</p>
                         {report.last_seen_address && (
                           <div className="mt-0.5 flex items-center gap-1 text-xs text-destructive">
                             <MapPin className="h-3 w-3 shrink-0" />

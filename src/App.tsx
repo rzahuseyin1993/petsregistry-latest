@@ -3,6 +3,7 @@ import NavigationOverlay from "@/components/NavigationOverlay";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route } from "react-router-dom";
 import DeferredNavigation from "@/components/DeferredNavigation";
+import ScrollToTop from "@/components/ScrollToTop";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -131,8 +132,8 @@ function AppWithProviders() {
 
     // Disable right-click context menu (skip in admin/dashboard)
     const handleContextMenu = (e: MouseEvent) => {
-      if (isPrivileged()) return;
-      e.preventDefault();
+      // if (isPrivileged()) return;
+      // e.preventDefault();
     };
 
     // Disable copy, cut, and print-screen shortcuts (skip in admin/dashboard)
@@ -146,10 +147,10 @@ function AppWithProviders() {
         e.preventDefault();
       }
       // F12 (dev tools), Ctrl+Shift+I/J/C (dev tools)
-      if (e.key === 'F12') e.preventDefault();
-      if (e.ctrlKey && e.shiftKey && ['i', 'j', 'c'].includes(e.key.toLowerCase())) {
-        e.preventDefault();
-      }
+      // if (e.key === 'F12') e.preventDefault();
+      // if (e.ctrlKey && e.shiftKey && ['i', 'j', 'c'].includes(e.key.toLowerCase())) {
+      //   e.preventDefault();
+      // }
       // PrintScreen
       if (e.key === 'PrintScreen') {
         e.preventDefault();
@@ -195,6 +196,7 @@ function AppWithProviders() {
         <Toaster />
         <Sonner />
         <BrowserRouter>
+          <ScrollToTop />
           <VisitorGeoProvider>
           <TrackingCodeInjector />
           <Suspense fallback={<NavigationOverlay />}>

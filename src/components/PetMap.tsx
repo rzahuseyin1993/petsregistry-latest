@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Locate, MapPin, Search, Building2, Crown, ArrowRight, MessageCircle, Star } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Link } from "react-router-dom";
+import { useVisitorGeo } from "@/contexts/VisitorGeoContext";
+import { filterByCountryField } from "@/lib/geoCountry";
+import { geocodeCountry } from "@/lib/geo";
 
 type PlaceCategory = "veterinary" | "pet_shop" | "park" | "shelter" | "grooming" | "directory" | "custom";
 
@@ -209,9 +212,13 @@ const distanceKm = (a: Coordinates, b: { lat: number; lng: number }) => {
 };
 
 const PetMap = () => {
+  const { visitorCountry, countryFilter, countryLabel, isLoading: geoLoading } = useVisitorGeo();
   const mapElementRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markerLayerRef = useRef<L.LayerGroup | null>(null);
+  const visitorCountryRef = useRef(visitorCountry);
+  visitorCountryRef.current = visitorCountry;
+  const lastLoadedFilterRef = useRef<string | null | undefined>(undefined);
 
   const [center, setCenter] = useState<Coordinates>({ lat: 1.3521, lon: 103.8198 });
   const [defaultZoom, setDefaultZoom] = useState(13);
@@ -276,7 +283,7 @@ const PetMap = () => {
     return cats;
   }, [enabledCategories, customPins.length]);
 
-  const loadData = async (nextCenter: Coordinates) => {
+  const loadData = useCallback(async (nextCenter: Coordinates, applySettingsCenter = false) => {
     setLoading(true);
     try {
       const settings = await fetchMapSettings();
@@ -291,7 +298,7 @@ const PetMap = () => {
       };
       setEnabledCategories(enabled);
 
-      if (settings.map_default_lat && settings.map_default_lng) {
+      if (applySettingsCenter && settings.map_default_lat && settings.map_default_lng) {
         const settingsCenter = {
           lat: parseFloat(settings.map_default_lat),
           lon: parseFloat(settings.map_default_lng),
@@ -315,14 +322,14 @@ const PetMap = () => {
       const filtered = osmData.filter((p) => enabled[p.category] !== false);
       setPlaces(filtered);
       setCustomPins(pins);
-      setDirectory(dirListings);
+      setDirectory(filterByCountryField(dirListings, visitorCountryRef.current));
     } catch (error) {
       console.error("Failed to load pet places", error);
       setPlaces([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (!mapElementRef.current || mapInstanceRef.current) return;
@@ -348,21 +355,48 @@ const PetMap = () => {
   }, []);
 
   useEffect(() => {
-    if (!("geolocation" in navigator)) {
-      loadData(center);
-      return;
-    }
+    if (geoLoading || lastLoadedFilterRef.current === countryFilter) return;
+    let cancelled = false;
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const nextCenter = { lat: position.coords.latitude, lon: position.coords.longitude };
-        setCenter(nextCenter);
-        loadData(nextCenter);
-      },
-      () => loadData(center),
-      { timeout: 5000 },
-    );
-  }, []);
+    const resolveInitialCenter = async () => {
+      lastLoadedFilterRef.current = countryFilter;
+      const tryDeviceLocation = (): Promise<Coordinates | null> =>
+        new Promise((resolve) => {
+          if (!("geolocation" in navigator)) return resolve(null);
+          navigator.geolocation.getCurrentPosition(
+            (position) => resolve({ lat: position.coords.latitude, lon: position.coords.longitude }),
+            () => resolve(null),
+            { timeout: 5000 },
+          );
+        });
+
+      const deviceCenter = await tryDeviceLocation();
+      if (cancelled) return;
+
+      if (deviceCenter) {
+        setCenter(deviceCenter);
+        await loadData(deviceCenter);
+        return;
+      }
+
+      const label = countryLabel || visitorCountry?.countryName || visitorCountry?.countryCode;
+      if (label) {
+        const coords = await geocodeCountry(label);
+        if (cancelled) return;
+        if (coords) {
+          const countryCenter = { lat: coords.lat, lon: coords.lng };
+          setCenter(countryCenter);
+          await loadData(countryCenter);
+          return;
+        }
+      }
+
+      await loadData({ lat: 1.3521, lon: 103.8198 }, true);
+    };
+
+    void resolveInitialCenter();
+    return () => { cancelled = true; };
+  }, [geoLoading, countryFilter, countryLabel, visitorCountry, loadData]);
 
   useEffect(() => {
     if (!mapInstanceRef.current) return;
@@ -461,7 +495,8 @@ const PetMap = () => {
               <MapPin className="h-5 w-5 sm:h-6 sm:w-6 text-primary" /> Pet Map
             </h2>
             <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
-              Discover pet-friendly places & verified partners near you
+              Discover pet-friendly places & verified partners
+              {countryLabel ? ` in ${countryLabel}` : " near you"}
             </p>
           </div>
           <Button variant="outline" size="sm" className="gap-2 self-start sm:self-auto" onClick={handleLocate} disabled={locating}>

@@ -3,6 +3,36 @@ export type VisitorCountry = {
   countryName: string | null;
 };
 
+export type CountrySource = "profile" | "ip" | null;
+
+/** Convert a profile/signup country string to VisitorCountry. */
+export function countryStringToVisitor(country: string | null | undefined): VisitorCountry | null {
+  if (!country?.trim()) return null;
+  const trimmed = country.trim();
+  if (trimmed.length === 2) {
+    return { countryCode: trimmed.toUpperCase(), countryName: trimmed };
+  }
+  return { countryCode: null, countryName: trimmed };
+}
+
+/** Members: profile country first; guests or missing profile: IP-detected country. */
+export function resolveEffectiveCountry(
+  profileCountry: string | null | undefined,
+  ipCountry: VisitorCountry | null,
+): { country: VisitorCountry | null; source: CountrySource } {
+  const fromProfile = countryStringToVisitor(profileCountry);
+  if (fromProfile) return { country: fromProfile, source: "profile" };
+  if (ipCountry?.countryCode || ipCountry?.countryName) {
+    return { country: ipCountry, source: "ip" };
+  }
+  return { country: null, source: null };
+}
+
+export function getCountryLabel(country: VisitorCountry | null | undefined): string | null {
+  if (!country) return null;
+  return country.countryName?.trim() || country.countryCode?.trim() || null;
+}
+
 /** Country filter token for RPC / SQL (code preferred, then name). */
 export function getVisitorCountryFilter(visitor: VisitorCountry | null | undefined): string | null {
   if (!visitor) return null;
@@ -66,4 +96,14 @@ export function filterByOwnerCountry<T extends { owner_country?: string | null }
   const filter = getVisitorCountryFilter(visitor);
   if (!filter) return rows;
   return rows.filter((row) => countryMatchesRecord(row.owner_country, visitor));
+}
+
+/** Filter rows with a `country` field (e.g. business listings). */
+export function filterByCountryField<T extends { country?: string | null }>(
+  rows: T[],
+  visitor: VisitorCountry | null | undefined,
+): T[] {
+  const filter = getVisitorCountryFilter(visitor);
+  if (!filter) return rows;
+  return rows.filter((row) => countryMatchesRecord(row.country, visitor));
 }

@@ -14,6 +14,7 @@ import {
   ShoppingCart,
   User,
   LogIn,
+  UserPlus,
   Sparkles,
   Heart,
   AlertTriangle,
@@ -194,8 +195,13 @@ const Navbar = () => {
               </Link>
               <CartDrawer />
               <Link to="/login">
-                <Button size="sm" className="gap-2 rounded-lg">
+                <Button variant="outline" size="sm" className="gap-2 rounded-lg">
                   <LogIn className="h-4 w-4" /> Sign In
+                </Button>
+              </Link>
+              <Link to="/register">
+                <Button size="sm" className="gap-2 rounded-lg">
+                  <UserPlus className="h-4 w-4" /> Register
                 </Button>
               </Link>
             </>
@@ -275,11 +281,18 @@ const Navbar = () => {
                   </Link>
                 </>
               ) : (
-                <Link to="/login" onClick={() => setOpen(false)}>
-                  <Button className="w-full gap-2">
-                    <LogIn className="h-4 w-4" /> Sign In
-                  </Button>
-                </Link>
+                <>
+                  <Link to="/register" onClick={() => setOpen(false)}>
+                    <Button className="w-full gap-2">
+                      <UserPlus className="h-4 w-4" /> Register
+                    </Button>
+                  </Link>
+                  <Link to="/login" onClick={() => setOpen(false)}>
+                    <Button variant="outline" className="w-full gap-2">
+                      <LogIn className="h-4 w-4" /> Sign In
+                    </Button>
+                  </Link>
+                </>
               )}
             </div>
           </SheetContent>

@@ -13,6 +13,12 @@ import { useQuery } from "@tanstack/react-query";
 import ProtectedImage from "@/components/ProtectedImage";
 import { useVisitorGeo } from "@/contexts/VisitorGeoContext";
 import { fetchBrowseAdoptions, fetchBrowseLostReports } from "@/lib/geoBrowseQueries";
+import {
+  getLostReportDetailLink,
+  getLostReportImageUrl,
+  getLostReportPetName,
+  getLostReportSpeciesBreed,
+} from "@/lib/lostReportDisplay";
 
 const PublicSearchPage = () => {
   const [query, setQuery] = useState("");
@@ -33,7 +39,10 @@ const PublicSearchPage = () => {
 
   const breeds = useMemo(() => {
     const set = new Set<string>();
-    lostReports.forEach((r: any) => r.pets?.breed && set.add(r.pets.breed));
+    lostReports.forEach((r: any) => {
+      const breed = r.guest_pet_breed || r.pets?.breed;
+      if (breed) set.add(breed);
+    });
     adoptions.forEach((a: any) => a.pets?.breed && set.add(a.pets.breed));
     return Array.from(set).sort();
   }, [lostReports, adoptions]);
@@ -42,11 +51,12 @@ const PublicSearchPage = () => {
     !q || (text || "").toLowerCase().includes(q.toLowerCase());
 
   const filteredLost = lostReports.filter((r: any) => {
-    const pet = r.pets;
-    if (!pet) return false;
-    if (breedFilter && pet.breed !== breedFilter) return false;
+    const name = getLostReportPetName(r);
+    const breed = r.guest_pet_breed || r.pets?.breed;
+    const species = r.guest_pet_species || r.pets?.species;
+    if (breedFilter && breed !== breedFilter) return false;
     if (locationFilter && !matches(r.last_seen_address, locationFilter)) return false;
-    if (query && !(matches(pet.name, query) || matches(pet.breed, query) || matches(pet.species, query))) return false;
+    if (query && !(matches(name, query) || matches(breed, query) || matches(species, query))) return false;
     return true;
   });
 
@@ -114,17 +124,16 @@ const PublicSearchPage = () => {
               </h2>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {filteredLost.map((r: any) => {
-                  const pet = r.pets;
-                  const img = pet?.pet_images?.sort((a: any, b: any) => a.sort_order - b.sort_order)[0];
+                  const name = getLostReportPetName(r);
                   return (
-                    <Link key={r.id} to={`/pet/${pet.id}`}>
+                    <Link key={r.id} to={getLostReportDetailLink(r)}>
                       <Card className="overflow-hidden transition hover:shadow-lg">
-                        {img && <ProtectedImage src={img.image_url} alt={pet.name} className="aspect-[4/3] w-full object-cover" />}
+                        <ProtectedImage src={getLostReportImageUrl(r)} alt={name} className="aspect-[4/3] w-full object-cover" />
                         <CardContent className="p-4">
                           <div className="flex items-start justify-between gap-2">
                             <div>
-                              <h3 className="font-semibold text-foreground">{pet.name}</h3>
-                              <p className="text-xs text-muted-foreground">{pet.species}{pet.breed ? ` · ${pet.breed}` : ""}</p>
+                              <h3 className="font-semibold text-foreground">{name}</h3>
+                              <p className="text-xs text-muted-foreground">{getLostReportSpeciesBreed(r)}</p>
                             </div>
                             <Badge variant="destructive" className="shrink-0">Lost</Badge>
                           </div>

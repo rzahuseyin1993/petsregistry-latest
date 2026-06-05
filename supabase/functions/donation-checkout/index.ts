@@ -1,33 +1,16 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  buildPayPalOrderBody,
+  createPayPalOrder,
+  getBlockedPayPalEmails,
+  getPayPalAccessToken,
+  sanitizePayerEmail,
+} from "./paypal.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-const getPayPalAccessToken = async (clientId: string, clientSecret: string) => {
-  const auth = `Basic ${btoa(`${clientId}:${clientSecret}`)}`;
-  const bases = ["https://api-m.sandbox.paypal.com", "https://api-m.paypal.com"];
-  let lastError: any = null;
-
-  for (const base of bases) {
-    const tokenRes = await fetch(`${base}/v1/oauth2/token`, {
-      method: "POST",
-      headers: {
-        Authorization: auth,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: "grant_type=client_credentials",
-    });
-    const tokenData = await tokenRes.json().catch(() => ({}));
-    if (tokenRes.ok && tokenData.access_token) {
-      return { base, accessToken: tokenData.access_token as string };
-    }
-    lastError = tokenData;
-  }
-
-  throw new Error(lastError?.error_description || "Failed to authenticate with PayPal");
 };
 
 serve(async (req) => {
@@ -149,52 +132,34 @@ serve(async (req) => {
         throw tokenErr;
       }
 
-      const orderRes = await fetch(`${paypalBase}/v2/checkout/orders`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          intent: "CAPTURE",
-          purchase_units: [{
-            reference_id: `donation_${userId || "guest"}_${Date.now()}`,
-            description: `Donation to PetsRegistry${message ? " — " + message.slice(0, 80) : ""}`,
-            custom_id: JSON.stringify({
-              donation_id: donationRowId,
-              user_id: userId || null,
-              package_id: packageId || null,
-              type: "donation",
-              donor_name: donorName || null,
-              donor_email: donorEmail || null,
-              message: message || null,
-            }),
-            amount: { currency_code: "USD", value: Number(amount).toFixed(2) },
-          }],
-          application_context: {
-            return_url: `${origin}/donate?success=true&provider=paypal`,
-            cancel_url: `${origin}/donate?canceled=true`,
-            brand_name: "PetsRegistry",
-            user_action: "PAY_NOW",
-          },
-        }),
+      const blockedEmails = await getBlockedPayPalEmails(supabase);
+      const payerEmail = sanitizePayerEmail(donorEmail, blockedEmails);
+
+      const orderBody = buildPayPalOrderBody({
+        returnUrl: `${origin}/donate?success=true&provider=paypal`,
+        cancelUrl: `${origin}/donate?canceled=true`,
+        payerEmail,
+        purchase_units: [{
+          reference_id: `donation_${userId || "guest"}_${Date.now()}`,
+          description: `Donation to PetsRegistry${message ? " — " + message.slice(0, 80) : ""}`,
+          custom_id: JSON.stringify({
+            donation_id: donationRowId,
+            user_id: userId || null,
+            package_id: packageId || null,
+            type: "donation",
+            donor_name: donorName || null,
+            donor_email: donorEmail || null,
+            message: message || null,
+          }),
+          amount: { currency_code: "USD", value: Number(amount).toFixed(2) },
+        }],
       });
-      const orderData = await orderRes.json();
-      if (!orderData.id) {
-        console.error("PayPal order error:", orderData);
-        await supabase.from("donations").delete().eq("id", donationRowId);
-        throw new Error(orderData.message || "Failed to create PayPal order");
-      }
-      const approvalLink = orderData.links?.find((l: any) => l.rel === "approve")?.href;
-      if (!approvalLink) {
-        console.error("PayPal order missing approval link:", orderData);
-        await supabase.from("donations").delete().eq("id", donationRowId);
-        throw new Error(orderData?.message || orderData?.details?.[0]?.description || "PayPal did not return an approval link");
-      }
 
-      await supabase.from("donations").update({ payment_id: orderData.id }).eq("id", donationRowId);
+      const { id: orderId, approvalUrl } = await createPayPalOrder(paypalBase, accessToken, orderBody);
 
-      return new Response(JSON.stringify({ url: approvalLink }), {
+      await supabase.from("donations").update({ payment_id: orderId }).eq("id", donationRowId);
+
+      return new Response(JSON.stringify({ url: approvalUrl }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

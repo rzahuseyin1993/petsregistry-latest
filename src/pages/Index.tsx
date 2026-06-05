@@ -28,7 +28,7 @@ const features = [
   { icon: Heart, title: "Adopt a Pet", description: "Browse & adopt pets looking for a forever home. Owners can list pets and transfer ownership seamlessly.", color: "bg-rose-100 text-rose-600", to: "/adopt" },
   { icon: Activity, title: "Health Tracker", description: "Track weight, height, temperature & vaccinations. Get reminders when vaccines are due.", color: "bg-pink-100 text-pink-600", to: "/dashboard/health" },
   { icon: ShoppingCart, title: "Pet Store", description: "Shop from curated pet stores", color: "bg-emerald-100 text-emerald-600", to: "/store" },
-  { icon: AlertTriangle, title: "Lost Pets", description: "Help reunite lost pets with QR code scanning", color: "bg-amber-100 text-amber-600", to: "/search" },
+  { icon: AlertTriangle, title: "Lost Pets", description: "Help reunite lost pets with QR code scanning", color: "bg-amber-100 text-amber-600", to: "/lost-pets" },
   { icon: Sparkles, title: "AI Pet Expert", description: "Ask AI anything about your pet's health, behavior & care", color: "bg-purple-100 text-purple-600", to: "/pet-expert" },
   { icon: BookOpen, title: "Directory", description: "Find vets, groomers & shelters", color: "bg-orange-100 text-orange-600", to: "/directory" },
   { icon: Map, title: "Pet Map", description: "Find pet-friendly parks, vets & shops near you", color: "bg-sky-100 text-sky-600", to: "/pet-map" },
@@ -90,8 +90,8 @@ const Index = () => {
       <div className="container">
 
 
-        <div className="grid items-center gap-8 md:grid-cols-[1fr_auto]">
-          <motion.div initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.6 }}>
+        <div className="grid items-center gap-8 md:grid-cols-2">
+          <motion.div initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.6 }} className="min-w-0">
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 shadow-sm">
               <span className="h-2 w-2 rounded-full bg-success" />
               <span className="text-sm font-medium text-foreground">{stats?.pets || 0}+ Pets Protected Worldwide</span>
@@ -177,29 +177,29 @@ const Index = () => {
             initial={{ opacity: 0, x: 30 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="relative hidden md:flex items-start justify-center"
+            className="relative w-full min-w-0"
           >
-            <div className="relative w-72 lg:w-96 overflow-hidden rounded-2xl shadow-xl">
+            <div className="relative w-full overflow-hidden rounded-2xl shadow-xl">
               <img
-                src="https://images.unsplash.com/photo-1552053831-71594a27632d?w=300&h=250&fit=crop&fm=webp"
+                src="https://images.unsplash.com/photo-1552053831-71594a27632d?w=1200&h=900&fit=crop&fm=webp"
                 alt="Registered Pet"
-                className="aspect-[4/3] w-full object-cover"
-                width={300}
-                height={250}
+                className="aspect-[4/3] w-full object-cover md:aspect-[5/4] lg:min-h-[420px] lg:aspect-auto"
+                width={1200}
+                height={900}
                 fetchPriority="high"
               />
-              <div className="absolute left-2 top-2 flex items-center gap-2 rounded-lg bg-card/95 px-2 py-1.5 shadow-lg backdrop-blur-sm">
-                <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10">
-                  <QrCode className="h-3.5 w-3.5 text-primary" />
+              <div className="absolute left-3 top-3 flex items-center gap-2 rounded-lg bg-card/95 px-3 py-2 shadow-lg backdrop-blur-sm">
+                <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10">
+                  <QrCode className="h-4 w-4 text-primary" />
                 </div>
                 <div>
-                  <p className="text-xs font-bold font-mono text-foreground">PR-2026-100001</p>
-                  <p className="text-[10px] text-muted-foreground">Verified Profile</p>
+                  <p className="text-sm font-bold font-mono text-foreground">PR-2026-100001</p>
+                  <p className="text-xs text-muted-foreground">Verified Profile</p>
                 </div>
               </div>
-              <div className="absolute bottom-2 right-2 flex items-center gap-1.5 rounded-full bg-card/95 px-2.5 py-1 shadow-lg backdrop-blur-sm">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" />
-                <span className="text-[10px] font-medium text-foreground">Live Registry</span>
+              <div className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full bg-card/95 px-3 py-1.5 shadow-lg backdrop-blur-sm">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-success" />
+                <span className="text-xs font-medium text-foreground">Live Registry</span>
               </div>
             </div>
           </motion.div>
