@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, MapPin, HeartHandshake, PlusCircle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { useVisitorGeo } from "@/contexts/VisitorGeoContext";
+import BrowseCountryBar from "@/components/BrowseCountryBar";
+import { useBrowseCountryFilter } from "@/hooks/useBrowseCountryFilter";
 import { fetchBrowseLostReports } from "@/lib/geoBrowseQueries";
 import {
   formatLostReportDate,
@@ -18,12 +19,22 @@ import {
 const FOUND_TAG = "[FOUND PET SIGHTING]";
 
 const MobileLostPets = () => {
-  const [tab, setTab] = useState<"lost" | "found">("lost");
-  const { visitorCountry, countryFilter } = useVisitorGeo();
+  const [tab, setTab] = useState<"all" | "lost" | "found">("all");
+  const {
+    mode,
+    effectiveCountry,
+    activeLabel,
+    isFiltering,
+    selectedCountryValue,
+    selectCountry,
+    showAllCountries,
+    sharePath,
+    countryFilterKey,
+  } = useBrowseCountryFilter();
 
   const { data: reports = [], isLoading } = useQuery({
-    queryKey: ["mobile-lost-reports-all", countryFilter],
-    queryFn: () => fetchBrowseLostReports(visitorCountry),
+    queryKey: ["mobile-lost-reports-all", countryFilterKey],
+    queryFn: () => fetchBrowseLostReports(effectiveCountry),
   });
 
   const { lost, found } = useMemo(() => {
@@ -36,7 +47,7 @@ const MobileLostPets = () => {
     return { lost, found };
   }, [reports]);
 
-  const list = tab === "found" ? found : lost;
+  const list = tab === "found" ? found : tab === "lost" ? lost : reports;
   const isFoundView = tab === "found";
 
   return (
@@ -51,34 +62,45 @@ const MobileLostPets = () => {
           {isFoundView ? "Found Pets" : "Lost Pets"}
         </h1>
         <p className="text-xs text-muted-foreground mt-1">
-          {list.length} active {isFoundView ? "sighting" : "report"}{list.length === 1 ? "" : "s"}
+          {reports.length} report{reports.length === 1 ? "" : "s"}
+          {isFiltering && activeLabel ? ` in ${activeLabel}` : mode === "all" ? " — all countries" : ""}
         </p>
       </div>
 
-      {/* Lost / Found tabs */}
+      <BrowseCountryBar
+        mode={mode}
+        selectedCountryValue={selectedCountryValue}
+        activeLabel={activeLabel}
+        isFiltering={isFiltering}
+        sharePath={sharePath}
+        onSelectCountry={selectCountry}
+        onShowAllCountries={showAllCountries}
+      />
+
+      {/* All / Lost / Found tabs */}
       <div className="inline-flex w-full rounded-lg border border-border bg-muted/40 p-1">
-        <button
-          type="button"
-          onClick={() => setTab("lost")}
-          className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition ${
-            !isFoundView
-              ? "bg-destructive text-destructive-foreground shadow"
-              : "text-muted-foreground"
-          }`}
-        >
-          Lost ({lost.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("found")}
-          className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition ${
-            isFoundView
-              ? "bg-primary text-primary-foreground shadow"
-              : "text-muted-foreground"
-          }`}
-        >
-          Found ({found.length})
-        </button>
+        {([
+          ["all", `All (${reports.length})`],
+          ["lost", `Lost (${lost.length})`],
+          ["found", `Found (${found.length})`],
+        ] as const).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setTab(value)}
+            className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition ${
+              tab === value
+                ? value === "found"
+                  ? "bg-primary text-primary-foreground shadow"
+                  : value === "lost"
+                    ? "bg-destructive text-destructive-foreground shadow"
+                    : "bg-background text-foreground shadow"
+                : "text-muted-foreground"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       {/* Report CTA — public-accessible */}

@@ -100,8 +100,14 @@ const MembershipPage = () => {
         body: { planId, userId: user.id, billingInterval, provider },
       });
 
-      if (error) throw new Error(error.message || "Checkout failed");
-      // Edge function may return error in body even with 2xx
+      if (error) {
+        const ctx = (error as { context?: Response }).context;
+        if (ctx) {
+          const body = await ctx.json().catch(() => ({}));
+          throw new Error(body?.error || error.message || "Checkout failed");
+        }
+        throw new Error(error.message || "Checkout failed");
+      }
       if (data?.error) throw new Error(data.error);
       if (data?.url) {
         window.location.href = data.url;

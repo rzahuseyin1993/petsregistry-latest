@@ -46,6 +46,7 @@ const DashboardMembership = lazy(() => import("./pages/DashboardMembership"));
 const AdoptionPage = lazy(() => import("./pages/AdoptionPage"));
 const AdminAdoptions = lazy(() => import("./pages/AdminAdoptions"));
 const LostPetsPage = lazy(() => import("./pages/LostPetsPage"));
+const LostPetsCountryFeedPage = lazy(() => import("./pages/LostPetsCountryFeedPage"));
 const DashboardLostReports = lazy(() => import("./pages/DashboardLostReports"));
 const AdminLostReports = lazy(() => import("./pages/AdminLostReports"));
 const LostFlyerBuilder = lazy(() => import("./pages/LostFlyerBuilder"));
@@ -89,6 +90,7 @@ const MobileSearch = lazy(() => import("./pages/mobile/MobileSearch"));
 const MobileAdopt = lazy(() => import("./pages/mobile/MobileAdopt"));
 const MobileStore = lazy(() => import("./pages/mobile/MobileStore"));
 const MobileLostPets = lazy(() => import("./pages/mobile/MobileLostPets"));
+const MobileLostPetsCountryFeed = lazy(() => import("./pages/mobile/MobileLostPetsCountryFeed"));
 const MobileDirectory = lazy(() => import("./pages/mobile/MobileDirectory"));
 const MobileDashboard = lazy(() => import("./pages/mobile/MobileDashboard"));
 const MobileInbox = lazy(() => import("./pages/mobile/MobileInbox"));
@@ -236,6 +238,7 @@ function AppWithProviders() {
               <Route path="/membership" element={<MembershipPage />} />
               <Route path="/donate" element={<DonatePage />} />
               <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+              <Route path="/lost-pets/country/:country" element={<LostPetsCountryFeedPage />} />
               <Route path="/lost-pets" element={<LostPetsPage />} />
               <Route path="/admin" element={<ProtectedRoute adminOnly><AdminPageWrapper resource="dashboard"><AdminDashboard /></AdminPageWrapper></ProtectedRoute>} />
               <Route path="/admin/users" element={<ProtectedRoute adminOnly><AdminPageWrapper resource="members"><AdminUsers /></AdminPageWrapper></ProtectedRoute>} />
@@ -274,6 +277,7 @@ function AppWithProviders() {
                 <Route path="scan" element={<MobileScan />} />
                 <Route path="adopt" element={<MobileAdopt />} />
                 <Route path="store" element={<MobileStore />} />
+                <Route path="lost-pets/country/:country" element={<MobileLostPetsCountryFeed />} />
                 <Route path="lost-pets" element={<MobileLostPets />} />
                 <Route path="report-lost" element={<ReportLostPage />} />
                 <Route path="directory" element={<MobileDirectory />} />

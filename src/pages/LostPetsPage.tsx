@@ -1,6 +1,8 @@
+import { useMemo, useState } from "react";
 import Navbar from "@/components/Navbar";
 import CmsRenderer from "@/components/CmsRenderer";
 import Footer from "@/components/Footer";
+import BrowseCountryBar from "@/components/BrowseCountryBar";
 import { Card, CardContent } from "@/components/ui/card";
 import ProtectedImage from "@/components/ProtectedImage";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +13,7 @@ import { Link } from "react-router-dom";
 import { AlertTriangle, MapPin, Clock, Gift, FileDown } from "lucide-react";
 import { generateLostFlyer } from "@/lib/generateLostFlyer";
 import { motion } from "framer-motion";
-import { useVisitorGeo } from "@/contexts/VisitorGeoContext";
+import { useBrowseCountryFilter } from "@/hooks/useBrowseCountryFilter";
 import { fetchBrowseLostReports } from "@/lib/geoBrowseQueries";
 import {
   formatLostReportDate,
@@ -21,12 +23,42 @@ import {
   getLostReportSpeciesBreed,
 } from "@/lib/lostReportDisplay";
 
+const FOUND_TAG = "[FOUND PET SIGHTING]";
+
 const LostPetsPage = () => {
-  const { visitorCountry, countryFilter, countryLabel } = useVisitorGeo();
+  const [tab, setTab] = useState<"all" | "lost" | "found">("all");
+  const {
+    mode,
+    effectiveCountry,
+    activeLabel,
+    isFiltering,
+    selectedCountryValue,
+    selectCountry,
+    showAllCountries,
+    sharePath,
+    countryFilterKey,
+  } = useBrowseCountryFilter();
+
   const { data: lostReports = [], isLoading } = useQuery({
-    queryKey: ["all-lost-reports", countryFilter],
-    queryFn: () => fetchBrowseLostReports(visitorCountry),
+    queryKey: ["all-lost-reports", countryFilterKey],
+    queryFn: () => fetchBrowseLostReports(effectiveCountry),
   });
+
+  const { lost, found } = useMemo(() => {
+    const lostList: any[] = [];
+    const foundList: any[] = [];
+    for (const r of lostReports as any[]) {
+      const isFound = typeof r.description === "string" && r.description.startsWith(FOUND_TAG);
+      (isFound ? foundList : lostList).push(r);
+    }
+    return { lost: lostList, found: foundList };
+  }, [lostReports]);
+
+  const displayedReports = useMemo(() => {
+    if (tab === "lost") return lost;
+    if (tab === "found") return found;
+    return lostReports;
+  }, [tab, lost, found, lostReports]);
 
   // Build a set of user IDs who have flyer-builder access (active membership OR flyer subscription).
   // Only these owners' reports will show the "Download Flyer" button publicly.
@@ -91,24 +123,66 @@ const LostPetsPage = () => {
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10">
               <AlertTriangle className="h-7 w-7 text-destructive" />
             </div>
-            <h1 className="font-display text-3xl font-bold text-foreground">Lost Pets</h1>
+            <h1 className="font-display text-3xl font-bold text-foreground">Lost & Found Pets</h1>
             <p className="mt-2 text-muted-foreground">
-              Help reunite these pets with their families
-              {countryLabel ? ` in ${countryLabel}` : ""}. If you spot any of them, please contact the owner.
+              {lostReports.length} report{lostReports.length === 1 ? "" : "s"}
+              {isFiltering && activeLabel ? ` in ${activeLabel}` : mode === "all" ? " — all countries" : ""}.
+              Help reunite pets with their families.
             </p>
+          </div>
+
+          <div className="mx-auto mt-8 max-w-3xl">
+            <BrowseCountryBar
+              mode={mode}
+              selectedCountryValue={selectedCountryValue}
+              activeLabel={activeLabel}
+              isFiltering={isFiltering}
+              sharePath={sharePath}
+              onSelectCountry={selectCountry}
+              onShowAllCountries={showAllCountries}
+            />
+          </div>
+
+          <div className="mx-auto mt-4 flex max-w-3xl justify-center">
+            <div className="inline-flex rounded-lg border border-border bg-muted/40 p-1">
+              {([
+                ["all", `All (${lostReports.length})`],
+                ["lost", `Lost (${lost.length})`],
+                ["found", `Found (${found.length})`],
+              ] as const).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setTab(value)}
+                  className={`rounded-md px-4 py-1.5 text-sm font-medium transition ${
+                    tab === value
+                      ? "bg-background text-foreground shadow"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {isLoading ? (
             <div className="mt-16 flex justify-center">
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
             </div>
-          ) : lostReports.length === 0 ? (
+          ) : displayedReports.length === 0 ? (
             <div className="mt-16 text-center">
-              <p className="text-lg text-muted-foreground">🎉 No lost pets right now!</p>
+              <p className="text-lg text-muted-foreground">
+                {tab === "found"
+                  ? "No found-pet sightings yet."
+                  : tab === "lost"
+                    ? "🎉 No lost pets right now!"
+                    : "No reports found."}
+              </p>
             </div>
           ) : (
             <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {lostReports.map((report: any, i: number) => {
+              {displayedReports.map((report: any, i: number) => {
                 const pet = report.pets;
                 const name = getLostReportPetName(report);
                 const detailLink = getLostReportDetailLink(report);
@@ -126,8 +200,16 @@ const LostPetsPage = () => {
                             src={getLostReportImageUrl(report)}
                             alt={name}
                           />
-                          <Badge className="absolute left-3 top-3 bg-destructive text-destructive-foreground animate-pulse">
-                            LOST
+                          <Badge
+                            className={`absolute left-3 top-3 ${
+                              typeof report.description === "string" && report.description.startsWith(FOUND_TAG)
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-destructive text-destructive-foreground animate-pulse"
+                            }`}
+                          >
+                            {typeof report.description === "string" && report.description.startsWith(FOUND_TAG)
+                              ? "FOUND"
+                              : "LOST"}
                           </Badge>
                           {report.reward && (
                             <Badge className="absolute right-3 top-3 bg-success text-success-foreground gap-1">

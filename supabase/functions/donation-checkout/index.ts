@@ -3,9 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   buildPayPalOrderBody,
   createPayPalOrder,
-  getBlockedPayPalEmails,
   getPayPalAccessToken,
-  sanitizePayerEmail,
+  resolvePayerEmail,
 } from "./paypal.ts";
 
 const corsHeaders = {
@@ -132,8 +131,7 @@ serve(async (req) => {
         throw tokenErr;
       }
 
-      const blockedEmails = await getBlockedPayPalEmails(supabase);
-      const payerEmail = sanitizePayerEmail(donorEmail, blockedEmails);
+      const payerEmail = await resolvePayerEmail(supabase, userId, null, donorEmail);
 
       const orderBody = buildPayPalOrderBody({
         returnUrl: `${origin}/donate?success=true&provider=paypal`,
