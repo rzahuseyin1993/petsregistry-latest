@@ -5,7 +5,10 @@ import {
   createPayPalOrder,
   getPayPalAccessToken,
   resolvePayerEmail,
+  buildPayPalCustomId,
+  sanitizePayPalDescription,
 } from "./paypal.ts";
+import { createAirwallexCheckout, getAirwallexConfig } from "./airwallex.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -22,7 +25,7 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { amount, donorName, donorEmail, userId, packageId, message, provider = "stripe" } = await req.json();
+    const { amount, donorName, donorEmail, userId, packageId, message, provider = "airwallex" } = await req.json();
 
     if (!amount || amount <= 0) throw new Error("Invalid donation amount");
 
@@ -59,7 +62,44 @@ serve(async (req) => {
 
     const donationRowId = pendingDonation.id as string;
 
-    // ─── STRIPE FLOW ────────────────────────────────────────
+    // ─── AIRWALLEX FLOW ─────────────────────────────────────
+    if (provider === "airwallex") {
+      if (!paymentSettings?.publishable_key || !paymentSettings?.secret_key) {
+        await supabase.from("donations").delete().eq("id", donationRowId);
+        return new Response(JSON.stringify({ error: "Airwallex is not configured. Admin must save Client ID and API Key in Payment Settings." }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const awConfig = await getAirwallexConfig(supabase);
+      const payerEmail = await resolvePayerEmail(supabase, userId, null, donorEmail);
+      const checkout = await createAirwallexCheckout({
+        clientId: paymentSettings.publishable_key,
+        apiKey: paymentSettings.secret_key,
+        env: awConfig.env,
+        loginAs: awConfig.loginAs,
+        amount: Number(amount),
+        merchantOrderId: `donation_${donationRowId}`,
+        returnUrl: `${origin}/donate?success=true&provider=airwallex`,
+        cancelUrl: `${origin}/donate?canceled=true`,
+        descriptor: "PetsRegistry Donation",
+        metadata: {
+          type: "donation",
+          donation_id: donationRowId,
+          user_id: userId || "",
+          package_id: packageId || "",
+        },
+        customerEmail: payerEmail,
+      });
+
+      await supabase.from("donations").update({ payment_id: checkout.intent_id }).eq("id", donationRowId);
+
+      return new Response(JSON.stringify({ checkout }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ─── STRIPE FLOW (disabled in admin UI — kept for future use) ───
     if (provider === "stripe") {
       if (!paymentSettings?.secret_key || !paymentSettings.secret_key.trim().startsWith("sk_")) {
         await supabase.from("donations").delete().eq("id", donationRowId);
@@ -138,16 +178,15 @@ serve(async (req) => {
         cancelUrl: `${origin}/donate?canceled=true`,
         payerEmail,
         purchase_units: [{
-          reference_id: `donation_${userId || "guest"}_${Date.now()}`,
-          description: `Donation to PetsRegistry${message ? " — " + message.slice(0, 80) : ""}`,
-          custom_id: JSON.stringify({
-            donation_id: donationRowId,
-            user_id: userId || null,
-            package_id: packageId || null,
+          reference_id: `donation_${donationRowId}`.slice(0, 127),
+          description: sanitizePayPalDescription(
+            `Donation to PetsRegistry${message ? ` — ${message}` : ""}`,
+          ),
+          custom_id: buildPayPalCustomId({
             type: "donation",
-            donor_name: donorName || null,
-            donor_email: donorEmail || null,
-            message: message || null,
+            donation_id: donationRowId,
+            user_id: userId || undefined,
+            package_id: packageId || undefined,
           }),
           amount: { currency_code: "USD", value: Number(amount).toFixed(2) },
         }],

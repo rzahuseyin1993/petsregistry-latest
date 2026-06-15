@@ -6,6 +6,7 @@ import {
   getPayPalAccessToken,
   resolvePayerEmail,
 } from "./paypal.ts";
+import { createAirwallexCheckout, getAirwallexConfig } from "./airwallex.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,7 +22,7 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    const { user_id, quantity = 1, provider = "stripe" } = await req.json();
+    const { user_id, quantity = 1, provider = "airwallex" } = await req.json();
     if (!user_id) throw new Error("user_id is required");
 
     // Get price per credit
@@ -42,6 +43,9 @@ serve(async (req) => {
 
     if (!settings?.secret_key) throw new Error(`${provider} is not configured. Admin must enable it in Payment Settings.`);
 
+    if (provider === "airwallex" && (!settings.publishable_key || !settings.secret_key)) {
+      throw new Error("Airwallex is not configured correctly. Admin must save Client ID and API Key in Payment Settings.");
+    }
     if (provider === "stripe" && !settings.secret_key.trim().startsWith("sk_")) {
       throw new Error("Stripe is not configured correctly. The admin must save a valid Stripe Secret Key (starts with sk_test_ or sk_live_) in Payment Settings.");
     }
@@ -50,6 +54,38 @@ serve(async (req) => {
     }
 
     const origin = req.headers.get("origin") || "http://localhost:5173";
+
+    if (provider === "airwallex") {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("email")
+        .eq("user_id", user_id)
+        .maybeSingle();
+
+      const awConfig = await getAirwallexConfig(supabase);
+      const payerEmail = await resolvePayerEmail(supabase, user_id, profile?.email);
+      const checkout = await createAirwallexCheckout({
+        clientId: settings.publishable_key,
+        apiKey: settings.secret_key,
+        env: awConfig.env,
+        loginAs: awConfig.loginAs,
+        amount: totalAmount,
+        merchantOrderId: `cert_${user_id}_${Date.now()}`,
+        returnUrl: `${origin}/dashboard/certificates?credits_added=true&provider=airwallex`,
+        cancelUrl: `${origin}/dashboard/certificates?canceled=true`,
+        descriptor: "PetsRegistry Certificate",
+        metadata: {
+          type: "certificate_credit",
+          user_id,
+          quantity: String(quantity),
+        },
+        customerEmail: payerEmail,
+      });
+
+      return new Response(JSON.stringify({ checkout }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     if (provider === "stripe") {
       const res = await fetch("https://api.stripe.com/v1/checkout/sessions", {

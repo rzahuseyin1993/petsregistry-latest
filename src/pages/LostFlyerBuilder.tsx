@@ -13,6 +13,7 @@ import { Slider } from "@/components/ui/slider";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { uploadRaw, uploadFile as uploadFileUtil } from "@/lib/imageUpload";
+import { completeCheckout } from "@/lib/airwallexCheckout";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -472,8 +473,11 @@ const LostFlyerBuilder = () => {
         throw new Error(result.error || "Could not create checkout session");
       }
 
-      if (result?.url) window.open(result.url, "_blank");
-      else toast.error("Could not create checkout session");
+      if (result?.checkout || result?.url) {
+        await completeCheckout(result);
+      } else {
+        toast.error(result.error || "Could not create checkout session");
+      }
     } catch (error: any) {
       toast.error(error.message || "Payment service unavailable.");
     }

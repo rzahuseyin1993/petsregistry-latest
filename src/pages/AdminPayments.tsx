@@ -12,6 +12,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 
+const STRIPE_UI_ENABLED = false;
+
+const AIRWALLEX_ENV_OPTIONS = [
+  { value: "demo", label: "Demo / Sandbox" },
+  { value: "prod", label: "Production (Live)" },
+];
+
 const SERVICES = [
   { key: "membership", label: "Membership Plans", description: "Guardian & Partner membership billing" },
   { key: "flyer", label: "Flyer Builder", description: "Lost pet flyer design service" },
@@ -38,6 +45,11 @@ const AdminPayments = () => {
   const [paypalClient, setPaypalClient] = useState("");
   const [paypalSecret, setPaypalSecret] = useState("");
   const [paypalActive, setPaypalActive] = useState(false);
+  const [airwallexClientId, setAirwallexClientId] = useState("");
+  const [airwallexApiKey, setAirwallexApiKey] = useState("");
+  const [airwallexActive, setAirwallexActive] = useState(false);
+  const [airwallexEnv, setAirwallexEnv] = useState("demo");
+  const [airwallexAccountId, setAirwallexAccountId] = useState("");
   const [saving, setSaving] = useState(false);
 
   const [yearlyDiscount, setYearlyDiscount] = useState("20");
@@ -52,7 +64,7 @@ const AdminPayments = () => {
       const { data } = await supabase
         .from("site_settings")
         .select("*")
-        .or("key.like.service_billing_%,key.like.service_price_%,key.eq.yearly_discount_percent,key.eq.flyer_monthly_price,key.eq.flyer_yearly_price");
+        .or("key.like.service_billing_%,key.like.service_price_%,key.eq.yearly_discount_percent,key.eq.flyer_monthly_price,key.eq.flyer_yearly_price,key.eq.airwallex_environment,key.eq.airwallex_account_id");
       return data || [];
     },
   });
@@ -64,6 +76,8 @@ const AdminPayments = () => {
     };
 
     setYearlyDiscount(getVal("yearly_discount_percent", "20"));
+    setAirwallexEnv(getVal("airwallex_environment", "demo"));
+    setAirwallexAccountId(getVal("airwallex_account_id", ""));
 
     const newPricing: Record<string, { billingMode: string; monthly: string; yearly: string; one_time: string }> = {};
     for (const svc of SERVICES) {
@@ -97,7 +111,7 @@ const AdminPayments = () => {
     queryKey: ["payment-secret-status"],
     queryFn: async () => {
       const { data } = await supabase.from("payment_settings").select("provider, secret_key");
-      const result: Record<string, boolean> = { stripe: false, paypal: false };
+      const result: Record<string, boolean> = { stripe: false, paypal: false, airwallex: false };
       (data || []).forEach((row: any) => {
         result[row.provider] = !!(row.secret_key && row.secret_key.length > 10);
       });
@@ -107,11 +121,13 @@ const AdminPayments = () => {
 
   const stripeSettings = settings?.find((s) => s.provider === "stripe");
   const paypalSettings = settings?.find((s) => s.provider === "paypal");
+  const airwallexSettings = settings?.find((s) => s.provider === "airwallex");
   const stripeReady = !!stripeSettings?.publishable_key && !!secretStatus?.stripe;
   const paypalReady = !!paypalSettings?.publishable_key && !!secretStatus?.paypal;
+  const airwallexReady = !!airwallexSettings?.publishable_key && !!secretStatus?.airwallex;
 
   const [testing, setTesting] = useState<string | null>(null);
-  const testGateway = async (provider: "stripe" | "paypal") => {
+  const testGateway = async (provider: "airwallex" | "paypal" | "stripe") => {
     setTesting(provider);
     try {
       const baseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -123,8 +139,8 @@ const AdminPayments = () => {
         body: JSON.stringify({ user_id: session?.user?.id, quantity: 1, provider }),
       });
       const result = await res.json();
-      if (res.ok && result.url) {
-        toast.success(`✓ ${provider === "stripe" ? "Stripe" : "PayPal"} connection works! Checkout URL was generated.`);
+      if (res.ok && (result.url || result.checkout)) {
+        toast.success(`✓ ${provider === "airwallex" ? "Airwallex" : provider === "stripe" ? "Stripe" : "PayPal"} connection works!`);
       } else {
         toast.error(result.error || `${provider} test failed`);
       }
@@ -141,6 +157,8 @@ const AdminPayments = () => {
       const paypal = settings.find((s) => s.provider === "paypal");
       if (stripe) { setStripePublishable(stripe.publishable_key || ""); setStripeActive(stripe.is_active); }
       if (paypal) { setPaypalClient(paypal.publishable_key || ""); setPaypalActive(paypal.is_active); }
+      const airwallex = settings.find((s) => s.provider === "airwallex");
+      if (airwallex) { setAirwallexClientId(airwallex.publishable_key || ""); setAirwallexActive(airwallex.is_active); }
     }
   }, [settings]);
 
@@ -154,28 +172,57 @@ const AdminPayments = () => {
       const normalizedStripeSecret = stripeSecret.trim();
       const normalizedPaypalClient = paypalClient.trim();
       const normalizedPaypalSecret = paypalSecret.trim();
+      const normalizedAirwallexClientId = airwallexClientId.trim();
+      const normalizedAirwallexApiKey = airwallexApiKey.trim();
 
-      if (normalizedStripePublishable && !normalizedStripePublishable.startsWith("pk_")) {
-        throw new Error("Stripe publishable key must start with pk_.");
+      if (STRIPE_UI_ENABLED) {
+        if (normalizedStripePublishable && !normalizedStripePublishable.startsWith("pk_")) {
+          throw new Error("Stripe publishable key must start with pk_.");
+        }
+        if (normalizedStripeSecret && !normalizedStripeSecret.startsWith("sk_")) {
+          throw new Error("Stripe secret key must start with sk_.");
+        }
+        const stripeResponse = await fetch(`${baseUrl}/functions/v1/save-payment-settings`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+          body: JSON.stringify({
+            provider: "stripe",
+            publishable_key: normalizedStripePublishable,
+            secret_key: normalizedStripeSecret,
+            is_active: stripeActive,
+          }),
+        });
+        const stripeResult = await stripeResponse.json().catch(() => ({}));
+        if (!stripeResponse.ok) {
+          throw new Error(stripeResult.error || "Failed to save Stripe settings");
+        }
       }
 
-      if (normalizedStripeSecret && !normalizedStripeSecret.startsWith("sk_")) {
-        throw new Error("Stripe secret key must start with sk_.");
-      }
-
-      const stripeResponse = await fetch(`${baseUrl}/functions/v1/save-payment-settings`, {
+      const airwallexResponse = await fetch(`${baseUrl}/functions/v1/save-payment-settings`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
         body: JSON.stringify({
-          provider: "stripe",
-          publishable_key: normalizedStripePublishable,
-          secret_key: normalizedStripeSecret,
-          is_active: stripeActive,
+          provider: "airwallex",
+          publishable_key: normalizedAirwallexClientId,
+          secret_key: normalizedAirwallexApiKey,
+          is_active: airwallexActive,
         }),
       });
-      const stripeResult = await stripeResponse.json().catch(() => ({}));
-      if (!stripeResponse.ok) {
-        throw new Error(stripeResult.error || "Failed to save Stripe settings");
+      const airwallexResult = await airwallexResponse.json().catch(() => ({}));
+      if (!airwallexResponse.ok) {
+        throw new Error(airwallexResult.error || "Failed to save Airwallex settings");
+      }
+
+      for (const row of [
+        { key: "airwallex_environment", value: airwallexEnv, description: "Airwallex API environment" },
+        { key: "airwallex_account_id", value: airwallexAccountId.trim(), description: "Airwallex x-login-as account ID (optional)" },
+      ]) {
+        const { data: existing } = await supabase.from("site_settings").select("id").eq("key", row.key).maybeSingle();
+        if (existing) {
+          await supabase.from("site_settings").update({ value: row.value }).eq("key", row.key);
+        } else {
+          await supabase.from("site_settings").insert(row);
+        }
       }
 
       const paypalResponse = await fetch(`${baseUrl}/functions/v1/save-payment-settings`, {
@@ -195,6 +242,7 @@ const AdminPayments = () => {
 
       setStripeSecret("");
       setPaypalSecret("");
+      setAirwallexApiKey("");
       queryClient.invalidateQueries({ queryKey: ["payment-settings"] });
       queryClient.invalidateQueries({ queryKey: ["payment-secret-status"] });
       toast.success("✓ Payment settings saved! Use the Test buttons to verify the connection.");
@@ -270,7 +318,61 @@ const AdminPayments = () => {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2">
-                  <CreditCard className="h-5 w-5 text-primary" />Stripe Integration
+                  <CreditCard className="h-5 w-5 text-primary" />Airwallex Integration
+                  {airwallexReady ? (
+                    <Badge className="bg-green-600 text-white gap-1"><CheckCircle2 className="h-3 w-3" /> Saved</Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-amber-600 border-amber-400 gap-1"><AlertCircle className="h-3 w-3" /> Not configured</Badge>
+                  )}
+                  {airwallexSettings?.is_active && <Badge variant="secondary" className="text-xs">Active</Badge>}
+                </CardTitle>
+                <Switch checked={airwallexActive} onCheckedChange={setAirwallexActive} />
+              </div>
+              {airwallexSettings?.updated_at && (
+                <p className="text-xs text-muted-foreground">Last saved: {new Date(airwallexSettings.updated_at).toLocaleString()}</p>
+              )}
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Primary card payments for PetsRegistry. Funds settle to your company Airwallex account.
+              </p>
+              <div className="space-y-2">
+                <Label>Environment</Label>
+                <Select value={airwallexEnv} onValueChange={setAirwallexEnv}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {AIRWALLEX_ENV_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2"><Label>Client ID</Label><Input type="text" placeholder="Your Airwallex Client ID" value={airwallexClientId} onChange={(e) => setAirwallexClientId(e.target.value)} /></div>
+              <div className="space-y-2">
+                <Label>API Key {secretStatus?.airwallex && <span className="text-xs text-green-600 ml-1">✓ stored</span>}</Label>
+                <Input type="password" placeholder={secretStatus?.airwallex ? "•••••••• (saved — enter new value to replace)" : "Your Airwallex API Key"} value={airwallexApiKey} onChange={(e) => setAirwallexApiKey(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Account ID (optional)</Label>
+                <Input type="text" placeholder="x-login-as account ID if your API key spans multiple accounts" value={airwallexAccountId} onChange={(e) => setAirwallexAccountId(e.target.value)} />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Webhook URL: <code className="rounded bg-muted px-1">{import.meta.env.VITE_SUPABASE_URL}/functions/v1/airwallex-webhook</code>
+              </p>
+              {airwallexReady && (
+                <Button type="button" variant="outline" size="sm" disabled={testing === "airwallex"} onClick={() => testGateway("airwallex")}>
+                  {testing === "airwallex" ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Testing…</> : "Test Airwallex Connection"}
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+
+          {STRIPE_UI_ENABLED && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <CreditCard className="h-5 w-5 text-muted-foreground" />Stripe Integration (legacy)
                   {stripeReady ? (
                     <Badge className="bg-green-600 text-white gap-1"><CheckCircle2 className="h-3 w-3" /> Saved</Badge>
                   ) : (
@@ -298,6 +400,7 @@ const AdminPayments = () => {
               )}
             </CardContent>
           </Card>
+          )}
 
           <Card>
             <CardHeader>
@@ -446,8 +549,8 @@ const AdminPayments = () => {
 
           <div className="mt-4 rounded-lg bg-muted/50 p-3">
             <p className="text-xs text-muted-foreground">
-              <strong>How it works:</strong> Monthly & Yearly use Stripe auto-recurring subscriptions.
-              One-Time uses a single Stripe checkout. Members only see the options you enable here.
+              <strong>How it works:</strong> Monthly & Yearly memberships are paid via Airwallex (one payment per period).
+              One-Time uses a single Airwallex checkout. PayPal remains available if enabled.
             </p>
           </div>
 

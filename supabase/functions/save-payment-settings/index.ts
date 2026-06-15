@@ -68,6 +68,20 @@ serve(async (req) => {
       }
     }
 
+    if (provider === "airwallex" && is_active) {
+      const { data: existingRow } = await serviceClient
+        .from("payment_settings")
+        .select("secret_key")
+        .eq("provider", "airwallex")
+        .maybeSingle();
+      const hasStoredSecret = !!(existingRow?.secret_key && existingRow.secret_key.length > 10);
+      if (!publishable_key || (!secret_key && !hasStoredSecret)) {
+        return new Response(JSON.stringify({ error: "Airwallex Client ID and API Key are required to activate." }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
     const updatePayload: Record<string, unknown> = {
       publishable_key: publishable_key || null,
       is_active: is_active ?? false,
@@ -76,16 +90,35 @@ serve(async (req) => {
       updatePayload.secret_key = secret_key;
     }
 
-    const { error: updateError } = await serviceClient
+    const { data: existingProvider } = await serviceClient
       .from("payment_settings")
-      .update(updatePayload)
-      .eq("provider", provider);
+      .select("id")
+      .eq("provider", provider)
+      .maybeSingle();
 
-    if (updateError) {
-      console.error("Update error:", updateError);
-      return new Response(JSON.stringify({ error: "Failed to save settings" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (existingProvider) {
+      const { error: updateError } = await serviceClient
+        .from("payment_settings")
+        .update(updatePayload)
+        .eq("provider", provider);
+
+      if (updateError) {
+        console.error("Update error:", updateError);
+        return new Response(JSON.stringify({ error: "Failed to save settings" }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    } else {
+      const { error: insertError } = await serviceClient
+        .from("payment_settings")
+        .insert({ provider, ...updatePayload });
+
+      if (insertError) {
+        console.error("Insert error:", insertError);
+        return new Response(JSON.stringify({ error: "Failed to save settings" }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     return new Response(JSON.stringify({ success: true }), {

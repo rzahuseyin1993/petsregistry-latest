@@ -14,6 +14,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { toast } from "@/hooks/use-toast";
 import { Heart, Coffee, Trophy, Star, Sparkles, HandHeart, Loader2, CreditCard } from "lucide-react";
 import { motion } from "framer-motion";
+import { completeCheckout } from "@/lib/airwallexCheckout";
+import {
+  filterVisiblePaymentProviders,
+  getCardProvider,
+  parseFunctionError,
+  type PaymentProvider,
+} from "@/lib/paymentProviders";
 
 const packageIcons: Record<string, typeof Heart> = {
   Coffee: Coffee,
@@ -30,6 +37,7 @@ const DonatePage = () => {
   const [donorEmail, setDonorEmail] = useState("");
   const [message, setMessage] = useState("");
   const [providerOpen, setProviderOpen] = useState(false);
+  const [pendingProvider, setPendingProvider] = useState<PaymentProvider | null>(null);
 
   const { data: packages = [], isLoading } = useQuery({
     queryKey: ["donation-packages"],
@@ -51,7 +59,7 @@ const DonatePage = () => {
         .from("payment_settings_safe")
         .select("provider, is_active")
         .eq("is_active", true);
-      return (data || []).map((g: any) => g.provider);
+      return filterVisiblePaymentProviders((data || []).map((g: any) => g.provider));
     },
   });
 
@@ -59,8 +67,10 @@ const DonatePage = () => {
   const finalAmount = selectedPkg ? Number(selectedPkg.amount) : Number(customAmount) || 0;
 
   const donateMutation = useMutation({
-    mutationFn: async (provider: "stripe" | "paypal") => {
+    mutationFn: async (provider: PaymentProvider) => {
       if (finalAmount <= 0) throw new Error("Please select or enter a donation amount");
+
+      setPendingProvider(provider);
 
       const { data, error } = await supabase.functions.invoke("donation-checkout", {
         body: {
@@ -74,17 +84,20 @@ const DonatePage = () => {
         },
       });
 
-      if (error) throw error;
+      if (error) throw new Error(await parseFunctionError(error));
       if (data?.error) throw new Error(data.error);
-      if (data?.url) {
-        window.location.href = data.url;
+      if (data?.checkout || data?.url) {
+        await completeCheckout(data);
       } else if (data?.success) {
         toast({ title: "Thank you! 🎉", description: "Your donation has been recorded." });
         setProviderOpen(false);
       }
     },
+    onSettled: () => setPendingProvider(null),
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
+
+  const cardProvider = getCardProvider(gateways);
 
   const handleDonateClick = () => {
     if (finalAmount <= 0) return;
@@ -93,7 +106,7 @@ const DonatePage = () => {
       return;
     }
     if (gateways.length === 1) {
-      donateMutation.mutate(gateways[0] as "stripe" | "paypal");
+      donateMutation.mutate(gateways[0] as PaymentProvider);
     } else {
       setProviderOpen(true);
     }
@@ -240,7 +253,7 @@ const DonatePage = () => {
               : "Select an amount to donate"}
           </Button>
           <p className="mt-2 text-center text-xs text-muted-foreground">
-            Payments processed securely via Stripe or PayPal
+            Payments processed securely via Airwallex or PayPal
           </p>
         </div>
       </div>
@@ -263,15 +276,15 @@ const DonatePage = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">
-            {gateways.includes("stripe") && (
+            {cardProvider && (
               <Button
                 size="lg"
                 className="w-full gap-2"
-                disabled={donateMutation.isPending}
-                onClick={() => donateMutation.mutate("stripe")}
+                disabled={!!pendingProvider}
+                onClick={() => donateMutation.mutate(cardProvider)}
               >
-                {donateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-5 w-5" />}
-                Pay with Card (Stripe)
+                {pendingProvider === cardProvider ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-5 w-5" />}
+                Pay with Card (Airwallex)
               </Button>
             )}
             {gateways.includes("paypal") && (
@@ -279,10 +292,10 @@ const DonatePage = () => {
                 size="lg"
                 variant="outline"
                 className="w-full gap-2 bg-[#FFC439] hover:bg-[#F0B82E] text-black border-0"
-                disabled={donateMutation.isPending}
+                disabled={!!pendingProvider}
                 onClick={() => donateMutation.mutate("paypal")}
               >
-                {donateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {pendingProvider === "paypal" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 Pay with PayPal
               </Button>
             )}

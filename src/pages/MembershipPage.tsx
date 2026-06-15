@@ -11,6 +11,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
 import { Crown, Check, Shield, Star } from "lucide-react";
 import { Link } from "react-router-dom";
+import { completeCheckout } from "@/lib/airwallexCheckout";
+import {
+  filterVisiblePaymentProviders,
+  getCardProvider,
+  parseFunctionError,
+  type PaymentProvider,
+} from "@/lib/paymentProviders";
 
 type BillingInterval = "monthly" | "yearly" | "one_time";
 
@@ -81,14 +88,16 @@ const MembershipPage = () => {
       const { data } = await supabase
         .from("payment_settings_safe" as any)
         .select("provider, is_active") as any;
-      return ((data || []) as any[]).filter((s) => s.is_active).map((s) => s.provider as "stripe" | "paypal");
+      return filterVisiblePaymentProviders(
+        ((data || []) as any[]).filter((s) => s.is_active).map((s) => s.provider),
+      );
     },
   });
 
   const [pendingProvider, setPendingProvider] = useState<string | null>(null);
 
   const subscribeMutation = useMutation({
-    mutationFn: async ({ planId, provider }: { planId: string; provider: "stripe" | "paypal" }) => {
+    mutationFn: async ({ planId, provider }: { planId: string; provider: PaymentProvider }) => {
       if (!user) throw new Error("Please sign in first");
 
       const plan = plans.find((p: any) => p.id === planId);
@@ -100,17 +109,10 @@ const MembershipPage = () => {
         body: { planId, userId: user.id, billingInterval, provider },
       });
 
-      if (error) {
-        const ctx = (error as { context?: Response }).context;
-        if (ctx) {
-          const body = await ctx.json().catch(() => ({}));
-          throw new Error(body?.error || error.message || "Checkout failed");
-        }
-        throw new Error(error.message || "Checkout failed");
-      }
+      if (error) throw new Error(await parseFunctionError(error));
       if (data?.error) throw new Error(data.error);
-      if (data?.url) {
-        window.location.href = data.url;
+      if (data?.checkout || data?.url) {
+        await completeCheckout(data);
       } else if (data?.success) {
         queryClient.invalidateQueries({ queryKey: ["my-memberships"] });
         toast({ title: "Membership activated!", description: `You are now a ${plan.name}` });
@@ -206,6 +208,7 @@ const MembershipPage = () => {
             {plans.map((plan: any) => {
               const subscribed = isSubscribed(plan.slug);
               const features = Array.isArray(plan.features) ? plan.features : [];
+              const cardProvider = getCardProvider(activeGateways);
               return (
                 <Card key={plan.id} className={`relative overflow-hidden ${plan.plan_type === "partner" ? "border-accent ring-1 ring-accent/30" : ""}`}>
                   {plan.plan_type === "partner" && (
@@ -249,13 +252,13 @@ const MembershipPage = () => {
                         <Button className="w-full" disabled>Payment not configured</Button>
                       ) : (
                         <div className="space-y-2">
-                          {activeGateways.includes("stripe") && (
+                          {cardProvider && (
                             <Button
                               className="w-full"
-                              onClick={() => subscribeMutation.mutate({ planId: plan.id, provider: "stripe" })}
+                              onClick={() => subscribeMutation.mutate({ planId: plan.id, provider: cardProvider })}
                               disabled={subscribeMutation.isPending}
                             >
-                              {pendingProvider === `${plan.id}-stripe` ? "Processing..." : `💳 Pay with Card — ${getButtonLabel(plan)}`}
+                              {pendingProvider === `${plan.id}-${cardProvider}` ? "Processing..." : `💳 Pay with Card — ${getButtonLabel(plan)}`}
                             </Button>
                           )}
                           {activeGateways.includes("paypal") && (

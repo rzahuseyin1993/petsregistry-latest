@@ -12,6 +12,12 @@ verify_jwt = false
 [functions.donation-checkout]
 verify_jwt = false
 
+[functions.certificate-checkout]
+verify_jwt = false
+
+[functions.airwallex-webhook]
+verify_jwt = false
+
 [functions.save-payment-settings]
 verify_jwt = false
 

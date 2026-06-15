@@ -6,6 +6,13 @@ import { Coins, Gift, ShoppingCart, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { completeCheckout } from "@/lib/airwallexCheckout";
+import {
+  filterVisiblePaymentProviders,
+  getCardProvider,
+  parseFunctionError,
+  type PaymentProvider,
+} from "@/lib/paymentProviders";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -65,7 +72,7 @@ const CertificateCreditsCard = () => {
         .from("payment_settings_safe" as any)
         .select("provider, is_active")
         .eq("is_active", true);
-      return (data || []).map((g: any) => g.provider);
+      return filterVisiblePaymentProviders((data || []).map((g: any) => g.provider));
     },
   });
 
@@ -87,21 +94,24 @@ const CertificateCreditsCard = () => {
     })();
   }, [user, hasMembership, credits]);
 
-  const handleBuy = async (provider: "stripe" | "paypal") => {
+  const handleBuy = async (provider: PaymentProvider) => {
     if (!user) return;
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("certificate-checkout", {
         body: { user_id: user.id, quantity, provider },
       });
-      if (error) throw error;
-      if (data?.url) window.location.href = data.url;
+      if (error) throw new Error(await parseFunctionError(error));
+      if (data?.error) throw new Error(data.error);
+      await completeCheckout(data);
     } catch (e: any) {
       toast.error(e.message || "Checkout failed");
     } finally {
       setLoading(false);
     }
   };
+
+  const cardProvider = getCardProvider(gateways as PaymentProvider[]);
 
   const total = (pricing || 15) * quantity;
 
@@ -157,8 +167,8 @@ const CertificateCreditsCard = () => {
               <p className="text-sm text-destructive text-center">No payment gateway configured</p>
             ) : (
               <div className="grid gap-2" style={{ gridTemplateColumns: gateways.length > 1 ? "1fr 1fr" : "1fr" }}>
-                {gateways.includes("stripe") && (
-                  <Button onClick={() => handleBuy("stripe")} disabled={loading} className="gap-2">
+                {cardProvider && (
+                  <Button onClick={() => handleBuy(cardProvider)} disabled={loading} className="gap-2">
                     {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "💳"} Pay with Card
                   </Button>
                 )}

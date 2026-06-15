@@ -87,6 +87,45 @@ export async function resolvePayerEmail(
   return null;
 }
 
+/** PayPal custom_id max length is 127 characters. */
+export function buildPayPalCustomId(
+  payload: Record<string, string | null | undefined>,
+  maxLen = 127,
+): string {
+  const compact: Record<string, string> = {};
+  for (const [key, value] of Object.entries(payload)) {
+    if (value !== null && value !== undefined && String(value).trim() !== "") {
+      compact[key] = String(value);
+    }
+  }
+
+  const tryStringify = (obj: Record<string, string>) => JSON.stringify(obj);
+
+  let json = tryStringify(compact);
+  if (json.length <= maxLen) return json;
+
+  const slim: Record<string, string> = {};
+  for (const key of ["type", "donation_id", "user_id", "plan_id", "quantity", "billing_interval"]) {
+    if (compact[key]) slim[key] = compact[key];
+  }
+  json = tryStringify(slim);
+  if (json.length <= maxLen) return json;
+
+  if (compact.donation_id) {
+    return JSON.stringify({ type: compact.type || "payment", donation_id: compact.donation_id });
+  }
+  if (compact.plan_id && compact.user_id) {
+    return JSON.stringify({ type: compact.type || "membership", user_id: compact.user_id, plan_id: compact.plan_id });
+  }
+
+  return json.slice(0, maxLen);
+}
+
+export function sanitizePayPalDescription(text: string, maxLen = 127): string {
+  const cleaned = text.replace(/[\r\n\t]+/g, " ").trim();
+  return cleaned.length <= maxLen ? cleaned : `${cleaned.slice(0, maxLen - 3)}...`;
+}
+
 export function buildPayPalApplicationContext(returnUrl: string, cancelUrl: string) {
   return {
     return_url: returnUrl,

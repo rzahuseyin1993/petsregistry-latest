@@ -6,6 +6,7 @@ import {
   getPayPalAccessToken,
   resolvePayerEmail,
 } from "./paypal.ts";
+import { createAirwallexCheckout, getAirwallexConfig } from "./airwallex.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -22,7 +23,7 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { planId, userId, billingInterval = "yearly", provider = "stripe" } = await req.json();
+    const { planId, userId, billingInterval = "yearly", provider = "airwallex" } = await req.json();
 
     if (!planId || !userId) {
       return new Response(JSON.stringify({ error: "Missing planId or userId" }), {
@@ -100,7 +101,41 @@ serve(async (req) => {
       .eq("user_id", userId)
       .single();
 
-    // ─── STRIPE FLOW ────────────────────────────────────────
+    // ─── AIRWALLEX FLOW ─────────────────────────────────────
+    if (provider === "airwallex") {
+      if (!paymentSettings?.publishable_key || !paymentSettings?.secret_key) {
+        return new Response(JSON.stringify({ error: "Airwallex is not configured. Admin must save Client ID and API Key in Payment Settings." }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const awConfig = await getAirwallexConfig(supabase);
+      const payerEmail = await resolvePayerEmail(supabase, userId, profile?.email);
+      const checkout = await createAirwallexCheckout({
+        clientId: paymentSettings.publishable_key,
+        apiKey: paymentSettings.secret_key,
+        env: awConfig.env,
+        loginAs: awConfig.loginAs,
+        amount: price,
+        merchantOrderId: `membership_${planId}_${userId}_${Date.now()}`,
+        returnUrl: `${origin}/membership?success=true&provider=airwallex&plan=${planId}`,
+        cancelUrl: `${origin}/membership?canceled=true`,
+        descriptor: `PetsRegistry ${plan.name}`,
+        metadata: {
+          type: "membership",
+          user_id: userId,
+          plan_id: planId,
+          billing_interval: billingInterval,
+        },
+        customerEmail: payerEmail,
+      });
+
+      return new Response(JSON.stringify({ checkout }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ─── STRIPE FLOW (disabled in admin UI — kept for future use) ───
     if (provider === "stripe") {
       if (!paymentSettings?.secret_key) {
         return new Response(JSON.stringify({ error: "Stripe is not configured. Please ask the admin to enable it." }), {
@@ -195,7 +230,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         error:
-          "Unsupported or inactive payment provider. Choose Stripe or PayPal and ensure it is configured in Payment Settings.",
+          "Unsupported or inactive payment provider. Choose Airwallex or PayPal and ensure it is configured in Payment Settings.",
       }),
       {
         status: 400,
