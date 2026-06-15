@@ -49,7 +49,8 @@ export function countryMatchesRecord(
 ): boolean {
   const filter = getVisitorCountryFilter(visitor);
   if (!filter) return true;
-  if (!recordCountry?.trim()) return false;
+  // Unknown country on the report — still show it (cannot geo-filter missing data).
+  if (!recordCountry?.trim()) return true;
 
   const stored = recordCountry.trim().toLowerCase();
   const v = filter.toLowerCase();
