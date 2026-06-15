@@ -34,6 +34,12 @@ export function getCardProvider(providers: PaymentProvider[]): PaymentProvider |
   return null;
 }
 
+export function getPaymentProviderLabel(provider: PaymentProvider): string {
+  if (provider === "airwallex") return "Airwallex";
+  if (provider === "paypal") return "PayPal";
+  return "Card";
+}
+
 export async function parseFunctionError(error: unknown): Promise<string> {
   const fnError = error as { message?: string; context?: Response };
   if (fnError?.context) {

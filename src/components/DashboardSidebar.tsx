@@ -1,4 +1,4 @@
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { PawPrint, LayoutDashboard, PlusCircle, Settings, Store, LogOut, Heart, Activity, AlertTriangle, FileText, Building2, Crown, Mail, ShoppingBag, Award, MapPin, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import MembershipBadge from "@/components/MembershipBadge";
@@ -23,14 +23,24 @@ const sidebarLinks = [
   { to: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
+const MEMBERSHIP_UPGRADE_PATH = "/dashboard/membership#upgrade-plans";
+
 const DashboardSidebar = () => {
   const location = useLocation();
-  const { signOut, user, membership } = useAuth();
+  const navigate = useNavigate();
+  const { signOut, membership, canUpgradeMembership } = useAuth();
   const isMobileRoute = useIsMobileRoute();
 
   if (isMobileRoute) return null;
 
-  const hasMembership = !!membership;
+  const goToUpgradePlans = () => {
+    navigate(MEMBERSHIP_UPGRADE_PATH);
+    if (location.pathname === "/dashboard/membership") {
+      requestAnimationFrame(() => {
+        document.getElementById("upgrade-plans")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+  };
 
   return (
     <aside className="flex h-full w-64 flex-col border-r border-border bg-card">
@@ -63,23 +73,30 @@ const DashboardSidebar = () => {
         })}
       </nav>
 
-      {!hasMembership && (
+      {canUpgradeMembership && (
         <div className="border-t border-border p-4">
-          <Link to="/dashboard/membership">
-            <Button variant="outline" className="w-full gap-2 border-accent text-accent text-sm">
-              <Crown className="h-4 w-4" /> Upgrade Plan
-            </Button>
-          </Link>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full gap-2 border-accent text-accent text-sm"
+            onClick={goToUpgradePlans}
+          >
+            <Crown className="h-4 w-4" /> Upgrade Plan
+          </Button>
         </div>
       )}
 
       <div className="border-t border-border p-4">
-        <Link to="/m" title="Switch to Mobile View">
-          <Button variant="outline" className="mb-2 w-full gap-2 text-sm"><Smartphone className="h-4 w-4" /> Mobile View</Button>
-        </Link>
-        <Link to="/store">
-          <Button variant="outline" className="mb-2 w-full gap-2 text-sm"><Store className="h-4 w-4" /> Visit Store</Button>
-        </Link>
+        <Button asChild variant="outline" className="mb-2 w-full gap-2 text-sm">
+          <Link to="/m" title="Switch to Mobile View">
+            <Smartphone className="h-4 w-4" /> Mobile View
+          </Link>
+        </Button>
+        <Button asChild variant="outline" className="mb-2 w-full gap-2 text-sm">
+          <Link to="/store">
+            <Store className="h-4 w-4" /> Visit Store
+          </Link>
+        </Button>
         <Button variant="ghost" className="w-full gap-2 text-sm text-muted-foreground" onClick={signOut}>
           <LogOut className="h-4 w-4" /> Sign Out
         </Button>

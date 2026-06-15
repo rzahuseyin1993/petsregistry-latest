@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import DashboardSidebar from "@/components/DashboardSidebar";
@@ -7,13 +8,22 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
-import { Crown, Check, Shield, Star, ArrowRight, CalendarDays } from "lucide-react";
+import { Crown, Check, Shield, Star, ArrowRight, CalendarDays, Loader2 } from "lucide-react";
+import { completeCheckout } from "@/lib/airwallexCheckout";
+import {
+  filterVisiblePaymentProviders,
+  getCardProvider,
+  getPaymentProviderLabel,
+  parseFunctionError,
+  type PaymentProvider,
+} from "@/lib/paymentProviders";
 
 type BillingInterval = "monthly" | "yearly" | "one_time";
 
 const DashboardMembership = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const location = useLocation();
   const [billingInterval, setBillingInterval] = useState<BillingInterval>("yearly");
 
   const { data: myMemberships = [], isLoading: loadingMemberships } = useQuery({
@@ -68,26 +78,48 @@ const DashboardMembership = () => {
     },
   });
 
+  const effectiveBilling = allowedBilling.includes(billingInterval) ? billingInterval : allowedBilling[0] || "yearly";
+  if (effectiveBilling !== billingInterval) {
+    setBillingInterval(effectiveBilling as BillingInterval);
+  }
+
+  const { data: activeGateways = [] } = useQuery({
+    queryKey: ["active-payment-gateways"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("payment_settings_safe" as any)
+        .select("provider, is_active") as any;
+      return filterVisiblePaymentProviders(
+        ((data || []) as any[]).filter((s) => s.is_active).map((s) => s.provider),
+      );
+    },
+  });
+
+  const [pendingCheckout, setPendingCheckout] = useState<string | null>(null);
+
   const subscribeMutation = useMutation({
-    mutationFn: async (planId: string) => {
+    mutationFn: async ({ planId, provider }: { planId: string; provider: PaymentProvider }) => {
       if (!user) throw new Error("Please sign in first");
       const plan = plans.find((p: any) => p.id === planId);
       if (!plan) throw new Error("Plan not found");
 
       const { data, error } = await supabase.functions.invoke("membership-checkout", {
-        body: { planId, userId: user.id, billingInterval },
+        body: { planId, userId: user.id, billingInterval: effectiveBilling, provider },
       });
 
-      if (error) throw error;
-      if (data?.url) {
-        window.location.href = data.url;
+      if (error) throw new Error(await parseFunctionError(error));
+      if (data?.error) throw new Error(data.error);
+      if (data?.checkout || data?.url) {
+        await completeCheckout(data);
       } else if (data?.success) {
         queryClient.invalidateQueries({ queryKey: ["my-all-memberships"] });
         queryClient.invalidateQueries({ queryKey: ["sidebar-membership"] });
         toast({ title: "Membership activated!", description: `You are now a ${plan.name}` });
       }
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onMutate: ({ planId, provider }) => setPendingCheckout(`${planId}-${provider}`),
+    onSettled: () => setPendingCheckout(null),
+    onError: (e: any) => toast({ title: "Checkout error", description: e.message, variant: "destructive" }),
   });
 
   const activeMemberships = myMemberships.filter((m: any) => m.status === "active" && new Date(m.expires_at) > new Date());
@@ -95,12 +127,6 @@ const DashboardMembership = () => {
 
   const hasActivePlan = (planSlug: string) =>
     activeMemberships.some((m: any) => (m as any).membership_plans?.slug === planSlug);
-
-  // Auto-correct billing interval if not in allowed list
-  const effectiveBilling = allowedBilling.includes(billingInterval) ? billingInterval : allowedBilling[0] || "yearly";
-  if (effectiveBilling !== billingInterval) {
-    setBillingInterval(effectiveBilling as BillingInterval);
-  }
 
   const getPrice = (plan: any) => {
     const adminMonthly = servicePrices?.["service_price_membership_monthly"];
@@ -124,6 +150,20 @@ const DashboardMembership = () => {
     if (effectiveBilling === "yearly") return "/yr";
     return "";
   };
+
+  const getButtonLabel = (plan: any) => {
+    const price = getPrice(plan).toFixed(2);
+    if (effectiveBilling === "one_time") return `Pay $${price} One-Time`;
+    return `Subscribe for $${price}${getIntervalLabel()}`;
+  };
+
+  const cardProvider = getCardProvider(activeGateways);
+
+  useEffect(() => {
+    if (location.hash === "#upgrade-plans") {
+      document.getElementById("upgrade-plans")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [location.hash, plans.length]);
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -161,7 +201,7 @@ const DashboardMembership = () => {
         )}
 
         {/* Available Plans */}
-        <div className="mt-8">
+        <div id="upgrade-plans" className="mt-8 scroll-mt-6">
           <div className="flex items-center justify-between flex-wrap gap-3">
             <h2 className="font-display text-lg font-semibold text-foreground">
               {activeMemberships.length > 0 ? "Upgrade or Add Plans" : "Choose a Plan"}
@@ -228,11 +268,51 @@ const DashboardMembership = () => {
                     <div className="mt-6">
                       {subscribed ? (
                         <Badge className="w-full justify-center bg-green-100 py-2 text-green-800">Active</Badge>
+                      ) : activeGateways.length === 0 ? (
+                        <Button className="w-full" disabled>Payment not configured</Button>
                       ) : (
-                        <Button className="w-full gap-2" onClick={() => subscribeMutation.mutate(plan.id)} disabled={subscribeMutation.isPending}>
-                          {subscribeMutation.isPending ? "Processing..." : effectiveBilling === "one_time" ? `Pay $${getPrice(plan).toFixed(2)}` : `Subscribe $${getPrice(plan).toFixed(2)}${getIntervalLabel()}`}
-                          <ArrowRight className="h-4 w-4" />
-                        </Button>
+                        <div className="space-y-2">
+                          {cardProvider && (
+                            <Button
+                              className="w-full gap-2"
+                              onClick={() => subscribeMutation.mutate({ planId: plan.id, provider: cardProvider })}
+                              disabled={!!pendingCheckout}
+                            >
+                              {pendingCheckout === `${plan.id}-${cardProvider}` ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  Processing...
+                                </>
+                              ) : (
+                                <>
+                                  Pay with {getPaymentProviderLabel(cardProvider)} — {getButtonLabel(plan)}
+                                  <ArrowRight className="h-4 w-4" />
+                                </>
+                              )}
+                            </Button>
+                          )}
+                          {activeGateways.includes("paypal") && (
+                            <Button
+                              variant="outline"
+                              className="w-full gap-2 border-[#0070ba] text-[#0070ba] hover:bg-[#0070ba] hover:text-white"
+                              onClick={() => subscribeMutation.mutate({ planId: plan.id, provider: "paypal" })}
+                              disabled={!!pendingCheckout}
+                            >
+                              {pendingCheckout === `${plan.id}-paypal` ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  Processing...
+                                </>
+                              ) : (
+                                <>
+                                  Pay with PayPal — ${getPrice(plan).toFixed(2)}
+                                  {getIntervalLabel()}
+                                  <ArrowRight className="h-4 w-4" />
+                                </>
+                              )}
+                            </Button>
+                          )}
+                        </div>
                       )}
                     </div>
                   </CardContent>

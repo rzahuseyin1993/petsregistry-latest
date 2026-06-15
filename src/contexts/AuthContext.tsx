@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { canUpgradeMembership, pickPrimaryMembershipPlanType } from "@/lib/membership";
 
 interface MembershipInfo {
   planType: string;
@@ -16,12 +17,13 @@ interface AuthContextType {
   isAdmin: boolean;
   isStaff: boolean; // admin OR moderator
   membership: MembershipInfo | null;
+  canUpgradeMembership: boolean;
   loading: boolean;
   signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
-  session: null, user: null, profile: null, isAdmin: false, isStaff: false, membership: null, loading: true, signOut: async () => {},
+  session: null, user: null, profile: null, isAdmin: false, isStaff: false, membership: null, canUpgradeMembership: false, loading: true, signOut: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -33,6 +35,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isStaff, setIsStaff] = useState(false);
   const [membership, setMembership] = useState<MembershipInfo | null>(null);
+  const [canUpgrade, setCanUpgrade] = useState(false);
   const [loading, setLoading] = useState(true);
   const [roleChecksAvailable, setRoleChecksAvailable] = useState(true);
   const [membershipChecksAvailable, setMembershipChecksAvailable] = useState(true);
@@ -58,6 +61,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setIsAdmin(false);
       setIsStaff(false);
       setMembership(null);
+      setCanUpgrade(false);
       return;
     }
     // Fetch profile
@@ -83,7 +87,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setIsStaff(staff);
         });
     }
-    // Fetch active membership
+    // Fetch all active memberships (for badge + upgrade eligibility)
     if (membershipChecksAvailable) {
       supabase.from("memberships")
         .select("*, membership_plans(name, plan_type, badge_icon_url)")
@@ -91,20 +95,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         .eq("status", "active")
         .gte("expires_at", new Date().toISOString())
         .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle()
         .then(({ data, error }) => {
           if (error) {
             setMembershipChecksAvailable(false);
             setMembership(null);
+            setCanUpgrade(false);
             return;
           }
-          if (data && (data as any).membership_plans) {
+          const rows = data || [];
+          const planTypes = rows
+            .map((row) => (row as any).membership_plans?.plan_type as string | undefined)
+            .filter((t): t is string => !!t);
+
+          setCanUpgrade(canUpgradeMembership(planTypes));
+
+          const primaryType = pickPrimaryMembershipPlanType(planTypes);
+          const primaryRow = rows.find(
+            (row) => (row as any).membership_plans?.plan_type === primaryType,
+          );
+
+          if (primaryRow && (primaryRow as any).membership_plans) {
             setMembership({
-              planType: (data as any).membership_plans.plan_type,
-              planName: (data as any).membership_plans.name,
-              badgeIconUrl: (data as any).membership_plans.badge_icon_url || null,
-              expiresAt: data.expires_at,
+              planType: (primaryRow as any).membership_plans.plan_type,
+              planName: (primaryRow as any).membership_plans.name,
+              badgeIconUrl: (primaryRow as any).membership_plans.badge_icon_url || null,
+              expiresAt: primaryRow.expires_at,
             });
           } else {
             setMembership(null);
@@ -121,10 +136,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsAdmin(false);
     setIsStaff(false);
     setMembership(null);
+    setCanUpgrade(false);
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, profile, isAdmin, isStaff, membership, loading, signOut }}>
+    <AuthContext.Provider value={{ session, user, profile, isAdmin, isStaff, membership, canUpgradeMembership: canUpgrade, loading, signOut }}>
       {children}
     </AuthContext.Provider>
   );

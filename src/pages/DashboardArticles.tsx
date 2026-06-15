@@ -243,11 +243,11 @@ const DashboardArticles = () => {
             <p className="text-muted-foreground mb-6 max-w-md">
               You need an active membership to submit articles. Become a member to share your pet care knowledge with the community!
             </p>
-            <Link to="/dashboard/membership">
-              <Button className="gap-2">
+            <Button asChild className="gap-2">
+              <Link to="/dashboard/membership#upgrade-plans">
                 <Crown className="h-4 w-4" /> View Membership Plans
-              </Button>
-            </Link>
+              </Link>
+            </Button>
           </div>
         </main>
       </div>

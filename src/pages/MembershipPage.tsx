@@ -15,6 +15,7 @@ import { completeCheckout } from "@/lib/airwallexCheckout";
 import {
   filterVisiblePaymentProviders,
   getCardProvider,
+  getPaymentProviderLabel,
   parseFunctionError,
   type PaymentProvider,
 } from "@/lib/paymentProviders";
@@ -94,7 +95,7 @@ const MembershipPage = () => {
     },
   });
 
-  const [pendingProvider, setPendingProvider] = useState<string | null>(null);
+  const [pendingCheckout, setPendingCheckout] = useState<string | null>(null);
 
   const subscribeMutation = useMutation({
     mutationFn: async ({ planId, provider }: { planId: string; provider: PaymentProvider }) => {
@@ -102,8 +103,6 @@ const MembershipPage = () => {
 
       const plan = plans.find((p: any) => p.id === planId);
       if (!plan) throw new Error("Plan not found");
-
-      setPendingProvider(`${planId}-${provider}`);
 
       const { data, error } = await supabase.functions.invoke("membership-checkout", {
         body: { planId, userId: user.id, billingInterval, provider },
@@ -118,7 +117,8 @@ const MembershipPage = () => {
         toast({ title: "Membership activated!", description: `You are now a ${plan.name}` });
       }
     },
-    onSettled: () => setPendingProvider(null),
+    onMutate: ({ planId, provider }) => setPendingCheckout(`${planId}-${provider}`),
+    onSettled: () => setPendingCheckout(null),
     onError: (e: any) => toast({ title: "Checkout error", description: e.message, variant: "destructive" }),
   });
 
@@ -256,9 +256,11 @@ const MembershipPage = () => {
                             <Button
                               className="w-full"
                               onClick={() => subscribeMutation.mutate({ planId: plan.id, provider: cardProvider })}
-                              disabled={subscribeMutation.isPending}
+                              disabled={!!pendingCheckout}
                             >
-                              {pendingProvider === `${plan.id}-${cardProvider}` ? "Processing..." : `💳 Pay with Card — ${getButtonLabel(plan)}`}
+                              {pendingCheckout === `${plan.id}-${cardProvider}`
+                                ? "Processing..."
+                                : `Pay with ${getPaymentProviderLabel(cardProvider)} — ${getButtonLabel(plan)}`}
                             </Button>
                           )}
                           {activeGateways.includes("paypal") && (
@@ -266,9 +268,9 @@ const MembershipPage = () => {
                               variant="outline"
                               className="w-full border-[#0070ba] text-[#0070ba] hover:bg-[#0070ba] hover:text-white"
                               onClick={() => subscribeMutation.mutate({ planId: plan.id, provider: "paypal" })}
-                              disabled={subscribeMutation.isPending}
+                              disabled={!!pendingCheckout}
                             >
-                              {pendingProvider === `${plan.id}-paypal` ? "Processing..." : `Pay with PayPal — $${getPrice(plan).toFixed(2)}${getIntervalLabel()}`}
+                              {pendingCheckout === `${plan.id}-paypal` ? "Processing..." : `Pay with PayPal — $${getPrice(plan).toFixed(2)}${getIntervalLabel()}`}
                             </Button>
                           )}
                         </div>
