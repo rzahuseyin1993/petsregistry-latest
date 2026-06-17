@@ -211,9 +211,14 @@ const AdminDirectory = () => {
           </Button>
         </div>
 
-        <div className="mt-4 mb-4 flex max-w-sm items-center gap-2 rounded-lg border border-border bg-card px-3">
-          <Search className="h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search by name, category, city, owner..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="border-0 bg-transparent shadow-none focus-visible:ring-0" />
+        <div className="mt-4 mb-4 flex max-w-sm items-center gap-2 rounded-lg border border-border bg-card px-3 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-0">
+          <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <Input
+            placeholder="Search by name, category, city, owner..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="h-9 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+          />
         </div>
 
         {isLoading ? (
