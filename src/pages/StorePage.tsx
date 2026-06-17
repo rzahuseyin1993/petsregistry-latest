@@ -4,9 +4,21 @@ import CmsRenderer from "@/components/CmsRenderer";
 import StoreProductCard from "@/components/StoreProductCard";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { ShoppingCart } from "lucide-react";
+import { useStoreEnabled } from "@/hooks/useStoreEnabled";
 
 const StorePage = () => {
+  const navigate = useNavigate();
+  const { storeEnabled, isLoading: storeSettingLoading } = useStoreEnabled();
+
+  useEffect(() => {
+    if (!storeSettingLoading && !storeEnabled) {
+      navigate("/", { replace: true });
+    }
+  }, [storeEnabled, storeSettingLoading, navigate]);
+
   const { data: products = [], isLoading } = useQuery({
     queryKey: ["products"],
     queryFn: async () => {
@@ -15,6 +27,10 @@ const StorePage = () => {
       return data;
     },
   });
+
+  if (storeSettingLoading || !storeEnabled) {
+    return null;
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-background">

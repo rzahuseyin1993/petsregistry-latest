@@ -10,11 +10,12 @@ import { completeCheckout } from "@/lib/airwallexCheckout";
 import {
   filterVisiblePaymentProviders,
   getCardProvider,
+  getPaymentProviderLabel,
   parseFunctionError,
   type PaymentProvider,
 } from "@/lib/paymentProviders";
 import { toast } from "sonner";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 
 const CertificateCreditsCard = () => {
@@ -22,7 +23,7 @@ const CertificateCreditsCard = () => {
   const queryClient = useQueryClient();
   const [buyOpen, setBuyOpen] = useState(false);
   const [quantity, setQuantity] = useState(1);
-  const [loading, setLoading] = useState(false);
+  const [pendingProvider, setPendingProvider] = useState<PaymentProvider | null>(null);
   const [claiming, setClaiming] = useState(false);
 
   const { data: credits } = useQuery({
@@ -66,13 +67,14 @@ const CertificateCreditsCard = () => {
   });
 
   const { data: gateways = [] } = useQuery({
-    queryKey: ["payment-gateways"],
+    queryKey: ["active-payment-gateways"],
     queryFn: async () => {
       const { data } = await supabase
         .from("payment_settings_safe" as any)
-        .select("provider, is_active")
-        .eq("is_active", true);
-      return filterVisiblePaymentProviders((data || []).map((g: any) => g.provider));
+        .select("provider, is_active") as any;
+      return filterVisiblePaymentProviders(
+        ((data || []) as any[]).filter((g) => g.is_active).map((g: any) => g.provider),
+      );
     },
   });
 
@@ -96,22 +98,26 @@ const CertificateCreditsCard = () => {
 
   const handleBuy = async (provider: PaymentProvider) => {
     if (!user) return;
-    setLoading(true);
+    setPendingProvider(provider);
     try {
       const { data, error } = await supabase.functions.invoke("certificate-checkout", {
         body: { user_id: user.id, quantity, provider },
       });
       if (error) throw new Error(await parseFunctionError(error));
       if (data?.error) throw new Error(data.error);
-      await completeCheckout(data);
+      if (data?.checkout || data?.url) {
+        await completeCheckout(data);
+      }
     } catch (e: any) {
       toast.error(e.message || "Checkout failed");
     } finally {
-      setLoading(false);
+      setPendingProvider(null);
     }
   };
 
-  const cardProvider = getCardProvider(gateways as PaymentProvider[]);
+  const cardProvider = getCardProvider(gateways);
+  const hasPayPal = gateways.includes("paypal");
+  const canCheckout = !!cardProvider || hasPayPal;
 
   const total = (pricing || 15) * quantity;
 
@@ -142,10 +148,16 @@ const CertificateCreditsCard = () => {
         </CardContent>
       </Card>
 
-      <Dialog open={buyOpen} onOpenChange={setBuyOpen}>
+      <Dialog open={buyOpen} onOpenChange={(open) => !pendingProvider && setBuyOpen(open)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Gift className="h-5 w-5 text-primary" /> Buy Certificate Credits</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Gift className="h-5 w-5 text-primary" /> Choose payment method
+            </DialogTitle>
+            <DialogDescription>
+              Buy <span className="font-semibold text-foreground">{quantity}</span> certificate credit
+              {quantity === 1 ? "" : "s"} for <span className="font-semibold text-foreground">${total.toFixed(2)}</span>
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
@@ -163,22 +175,40 @@ const CertificateCreditsCard = () => {
               <span className="text-sm text-muted-foreground">Total</span>
               <span className="text-xl font-bold text-foreground">${total.toFixed(2)}</span>
             </div>
-            {gateways.length === 0 ? (
+            {!canCheckout ? (
               <p className="text-sm text-destructive text-center">No payment gateway configured</p>
             ) : (
-              <div className="grid gap-2" style={{ gridTemplateColumns: gateways.length > 1 ? "1fr 1fr" : "1fr" }}>
+              <div className="space-y-2">
                 {cardProvider && (
-                  <Button onClick={() => handleBuy(cardProvider)} disabled={loading} className="gap-2">
-                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "💳"} Pay with Card
+                  <Button
+                    className="w-full gap-2"
+                    disabled={!!pendingProvider}
+                    onClick={() => handleBuy(cardProvider)}
+                  >
+                    {pendingProvider === cardProvider ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : null}
+                    Pay with {getPaymentProviderLabel(cardProvider)} — ${total.toFixed(2)}
                   </Button>
                 )}
-                {gateways.includes("paypal") && (
-                  <Button onClick={() => handleBuy("paypal")} disabled={loading} variant="outline" className="gap-2 bg-[#FFC439] hover:bg-[#F0B82E] text-black border-0">
-                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "PayPal"}
+                {hasPayPal && (
+                  <Button
+                    variant="outline"
+                    className="w-full gap-2 border-[#0070ba] text-[#0070ba] hover:bg-[#0070ba] hover:text-white"
+                    disabled={!!pendingProvider}
+                    onClick={() => handleBuy("paypal")}
+                  >
+                    {pendingProvider === "paypal" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : null}
+                    Pay with PayPal — ${total.toFixed(2)}
                   </Button>
                 )}
               </div>
             )}
+            <p className="text-center text-xs text-muted-foreground">
+              Payments processed securely via Airwallex or PayPal
+            </p>
           </div>
         </DialogContent>
       </Dialog>

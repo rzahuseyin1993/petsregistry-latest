@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Package, Download, Search, Upload, X } from "lucide-react";
+import { Plus, Pencil, Trash2, Package, Download, Search, Upload, X, Store } from "lucide-react";
 import { exportToCsv } from "@/lib/exportCsv";
 import { uploadImage } from "@/lib/imageUpload";
 import { useState, useRef } from "react";
@@ -47,6 +47,37 @@ const AdminProducts = () => {
       if (error) throw error;
       return data;
     },
+  });
+
+  const { data: storeEnabled = true } = useQuery({
+    queryKey: ["store-enabled"],
+    queryFn: async () => {
+      const { data } = await supabase.from("site_settings").select("value").eq("key", "store_enabled").maybeSingle();
+      return data?.value !== "false";
+    },
+  });
+
+  const storeToggleMutation = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const value = enabled ? "true" : "false";
+      const { data: existing } = await supabase.from("site_settings").select("id").eq("key", "store_enabled").maybeSingle();
+      if (existing) {
+        const { error } = await supabase.from("site_settings").update({ value }).eq("key", "store_enabled");
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("site_settings").insert({
+          key: "store_enabled",
+          value,
+          description: "When false, the public Store page and navigation links are hidden.",
+        });
+        if (error) throw error;
+      }
+    },
+    onSuccess: (_data, enabled) => {
+      queryClient.invalidateQueries({ queryKey: ["store-enabled"] });
+      toast.success(enabled ? "Store is now visible on the website" : "Store is now hidden from the website");
+    },
+    onError: (err: Error) => toast.error(err.message),
   });
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -193,6 +224,33 @@ const AdminProducts = () => {
             </PermissionGate>
           </div>
         </div>
+
+        <Card className="mt-6 border-primary/20 bg-primary/5">
+          <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <Store className="mt-0.5 h-5 w-5 text-primary" />
+              <div>
+                <p className="font-semibold text-foreground">Public Store</p>
+                <p className="text-sm text-muted-foreground">
+                  {storeEnabled
+                    ? "Store link and /store page are visible to visitors."
+                    : "Store is hidden — no Store link in the navbar or footer."}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Label htmlFor="store-enabled" className="text-sm text-muted-foreground">
+                {storeEnabled ? "On" : "Off"}
+              </Label>
+              <Switch
+                id="store-enabled"
+                checked={storeEnabled}
+                disabled={storeToggleMutation.isPending}
+                onCheckedChange={(checked) => storeToggleMutation.mutate(checked)}
+              />
+            </div>
+          </CardContent>
+        </Card>
 
         <div className="mt-6 flex max-w-sm items-center gap-2 rounded-lg border border-border bg-card px-3">
           <Search className="h-4 w-4 text-muted-foreground" />

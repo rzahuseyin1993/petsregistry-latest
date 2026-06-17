@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { canUpgradeMembership, pickPrimaryMembershipPlanType } from "@/lib/membership";
+import { canUpgradeMembership, hasTopMembership, pickPrimaryMembershipPlanType } from "@/lib/membership";
 
 interface MembershipInfo {
   planType: string;
@@ -15,15 +15,17 @@ interface AuthContextType {
   user: User | null;
   profile: { full_name: string | null; email: string; phone: string | null; show_name: boolean; show_phone: boolean; address: string | null; city: string | null; country: string | null } | null;
   isAdmin: boolean;
-  isStaff: boolean; // admin OR moderator
+  isStaff: boolean; // admin OR moderator OR seo_admin
+  rolesLoading: boolean;
   membership: MembershipInfo | null;
   canUpgradeMembership: boolean;
+  hasTopMembership: boolean;
   loading: boolean;
   signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
-  session: null, user: null, profile: null, isAdmin: false, isStaff: false, membership: null, canUpgradeMembership: false, loading: true, signOut: async () => {},
+  session: null, user: null, profile: null, isAdmin: false, isStaff: false, rolesLoading: true, membership: null, canUpgradeMembership: false, hasTopMembership: false, loading: true, signOut: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -34,8 +36,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [profile, setProfile] = useState<AuthContextType["profile"]>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isStaff, setIsStaff] = useState(false);
+  const [rolesLoading, setRolesLoading] = useState(true);
   const [membership, setMembership] = useState<MembershipInfo | null>(null);
   const [canUpgrade, setCanUpgrade] = useState(false);
+  const [isTopMember, setIsTopMember] = useState(false);
   const [loading, setLoading] = useState(true);
   const [roleChecksAvailable, setRoleChecksAvailable] = useState(true);
   const [membershipChecksAvailable, setMembershipChecksAvailable] = useState(true);
@@ -60,8 +64,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setProfile(null);
       setIsAdmin(false);
       setIsStaff(false);
+      setRolesLoading(false);
       setMembership(null);
       setCanUpgrade(false);
+      setIsTopMember(false);
       return;
     }
     // Fetch profile
@@ -69,6 +75,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       .then(({ data }) => { if (data) setProfile(data as any); });
     // Check role membership via user_roles table to avoid dependency on has_role RPC.
     if (roleChecksAvailable) {
+      setRolesLoading(true);
       supabase
         .from("user_roles")
         .select("role")
@@ -85,7 +92,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           const staff = admin || roles.has("moderator") || roles.has("seo_admin");
           setIsAdmin(admin);
           setIsStaff(staff);
-        });
+        })
+        .finally(() => setRolesLoading(false));
+    } else {
+      setRolesLoading(false);
     }
     // Fetch all active memberships (for badge + upgrade eligibility)
     if (membershipChecksAvailable) {
@@ -100,6 +110,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             setMembershipChecksAvailable(false);
             setMembership(null);
             setCanUpgrade(false);
+            setIsTopMember(false);
             return;
           }
           const rows = data || [];
@@ -108,6 +119,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             .filter((t): t is string => !!t);
 
           setCanUpgrade(canUpgradeMembership(planTypes));
+          setIsTopMember(hasTopMembership(planTypes));
 
           const primaryType = pickPrimaryMembershipPlanType(planTypes);
           const primaryRow = rows.find(
@@ -137,10 +149,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsStaff(false);
     setMembership(null);
     setCanUpgrade(false);
+    setIsTopMember(false);
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, profile, isAdmin, isStaff, membership, canUpgradeMembership: canUpgrade, loading, signOut }}>
+    <AuthContext.Provider value={{ session, user, profile, isAdmin, isStaff, rolesLoading, membership, canUpgradeMembership: canUpgrade, hasTopMembership: isTopMember, loading, signOut }}>
       {children}
     </AuthContext.Provider>
   );

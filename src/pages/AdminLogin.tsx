@@ -54,23 +54,27 @@ const AdminLogin = () => {
       _user_id: authData.user.id,
       _role: "moderator",
     });
+    const { data: isSeoAdmin, error: seoErr } = await supabase.rpc("has_role", {
+      _user_id: authData.user.id,
+      _role: "seo_admin",
+    });
 
     setLoading(false);
 
-    if (adminErr && modErr) {
+    if (adminErr && modErr && seoErr) {
       toast.error("Unable to verify permissions. Please try again.");
       refreshCaptcha();
       return;
     }
 
-    if (!isAdmin && !isModerator) {
+    if (!isAdmin && !isModerator && !isSeoAdmin) {
       await supabase.auth.signOut();
       toast.error("Access denied. Staff privileges required.");
       refreshCaptcha();
       return;
     }
 
-    toast.success(isAdmin ? "Welcome, Admin!" : "Welcome, Moderator!");
+    toast.success(isAdmin ? "Welcome, Admin!" : isModerator ? "Welcome, Moderator!" : "Welcome!");
     navigate("/admin");
   };
 

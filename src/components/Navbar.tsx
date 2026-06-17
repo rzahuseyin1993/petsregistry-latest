@@ -35,6 +35,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCart } from "@/contexts/CartContext";
 import CmsRenderer from "@/components/CmsRenderer";
 import { useIsMobileRoute } from "@/hooks/useIsMobileRoute";
+import { useStoreEnabled } from "@/hooks/useStoreEnabled";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -77,6 +78,9 @@ const Navbar = () => {
   const userAbbreviation = getUserAbbreviation(profile?.full_name, user?.email);
   const { totalItems } = useCart();
   const isMobileRoute = useIsMobileRoute();
+  const { storeEnabled } = useStoreEnabled();
+
+  const visibleNavLinks = navLinks.filter((link) => link.to !== "/store" || storeEnabled);
 
   const { data: notifications = [] } = useQuery({
     queryKey: ["notifications", user?.id],
@@ -99,11 +103,14 @@ const Navbar = () => {
 
   const defaultNavbar = (
     <header className="sticky top-0 z-50 border-b border-border bg-card/95 backdrop-blur-md">
-      {user && (
+      {user && storeEnabled && (
         <>
           <CartDrawer open={cartOpen} onOpenChange={setCartOpen} showTrigger={false} />
           <NotificationBell open={notifOpen} onOpenChange={setNotifOpen} showTrigger={false} />
         </>
+      )}
+      {user && !storeEnabled && (
+        <NotificationBell open={notifOpen} onOpenChange={setNotifOpen} showTrigger={false} />
       )}
       <div className="container flex h-16 items-center justify-between">
         <Link to="/" className="flex items-center">
@@ -111,7 +118,7 @@ const Navbar = () => {
         </Link>
 
         <nav className="hidden items-center gap-1 lg:flex">
-          {navLinks.map((link) => {
+          {visibleNavLinks.map((link) => {
             const Icon = link.icon;
             return (
               <Link
@@ -152,18 +159,20 @@ const Navbar = () => {
                       Mobile View
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    className="flex cursor-pointer items-center gap-2"
-                    onClick={() => setCartOpen(true)}
-                  >
-                    <ShoppingCart className="h-4 w-4" />
-                    Shopping Cart
-                    {totalItems > 0 && (
-                      <span className="ml-auto rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground">
-                        {totalItems}
-                      </span>
-                    )}
-                  </DropdownMenuItem>
+                  {storeEnabled && (
+                    <DropdownMenuItem
+                      className="flex cursor-pointer items-center gap-2"
+                      onClick={() => setCartOpen(true)}
+                    >
+                      <ShoppingCart className="h-4 w-4" />
+                      Shopping Cart
+                      {totalItems > 0 && (
+                        <span className="ml-auto rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground">
+                          {totalItems}
+                        </span>
+                      )}
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem
                     className="flex cursor-pointer items-center gap-2"
                     onClick={() => setNotifOpen(true)}
@@ -193,7 +202,7 @@ const Navbar = () => {
                   <Smartphone className="h-4 w-4" />
                 </Button>
               </Link>
-              <CartDrawer />
+              {storeEnabled && <CartDrawer />}
               <Link to="/login">
                 <Button variant="outline" size="sm" className="gap-2 rounded-lg">
                   <LogIn className="h-4 w-4" /> Sign In
@@ -217,7 +226,7 @@ const Navbar = () => {
           <SheetContent side="right" className="w-72">
             <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
             <div className="mt-8 flex flex-col gap-2">
-              {navLinks.map((link) => {
+              {visibleNavLinks.map((link) => {
                 const Icon = link.icon;
                 return (
                   <Link
@@ -242,22 +251,24 @@ const Navbar = () => {
                     <Smartphone className="h-5 w-5 text-muted-foreground" />
                     Mobile View
                   </Link>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setOpen(false);
-                      setCartOpen(true);
-                    }}
-                    className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-base font-medium text-foreground hover:bg-muted"
-                  >
-                    <ShoppingCart className="h-5 w-5 text-muted-foreground" />
-                    Shopping Cart
-                    {totalItems > 0 && (
-                      <span className="ml-auto rounded-full bg-primary px-2 py-0.5 text-xs font-bold text-primary-foreground">
-                        {totalItems}
-                      </span>
-                    )}
-                  </button>
+                  {storeEnabled && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOpen(false);
+                        setCartOpen(true);
+                      }}
+                      className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-base font-medium text-foreground hover:bg-muted"
+                    >
+                      <ShoppingCart className="h-5 w-5 text-muted-foreground" />
+                      Shopping Cart
+                      {totalItems > 0 && (
+                        <span className="ml-auto rounded-full bg-primary px-2 py-0.5 text-xs font-bold text-primary-foreground">
+                          {totalItems}
+                        </span>
+                      )}
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => {

@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import PetCard from "@/components/PetCard";
 import LostPetsBanner from "@/components/LostPetsBanner";
 import { useVisitorGeo } from "@/contexts/VisitorGeoContext";
+import { useStoreEnabled } from "@/hooks/useStoreEnabled";
 import { fetchBrowseAdoptions, fetchBrowsePets } from "@/lib/geoBrowseQueries";
 
 
@@ -38,6 +39,9 @@ const Index = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [showScanner, setShowScanner] = useState(false);
   const navigate = useNavigate();
+  const { storeEnabled } = useStoreEnabled();
+
+  const visibleFeatures = features.filter((feature) => feature.to !== "/store" || storeEnabled);
 
   const handleScanResult = useCallback((err: any, result: any) => {
     if (result) {
@@ -165,11 +169,13 @@ const Index = () => {
                   <Heart className="h-4 w-4" /> Adopt a Pet
                 </Button>
               </Link>
-              <Link to="/store">
-                <Button variant="outline" className="gap-2 rounded-lg">
-                  <ShoppingCart className="h-4 w-4" /> Pet Store
-                </Button>
-              </Link>
+              {storeEnabled && (
+                <Link to="/store">
+                  <Button variant="outline" className="gap-2 rounded-lg">
+                    <ShoppingCart className="h-4 w-4" /> Pet Store
+                  </Button>
+                </Link>
+              )}
             </div>
           </motion.div>
 
@@ -216,7 +222,7 @@ const Index = () => {
             Everything Your Pet Needs
           </h2>
           <div className="mt-10 grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-3">
-            {features.map((feature, index) => {
+            {visibleFeatures.map((feature, index) => {
               const Icon = feature.icon;
               return (
                 <motion.div

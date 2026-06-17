@@ -4,11 +4,22 @@ import { Badge } from "@/components/ui/badge";
 import { ShoppingCart, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useCart } from "@/contexts/CartContext";
+import { useStoreEnabled } from "@/hooks/useStoreEnabled";
 
 const MobileStore = () => {
+  const navigate = useNavigate();
   const { addItem, items } = useCart();
+  const { storeEnabled, isLoading: storeSettingLoading } = useStoreEnabled();
+
+  useEffect(() => {
+    if (!storeSettingLoading && !storeEnabled) {
+      navigate("/m", { replace: true });
+    }
+  }, [storeEnabled, storeSettingLoading, navigate]);
 
   const { data: products = [], isLoading } = useQuery({
     queryKey: ["mobile-store"],
@@ -33,6 +44,10 @@ const MobileStore = () => {
     });
     toast.success(`${p.name} added to cart!`);
   };
+
+  if (storeSettingLoading || !storeEnabled) {
+    return null;
+  }
 
   return (
     <div className="p-4 space-y-4">

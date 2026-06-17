@@ -674,26 +674,7 @@ const LostFlyerBuilder = () => {
           </div>
         </div>
 
-        {/* AI Builder Banner — always visible, prominent top area */}
-        <div className="border-b border-border bg-gradient-to-r from-primary/5 via-accent/5 to-primary/5 px-4 py-3 shrink-0">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                <Wand2 className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-foreground">✨ AI Flyer Builder</p>
-                <p className="text-xs text-muted-foreground">Let AI design a professional lost pet flyer for you in seconds</p>
-              </div>
-            </div>
-            <Button size="sm" className="gap-2" onClick={() => {
-              if (!hasPurchased) { toast.error("Please purchase access first to use AI Builder."); return; }
-              setShowAiFlyer(true);
-            }}>
-              <Wand2 className="h-4 w-4" /> Create with AI
-            </Button>
-          </div>
-        </div>
+        {/* Manual flyer builder — member AI flyer disabled; admins use Admin → Flyer Templates for AI */}
 
         <div className="flex flex-1 overflow-hidden">
           {/* Left Panel — Templates + Quick Add */}

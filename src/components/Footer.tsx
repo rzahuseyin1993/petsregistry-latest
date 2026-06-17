@@ -1,10 +1,41 @@
 import { Link } from "react-router-dom";
+import { useEffect, useRef } from "react";
 import logo from "@/assets/logo.png";
 import CmsRenderer from "@/components/CmsRenderer";
+import { useAuth } from "@/contexts/AuthContext";
+import { useCmsPage } from "@/hooks/useCmsPage";
+import { useStoreEnabled } from "@/hooks/useStoreEnabled";
 import { useIsMobileRoute } from "@/hooks/useIsMobileRoute";
 
 const Footer = () => {
+  const { user } = useAuth();
+  const { storeEnabled } = useStoreEnabled();
+  const footerRef = useRef<HTMLDivElement>(null);
   const isMobileRoute = useIsMobileRoute();
+  const { hasCmsContent, isLoading, html } = useCmsPage("footer");
+
+  // CMS-authored footers may include a Sign Up link — hide it for logged-in users.
+  useEffect(() => {
+    const root = footerRef.current;
+    if (!root) return;
+
+    root.querySelectorAll('a[href="/register"], a[href$="/register"]').forEach((link) => {
+      const row = link.closest("li") ?? link;
+      (row as HTMLElement).style.display = user ? "none" : "";
+    });
+  }, [user, hasCmsContent, isLoading, html, storeEnabled]);
+
+  // CMS footers may include Store links — hide when the store is off.
+  useEffect(() => {
+    const root = footerRef.current;
+    if (!root || storeEnabled) return;
+
+    root.querySelectorAll('a[href="/store"], a[href$="/store"], a[href="/m/store"], a[href$="/m/store"]').forEach((link) => {
+      const row = link.closest("li") ?? link;
+      (row as HTMLElement).style.display = "none";
+    });
+  }, [storeEnabled, hasCmsContent, isLoading, html]);
+
   if (isMobileRoute) return null;
 
   const defaultFooter = (
@@ -22,11 +53,15 @@ const Footer = () => {
           <div>
             <h3 className="font-display font-semibold text-foreground">Quick Links</h3>
             <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
-              <li><Link to="/store" className="hover:text-primary transition-colors">Store</Link></li>
               <li><Link to="/search" className="hover:text-primary transition-colors">Find a Pet</Link></li>
+              {storeEnabled && (
+                <li><Link to="/store" className="hover:text-primary transition-colors">Store</Link></li>
+              )}
               <li><Link to="/directory" className="hover:text-primary transition-colors">Directory</Link></li>
               <li><Link to="/about" className="hover:text-primary transition-colors">About Us</Link></li>
-              <li><Link to="/register" className="hover:text-primary transition-colors">Sign Up</Link></li>
+              {!user && (
+                <li><Link to="/register" className="hover:text-primary transition-colors">Sign Up</Link></li>
+              )}
             </ul>
           </div>
           <div>
@@ -54,7 +89,11 @@ const Footer = () => {
     </footer>
   );
 
-  return <CmsRenderer slug="footer" fallback={defaultFooter} />;
+  return (
+    <div ref={footerRef}>
+      <CmsRenderer slug="footer" fallback={defaultFooter} />
+    </div>
+  );
 };
 
 export default Footer;

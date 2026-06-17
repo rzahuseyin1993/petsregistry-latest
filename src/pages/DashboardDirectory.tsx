@@ -15,8 +15,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "@/hooks/use-toast";
 import CountrySelect from "@/components/CountrySelect";
 import { Plus, Pencil, Trash2, Image, Building2, Crown, Check, ArrowRight, MapPin, Loader2, Upload, Video, X } from "lucide-react";
-import { Link } from "react-router-dom";
-import { useMobilePath } from "@/hooks/useIsMobileRoute";
+import { useNavigate } from "react-router-dom";
+
+const MEMBERSHIP_UPGRADE_PATH = "/dashboard/membership#upgrade-plans";
 
 const categories = [
   { value: "pet_shop", label: "Pet Shop" },
@@ -31,8 +32,8 @@ const categories = [
 const MAX_IMAGES = 3;
 
 const DashboardDirectory = () => {
-  const { user } = useAuth();
-  const mp = useMobilePath();
+  const { user, hasTopMembership } = useAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -80,22 +81,11 @@ const DashboardDirectory = () => {
     enabled: !!user,
   });
 
-  const { data: membership } = useQuery({
-    queryKey: ["my-partner-membership"],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("memberships")
-        .select("*, membership_plans(*)")
-        .eq("user_id", user!.id)
-        .eq("status", "active")
-        .gte("expires_at", new Date().toISOString())
-        .single();
-      return data;
-    },
-    enabled: !!user,
-  });
+  const isPaid = hasTopMembership;
 
-  const isPaid = !!membership;
+  const goToUpgradePlans = () => {
+    navigate(MEMBERSHIP_UPGRADE_PATH);
+  };
 
   const { data: listingImages = {}, refetch: refetchImages } = useQuery({
     queryKey: ["my-listing-images", listings.map((l: any) => l.id)],
@@ -339,9 +329,9 @@ const DashboardDirectory = () => {
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">You're on the <strong>Free plan</strong>. Upgrade to unlock photo gallery, logo, video & more.</p>
               </div>
-              <Link to={mp("/membership")}>
-                <Button className="gap-2 whitespace-nowrap">Upgrade Now <ArrowRight className="h-4 w-4" /></Button>
-              </Link>
+              <Button type="button" className="gap-2 whitespace-nowrap" onClick={goToUpgradePlans}>
+                Upgrade Now <ArrowRight className="h-4 w-4" />
+              </Button>
             </CardContent>
           </Card>
         )}

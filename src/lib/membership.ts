@@ -24,3 +24,14 @@ export function pickPrimaryMembershipPlanType(activePlanTypes: string[]): string
     getMembershipTierRank(current) > getMembershipTierRank(best) ? current : best,
   );
 }
+
+export function hasTopMembership(activePlanTypes: string[]): boolean {
+  return activePlanTypes.some(
+    (planType) => getMembershipTierRank(planType) >= getMembershipTierRank(TOP_MEMBERSHIP_PLAN_TYPE),
+  );
+}
+
+/** Directory / partner features: show upgrade CTA until user has Verified Partner. */
+export function shouldShowPartnerUpgrade(activePlanTypes: string[]): boolean {
+  return !hasTopMembership(activePlanTypes);
+}

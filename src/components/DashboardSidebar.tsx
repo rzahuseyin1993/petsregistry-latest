@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import MembershipBadge from "@/components/MembershipBadge";
 import NotificationBell from "@/components/NotificationBell";
 import { useAuth } from "@/contexts/AuthContext";
+import { useStoreEnabled } from "@/hooks/useStoreEnabled";
 import { useIsMobileRoute } from "@/hooks/useIsMobileRoute";
 
 const sidebarLinks = [
@@ -29,6 +30,7 @@ const DashboardSidebar = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { signOut, membership, canUpgradeMembership } = useAuth();
+  const { storeEnabled } = useStoreEnabled();
   const isMobileRoute = useIsMobileRoute();
 
   if (isMobileRoute) return null;
@@ -92,11 +94,13 @@ const DashboardSidebar = () => {
             <Smartphone className="h-4 w-4" /> Mobile View
           </Link>
         </Button>
-        <Button asChild variant="outline" className="mb-2 w-full gap-2 text-sm">
-          <Link to="/store">
-            <Store className="h-4 w-4" /> Visit Store
-          </Link>
-        </Button>
+        {storeEnabled && (
+          <Button asChild variant="outline" className="mb-2 w-full gap-2 text-sm">
+            <Link to="/store">
+              <Store className="h-4 w-4" /> Visit Store
+            </Link>
+          </Button>
+        )}
         <Button variant="ghost" className="w-full gap-2 text-sm text-muted-foreground" onClick={signOut}>
           <LogOut className="h-4 w-4" /> Sign Out
         </Button>

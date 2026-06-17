@@ -76,7 +76,7 @@ const FeesPage = () => {
         billingFor("flyer").includes("monthly") && { label: "Monthly", price: fmt("service_price_flyer_monthly", "1"), suffix: "/mo" },
         billingFor("flyer").includes("yearly") && { label: "Yearly", price: fmt("service_price_flyer_yearly", "10"), suffix: "/yr" },
       ].filter(Boolean) as any[],
-      benefits: ["Pro A4 layouts", "AI design suggestions", "Free for paid members"],
+      benefits: ["Pro A4 layouts", "Drag-and-drop editor", "Free for paid members"],
       memberFree: true,
     },
     {

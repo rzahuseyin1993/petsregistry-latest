@@ -1,6 +1,7 @@
-// AI Moderation worker — scans pending items in moderation_queue with Lovable AI.
+// AI Moderation worker — scans pending items in moderation_queue with AI.
 // Runs in real-time (called from DB trigger via pg_net) and also on cron schedule.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { chatCompletionJson } from "../_shared/aiClient.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -9,7 +10,6 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 
 const SYSTEM_PROMPT = `You are a strict content moderator for Pets Registry, a global pet identity platform.
 
@@ -60,21 +60,16 @@ Reply ONLY with valid JSON:
 
 async function classify(entityType: string, payload: any): Promise<any> {
   const userPrompt = `Entity type: ${entityType}\nContent to evaluate:\n${JSON.stringify(payload, null, 2)}`;
-  const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: userPrompt },
-      ],
-      response_format: { type: "json_object" },
-    }),
+  const data = await chatCompletionJson({
+    model: "google/gemini-2.5-flash",
+    messages: [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: userPrompt },
+    ],
+    response_format: { type: "json_object" },
+    max_tokens: 1024,
   });
-  if (!resp.ok) throw new Error(`AI gateway ${resp.status}: ${await resp.text()}`);
-  const data = await resp.json();
-  const content = data.choices?.[0]?.message?.content || "{}";
+  const content = (data.choices as any[])?.[0]?.message?.content || "{}";
   return JSON.parse(content);
 }
 

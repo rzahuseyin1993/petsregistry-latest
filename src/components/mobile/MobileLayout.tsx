@@ -1,6 +1,7 @@
 import { Link, useLocation, Outlet } from "react-router-dom";
 import { Home, Search, Heart, User, ShoppingCart, ScanLine, Monitor } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useStoreEnabled } from "@/hooks/useStoreEnabled";
 import NotificationBell from "@/components/NotificationBell";
 import logo from "@/assets/logo.png";
 
@@ -15,6 +16,9 @@ const tabs = [
 const MobileLayout = () => {
   const location = useLocation();
   const { user } = useAuth();
+  const { storeEnabled } = useStoreEnabled();
+
+  const visibleTabs = tabs.filter((tab) => tab.to !== "/m/store" || storeEnabled);
 
   const isActive = (path: string) => {
     if (path === "/m") return location.pathname === "/m";
@@ -45,7 +49,7 @@ const MobileLayout = () => {
       {/* Bottom Tab Bar */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card/95 backdrop-blur-md safe-area-bottom">
         <div className="flex h-16 items-stretch">
-          {tabs.map((tab) => {
+          {visibleTabs.map((tab) => {
             const Icon = tab.icon;
             const active = isActive(tab.to);
             return (

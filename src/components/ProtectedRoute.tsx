@@ -3,10 +3,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobileRoute } from "@/hooks/useIsMobileRoute";
 
 const ProtectedRoute = ({ children, adminOnly = false }: { children: React.ReactNode; adminOnly?: boolean }) => {
-  const { user, isStaff, loading } = useAuth();
+  const { user, isStaff, loading, rolesLoading } = useAuth();
   const isMobile = useIsMobileRoute();
 
-  if (loading) {
+  if (loading || (adminOnly && user && rolesLoading)) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />

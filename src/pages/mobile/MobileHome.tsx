@@ -10,6 +10,7 @@ import {
 import { motion } from "framer-motion";
 import { useState } from "react";
 import { useVisitorGeo } from "@/contexts/VisitorGeoContext";
+import { useStoreEnabled } from "@/hooks/useStoreEnabled";
 import { fetchBrowseAdoptions, fetchBrowseLostReports, fetchBrowsePets } from "@/lib/geoBrowseQueries";
 import { useQuery } from "@tanstack/react-query";
 import LostPetsBanner from "@/components/LostPetsBanner";
@@ -32,6 +33,9 @@ const MobileHome = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const navigate = useNavigate();
   const { visitorCountry, countryFilter } = useVisitorGeo();
+  const { storeEnabled } = useStoreEnabled();
+
+  const visibleQuickActions = quickActions.filter((action) => action.to !== "/m/store" || storeEnabled);
 
   const { data: recentPets = [] } = useQuery({
     queryKey: ["mobile-recent-pets", countryFilter],
@@ -95,7 +99,7 @@ const MobileHome = () => {
       <div>
         <h2 className="mb-2 font-display text-xs font-semibold uppercase tracking-wider text-muted-foreground">Quick Actions</h2>
         <div className="grid grid-cols-3 gap-2">
-          {quickActions.map((action, i) => {
+          {visibleQuickActions.map((action, i) => {
             const Icon = action.icon;
             return (
               <Link key={action.to} to={action.to}>
