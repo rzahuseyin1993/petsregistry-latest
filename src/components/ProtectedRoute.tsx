@@ -6,7 +6,7 @@ const ProtectedRoute = ({ children, adminOnly = false }: { children: React.React
   const { user, isStaff, loading, rolesLoading } = useAuth();
   const isMobile = useIsMobileRoute();
 
-  if (loading || (adminOnly && user && rolesLoading)) {
+  if (loading || (adminOnly && user && rolesLoading && !isStaff)) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />

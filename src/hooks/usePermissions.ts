@@ -16,6 +16,8 @@ export interface Permission {
   can_delete: boolean;
 }
 
+const PERMISSIONS_STALE_MS = 5 * 60 * 1000;
+
 export const usePermissions = () => {
   const { user, isAdmin } = useAuth();
 
@@ -33,6 +35,7 @@ export const usePermissions = () => {
       return data?.role || "user";
     },
     enabled: !!user,
+    staleTime: PERMISSIONS_STALE_MS,
   });
 
   const { data: permissions = [], isLoading } = useQuery({
@@ -46,6 +49,7 @@ export const usePermissions = () => {
       return (data || []) as unknown as Permission[];
     },
     enabled: !!userRole,
+    staleTime: PERMISSIONS_STALE_MS,
   });
 
   const can = (resource: Resource, action: "view" | "create" | "edit" | "delete"): boolean => {

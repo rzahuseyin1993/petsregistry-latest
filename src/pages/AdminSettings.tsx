@@ -1,4 +1,3 @@
-import AdminSidebar from "@/components/AdminSidebar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -208,21 +207,16 @@ const AdminSettings = () => {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen">
-        <AdminSidebar />
-        <main className="flex-1 bg-background p-6 md:p-8">
+              <main className="flex-1 bg-background p-6 md:p-8">
           <div className="flex justify-center pt-20">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
           </div>
         </main>
-      </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen">
-      <AdminSidebar />
-      <main className="flex-1 bg-background p-6 md:p-8">
+          <main className="flex-1 bg-background p-6 md:p-8">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="font-display text-2xl font-bold text-foreground">Settings</h1>
@@ -455,7 +449,6 @@ const AdminSettings = () => {
           </Card>
         </div>
       </main>
-    </div>
   );
 };
 

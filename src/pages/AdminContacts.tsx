@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import AdminSidebar from "@/components/AdminSidebar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -326,9 +325,7 @@ const AdminContacts = () => {
     : profiles.filter(p => adopterUserIds.includes(p.user_id)).map(p => ({ value: p.user_id, label: p.full_name || p.email }));
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AdminSidebar />
-      <main className="flex-1 overflow-auto p-6">
+          <main className="flex-1 overflow-auto p-6">
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="font-display text-2xl font-bold text-foreground">Contact & Messages</h1>
@@ -789,7 +786,6 @@ const AdminContacts = () => {
           </DialogContent>
         </Dialog>
       </main>
-    </div>
   );
 };
 

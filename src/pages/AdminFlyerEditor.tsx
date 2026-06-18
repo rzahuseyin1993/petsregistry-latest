@@ -1,6 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import AdminSidebar from "@/components/AdminSidebar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -335,9 +334,7 @@ const AdminFlyerEditor = () => {
 
   /* ─── Render ─── */
   return (
-    <div className="flex min-h-screen">
-      <AdminSidebar />
-      <main className="flex-1 bg-background flex flex-col overflow-hidden">
+          <main className="flex-1 bg-background flex flex-col overflow-hidden">
         {/* Top Bar */}
         <div className="flex items-center justify-between border-b border-border px-4 py-2 bg-card">
           <div className="flex items-center gap-3">
@@ -690,7 +687,6 @@ const AdminFlyerEditor = () => {
           </div>
         </div>
       </main>
-    </div>
   );
 };
 

@@ -6,6 +6,9 @@ type Props = {
   children: ReactNode;
 };
 
+const isAdminAreaPath = (path: string) =>
+  path.startsWith("/admin") && path !== "/admin/login";
+
 /** Keeps the previous route on screen until the next lazy chunk has loaded */
 const RouteReadyNotifier = ({ onReady, children }: { onReady: () => void; children: ReactNode }) => {
   useEffect(() => {
@@ -36,10 +39,14 @@ const DeferredNavigation = ({ children }: Props) => {
   const location = useLocation();
   const [displayLocation, setDisplayLocation] = useState(location);
   const isPending = location.key !== displayLocation.key;
+  const isInternalAdminNav =
+    isPending &&
+    isAdminAreaPath(location.pathname) &&
+    isAdminAreaPath(displayLocation.pathname);
 
   return (
     <>
-      {isPending && <NavigationOverlay />}
+      {isPending && !isInternalAdminNav && <NavigationOverlay />}
       <Routes location={displayLocation}>{children}</Routes>
       {isPending && (
         <HiddenRouteLoader

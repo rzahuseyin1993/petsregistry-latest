@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 
 export interface CartItem {
   id: string;
@@ -34,6 +35,8 @@ export const useCart = () => useContext(CartContext);
 const CART_KEY = "pet-store-cart";
 
 export const CartProvider = ({ children }: { children: ReactNode }) => {
+  const { user } = useAuth();
+  const hadUserRef = useRef(false);
   const [items, setItems] = useState<CartItem[]>(() => {
     try {
       const stored = localStorage.getItem(CART_KEY);
@@ -46,6 +49,19 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     localStorage.setItem(CART_KEY, JSON.stringify(items));
   }, [items]);
+
+  // Clear cart when the user signs out (not on every anonymous page load).
+  useEffect(() => {
+    if (user) {
+      hadUserRef.current = true;
+      return;
+    }
+    if (hadUserRef.current) {
+      setItems([]);
+      localStorage.removeItem(CART_KEY);
+      hadUserRef.current = false;
+    }
+  }, [user]);
 
   const addItem = (item: Omit<CartItem, "quantity">) => {
     setItems((prev) => {
@@ -70,7 +86,10 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     setItems((prev) => prev.map((i) => i.id === id ? { ...i, quantity: Math.min(quantity, i.stock) } : i));
   };
 
-  const clearCart = () => setItems([]);
+  const clearCart = () => {
+    setItems([]);
+    localStorage.removeItem(CART_KEY);
+  };
 
   const totalItems = items.reduce((sum, i) => sum + i.quantity, 0);
   const totalPrice = items.reduce((sum, i) => sum + i.price * i.quantity, 0);

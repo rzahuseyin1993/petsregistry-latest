@@ -1,8 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import AdminSidebar from "@/components/AdminSidebar";
-import AdminPageWrapper from "@/components/AdminPageWrapper";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -70,10 +68,7 @@ const AdminSeo = () => {
   const set = (key: string, value: string) => setValues((p) => ({ ...p, [key]: value }));
 
   return (
-    <AdminPageWrapper resource="seo">
-    <div className="flex min-h-screen bg-background">
-      <AdminSidebar />
-      <main className="flex-1 overflow-auto p-6">
+    <main className="flex-1 overflow-auto p-6">
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="font-display text-2xl font-bold text-foreground flex items-center gap-2">
@@ -195,8 +190,6 @@ const AdminSeo = () => {
           </Card>
         </div>
       </main>
-    </div>
-    </AdminPageWrapper>
   );
 };
 

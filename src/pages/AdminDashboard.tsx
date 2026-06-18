@@ -1,4 +1,3 @@
-import AdminSidebar from "@/components/AdminSidebar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -73,9 +72,7 @@ const AdminDashboard = () => {
   };
 
   return (
-    <div className="flex min-h-screen">
-      <AdminSidebar />
-      <main className="flex-1 bg-background p-6 md:p-8">
+          <main className="flex-1 bg-background p-6 md:p-8">
         <h1 className="font-display text-2xl font-bold text-foreground">Admin Overview</h1>
         <p className="text-sm text-muted-foreground">System statistics and management</p>
 
@@ -171,7 +168,6 @@ const AdminDashboard = () => {
           </Card>
         </div>
       </main>
-    </div>
   );
 };
 

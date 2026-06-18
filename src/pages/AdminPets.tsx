@@ -1,4 +1,3 @@
-import AdminSidebar from "@/components/AdminSidebar";
 import PermissionGate from "@/components/PermissionGate";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -73,9 +72,7 @@ const AdminPets = () => {
   };
 
   return (
-    <div className="flex min-h-screen">
-      <AdminSidebar />
-      <main className="flex-1 bg-background p-6 md:p-8">
+          <main className="flex-1 bg-background p-6 md:p-8">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="font-display text-2xl font-bold text-foreground">All Pets</h1>
@@ -204,7 +201,6 @@ const AdminPets = () => {
           </DialogContent>
         </Dialog>
       </main>
-    </div>
   );
 };
 

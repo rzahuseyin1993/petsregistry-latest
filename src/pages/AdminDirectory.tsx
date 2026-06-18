@@ -3,7 +3,6 @@ import PermissionGate from "@/components/PermissionGate";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { uploadDirectoryImage } from "@/lib/uploadDirectoryImage";
-import AdminSidebar from "@/components/AdminSidebar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -176,9 +175,7 @@ const AdminDirectory = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AdminSidebar />
-      <main className="flex-1 overflow-y-auto p-6 lg:p-10">
+          <main className="flex-1 overflow-y-auto p-6 lg:p-10">
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="font-display text-2xl font-bold text-foreground">Business Directory Management</h1>
@@ -417,7 +414,6 @@ const AdminDirectory = () => {
           </DialogContent>
         </Dialog>
       </main>
-    </div>
   );
 };
 

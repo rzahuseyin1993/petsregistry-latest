@@ -12,7 +12,6 @@ import { Layout, Plus, Save, Eye, Trash2, Copy, Monitor, Tablet, Smartphone, Und
 import AiSiteEditorPanel from "@/components/AiSiteEditorPanel";
 import { toast } from "sonner";
 
-import AdminSidebar from "@/components/AdminSidebar";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -492,19 +491,14 @@ const AdminPageBuilder = () => {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen">
-        <AdminSidebar />
-        <div className="flex flex-1 items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-        </div>
+      <div className="flex flex-1 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AdminSidebar />
-      <div className="flex flex-1 flex-col overflow-hidden">
+    <div className="flex flex-1 flex-col overflow-hidden">
         {/* Top Toolbar */}
         <div className="flex flex-wrap items-center gap-2 border-b border-border bg-card px-3 py-2">
           <Layout className="h-5 w-5 text-primary shrink-0" />
@@ -670,10 +664,9 @@ const AdminPageBuilder = () => {
             />
           )}
         </div>
-      </div>
 
-      {/* Custom GrapesJS styles */}
-      <style>{`
+        {/* Custom GrapesJS styles */}
+        <style>{`
         .gjs-one-bg { background-color: hsl(var(--card)) !important; }
         .gjs-two-color { color: hsl(var(--foreground)) !important; }
         .gjs-three-bg { background-color: hsl(var(--primary)) !important; }

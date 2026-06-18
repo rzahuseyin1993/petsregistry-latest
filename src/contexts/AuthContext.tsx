@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { canUpgradeMembership, hasTopMembership, pickPrimaryMembershipPlanType } from "@/lib/membership";
@@ -43,6 +43,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [roleChecksAvailable, setRoleChecksAvailable] = useState(true);
   const [membershipChecksAvailable, setMembershipChecksAvailable] = useState(true);
+  const rolesLoadedForUserId = useRef<string | null>(null);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -59,8 +60,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => subscription.unsubscribe();
   }, []);
 
+  const userId = user?.id;
+
   useEffect(() => {
-    if (!user) {
+    if (!userId) {
+      rolesLoadedForUserId.current = null;
       setProfile(null);
       setIsAdmin(false);
       setIsStaff(false);
@@ -71,15 +75,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
     // Fetch profile
-    supabase.from("profiles").select("full_name, email, phone, show_name, show_phone, address, city, country").eq("user_id", user.id).single()
+    supabase.from("profiles").select("full_name, email, phone, show_name, show_phone, address, city, country").eq("user_id", userId).single()
       .then(({ data }) => { if (data) setProfile(data as any); });
     // Check role membership via user_roles table to avoid dependency on has_role RPC.
     if (roleChecksAvailable) {
-      setRolesLoading(true);
+      const rolesAlreadyLoaded = rolesLoadedForUserId.current === userId;
+      if (!rolesAlreadyLoaded) setRolesLoading(true);
       supabase
         .from("user_roles")
         .select("role")
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .then(({ data, error }) => {
           if (error) {
             setRoleChecksAvailable(false);
@@ -92,6 +97,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           const staff = admin || roles.has("moderator") || roles.has("seo_admin");
           setIsAdmin(admin);
           setIsStaff(staff);
+          rolesLoadedForUserId.current = userId;
         })
         .finally(() => setRolesLoading(false));
     } else {
@@ -101,7 +107,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (membershipChecksAvailable) {
       supabase.from("memberships")
         .select("*, membership_plans(name, plan_type, badge_icon_url)")
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .eq("status", "active")
         .gte("expires_at", new Date().toISOString())
         .order("created_at", { ascending: false })
@@ -138,7 +144,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
         });
     }
-  }, [user]);
+  }, [userId, roleChecksAvailable, membershipChecksAvailable]);
 
   const signOut = async () => {
     await supabase.auth.signOut();
@@ -150,6 +156,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setMembership(null);
     setCanUpgrade(false);
     setIsTopMember(false);
+    rolesLoadedForUserId.current = null;
   };
 
   return (

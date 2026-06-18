@@ -1,8 +1,10 @@
 import { Link, useLocation } from "react-router-dom";
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { PawPrint, Users, ShoppingBag, Settings, LayoutDashboard, LogOut, CreditCard, Layout, Heart, AlertTriangle, FileText, Building2, Crown, Mail, HandHeart, Shield, Send, Award, MapPin, Search, BookOpen, Receipt, ShieldAlert } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { usePermissions, Resource } from "@/hooks/usePermissions";
+import { prefetchAdminRoute, prefetchAllAdminRoutes } from "@/lib/adminPrefetch";
 
 const adminLinks: Array<{ to: string; label: string; icon: any; resource: Resource }> = [
   { to: "/admin", label: "Overview", icon: LayoutDashboard, resource: "dashboard" },
@@ -33,6 +35,16 @@ const AdminSidebar = () => {
   const location = useLocation();
   const { canView, isLoading } = usePermissions();
 
+  useEffect(() => {
+    const schedule = () => prefetchAllAdminRoutes();
+    if ("requestIdleCallback" in window) {
+      const id = window.requestIdleCallback(schedule);
+      return () => window.cancelIdleCallback(id);
+    }
+    const timer = window.setTimeout(schedule, 2000);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   const visibleLinks = adminLinks.filter((link) => canView(link.resource));
 
   return (
@@ -53,6 +65,8 @@ const AdminSidebar = () => {
               <Link
                 key={link.to}
                 to={link.to}
+                onMouseEnter={() => prefetchAdminRoute(link.to)}
+                onFocus={() => prefetchAdminRoute(link.to)}
                 className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
                   isActive
                     ? "bg-primary/10 text-primary"

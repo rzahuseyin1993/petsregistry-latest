@@ -1,4 +1,3 @@
-import AdminSidebar from "@/components/AdminSidebar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -116,9 +115,7 @@ const AdminUsers = () => {
   });
 
   return (
-    <div className="flex min-h-screen">
-      <AdminSidebar />
-      <main className="flex-1 bg-background p-6 md:p-8">
+          <main className="flex-1 bg-background p-6 md:p-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="font-display text-2xl font-bold text-foreground">Members Management</h1>
@@ -240,7 +237,6 @@ const AdminUsers = () => {
 
         <MemberDetailSheet user={selectedUser} open={sheetOpen} onOpenChange={setSheetOpen} />
       </main>
-    </div>
   );
 };
 

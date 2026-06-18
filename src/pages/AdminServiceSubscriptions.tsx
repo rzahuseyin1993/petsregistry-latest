@@ -1,5 +1,4 @@
 import { useState } from "react";
-import AdminSidebar from "@/components/AdminSidebar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -152,9 +151,7 @@ const AdminServiceSubscriptions = () => {
   };
 
   return (
-    <div className="flex min-h-screen">
-      <AdminSidebar />
-      <main className="flex-1 bg-background p-6 md:p-8">
+          <main className="flex-1 bg-background p-6 md:p-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="font-display text-2xl font-bold text-foreground">Service Subscriptions</h1>
@@ -276,7 +273,6 @@ const AdminServiceSubscriptions = () => {
           </CardContent>
         </Card>
       </main>
-    </div>
   );
 };
 

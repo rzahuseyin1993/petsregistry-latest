@@ -1,4 +1,3 @@
-import AdminSidebar from "@/components/AdminSidebar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -466,9 +465,7 @@ const AdminCertificates = () => {
   // If editing a template — show full canvas editor
   if (editingTemplate) {
     return (
-      <div className="flex min-h-screen">
-        <AdminSidebar />
-        <main className="flex-1 bg-background flex flex-col overflow-hidden">
+              <main className="flex-1 bg-background flex flex-col overflow-hidden">
           {/* Top Bar */}
           <div className="flex items-center justify-between border-b border-border px-4 py-2 bg-card">
             <div className="flex items-center gap-3">
@@ -657,15 +654,12 @@ const AdminCertificates = () => {
             </div>
           </div>
         </main>
-      </div>
     );
   }
 
   /* ─── Normal view (certificates list + template gallery) ─── */
   return (
-    <div className="flex min-h-screen bg-background">
-      <AdminSidebar />
-      <main className="flex-1 overflow-auto p-6">
+          <main className="flex-1 overflow-auto p-6">
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <Award className="h-6 w-6 text-primary" /> Pet Certificates
@@ -828,7 +822,6 @@ const AdminCertificates = () => {
           </DialogContent>
         </Dialog>
       </main>
-    </div>
   );
 };
 

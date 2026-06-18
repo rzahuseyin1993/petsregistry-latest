@@ -1,4 +1,3 @@
-import AdminSidebar from "@/components/AdminSidebar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -306,9 +305,7 @@ const AdminPayments = () => {
   };
 
   return (
-    <div className="flex min-h-screen">
-      <AdminSidebar />
-      <main className="flex-1 bg-background p-6 md:p-8 overflow-y-auto">
+          <main className="flex-1 bg-background p-6 md:p-8 overflow-y-auto">
         <h1 className="font-display text-2xl font-bold text-foreground">Payment Settings</h1>
         <p className="text-sm text-muted-foreground">Configure payment gateways, billing modes, and service pricing</p>
 
@@ -564,7 +561,6 @@ const AdminPayments = () => {
           </Button>
         </div>
       </main>
-    </div>
   );
 };
 

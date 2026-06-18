@@ -14,9 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Plus, Pencil, Trash2, Eye, EyeOff, Image as ImageIcon, ExternalLink, Star, StarOff, ShieldCheck, ShieldOff, ShieldAlert, Wand2, Loader2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import AdminSidebar from "@/components/AdminSidebar";
 import DOMPurify from "dompurify";
-import AdminPageWrapper from "@/components/AdminPageWrapper";
 
 type BlogPost = {
   id: string;
@@ -294,10 +292,7 @@ const AdminBlog = () => {
   };
 
   return (
-    <AdminPageWrapper resource="blog">
-    <div className="flex min-h-screen bg-background">
-      <AdminSidebar />
-      <main className="flex-1 overflow-auto p-6">
+    <main className="flex-1 overflow-auto p-6">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h1 className="text-2xl font-bold font-display text-foreground">Resources</h1>
@@ -785,9 +780,7 @@ const AdminBlog = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </main>
-    </div>
-    </AdminPageWrapper>
+    </main>
   );
 };
 

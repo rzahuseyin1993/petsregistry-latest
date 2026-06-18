@@ -3,7 +3,6 @@ import PermissionGate from "@/components/PermissionGate";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { uploadRaw, removeFile } from "@/lib/imageUpload";
-import AdminSidebar from "@/components/AdminSidebar";
 import MembershipBadge from "@/components/MembershipBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -141,9 +140,7 @@ const AdminMemberships = () => {
   });
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AdminSidebar />
-      <main className="flex-1 overflow-y-auto p-6 lg:p-10">
+          <main className="flex-1 overflow-y-auto p-6 lg:p-10">
         <h1 className="mb-6 font-display text-2xl font-bold text-foreground">Membership Management</h1>
 
         <Tabs defaultValue="plans">
@@ -334,7 +331,6 @@ const AdminMemberships = () => {
           </TabsContent>
         </Tabs>
       </main>
-    </div>
   );
 };
 

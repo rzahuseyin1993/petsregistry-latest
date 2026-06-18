@@ -1,4 +1,3 @@
-import AdminSidebar from "@/components/AdminSidebar";
 import PermissionGate from "@/components/PermissionGate";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -108,9 +107,7 @@ const AdminDonations = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AdminSidebar />
-      <main className="flex-1 overflow-y-auto p-6 lg:p-10">
+          <main className="flex-1 overflow-y-auto p-6 lg:p-10">
         <h1 className="font-display text-2xl font-bold text-foreground">Donations</h1>
         <p className="mt-1 text-sm text-muted-foreground">View donations and manage packages</p>
 
@@ -245,7 +242,6 @@ const AdminDonations = () => {
           </Card>
         </div>
       </main>
-    </div>
   );
 };
 

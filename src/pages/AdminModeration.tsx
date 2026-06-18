@@ -1,6 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import AdminSidebar from "@/components/AdminSidebar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -103,9 +102,7 @@ const AdminModeration = () => {
   const resolved = flags.filter((f: any) => f.status === "resolved" || f.status === "dismissed");
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AdminSidebar />
-      <main className="flex-1 overflow-auto p-6">
+          <main className="flex-1 overflow-auto p-6">
         <div className="space-y-6">
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div>
@@ -203,7 +200,6 @@ const AdminModeration = () => {
           )}
         </div>
       </main>
-    </div>
   );
 };
 

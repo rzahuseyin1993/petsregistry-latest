@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import AdminSidebar from "@/components/AdminSidebar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -202,9 +201,7 @@ const AdminMapSettings = () => {
   ];
 
   return (
-    <div className="flex min-h-screen">
-      <AdminSidebar />
-      <main className="flex-1 bg-background p-6 md:p-8 overflow-auto">
+          <main className="flex-1 bg-background p-6 md:p-8 overflow-auto">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="font-display text-2xl font-bold text-foreground flex items-center gap-2">
@@ -472,7 +469,6 @@ const AdminMapSettings = () => {
           </DialogContent>
         </Dialog>
       </main>
-    </div>
   );
 };
 

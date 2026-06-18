@@ -1,5 +1,4 @@
 import { useState } from "react";
-import AdminSidebar from "@/components/AdminSidebar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
@@ -90,19 +89,14 @@ const AdminPermissions = () => {
 
   if (isLoading) {
     return (
-      <div className="flex h-screen bg-background">
-        <AdminSidebar />
-        <main className="flex flex-1 items-center justify-center">
+              <main className="flex flex-1 items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </main>
-      </div>
     );
   }
 
   return (
-    <div className="flex h-screen bg-background">
-      <AdminSidebar />
-      <main className="flex-1 overflow-auto p-6">
+          <main className="flex-1 overflow-auto p-6">
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
@@ -191,7 +185,6 @@ const AdminPermissions = () => {
           ))}
         </Tabs>
       </main>
-    </div>
   );
 };
 

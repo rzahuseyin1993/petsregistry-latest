@@ -10,15 +10,16 @@ interface AdminPageWrapperProps {
 const AdminPageWrapper = ({ resource, children }: AdminPageWrapperProps) => {
   const { canView, isLoading, userRole } = usePermissions();
 
-  if (isLoading || !userRole) {
+  // Full-screen block only on first load when no cached role exists yet
+  if (!userRole && isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex flex-1 items-center justify-center p-8">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
       </div>
     );
   }
 
-  if (!canView(resource)) return <AccessDenied />;
+  if (userRole && !isLoading && !canView(resource)) return <AccessDenied />;
 
   return <>{children}</>;
 };

@@ -11,6 +11,8 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { VisitorGeoProvider } from "@/contexts/VisitorGeoContext";
 import { CartProvider } from "@/contexts/CartContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import AdminPageWrapper from "@/components/AdminPageWrapper";
+import AdminLayout from "@/components/AdminLayout";
 import MaintenanceGate from "@/components/MaintenanceGate";
 const Index = lazy(() => import("./pages/Index"));
 const MobileGuard = lazy(() => import("./components/MobileGuard"));
@@ -80,7 +82,6 @@ const ResourcePost = lazy(() => import("./pages/ResourcePost"));
 const CertificateVerify = lazy(() => import("./pages/CertificateVerify"));
 const FeesPage = lazy(() => import("./pages/FeesPage"));
 const AdminModeration = lazy(() => import("./pages/AdminModeration"));
-const AdminPageWrapper = lazy(() => import("./components/AdminPageWrapper"));
 const TrackingCodeInjector = lazy(() => import("./components/TrackingCodeInjector"));
 
 // Lazy-loaded mobile pages
@@ -210,6 +211,31 @@ function AppWithProviders() {
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/admin/login" element={<AdminLogin />} />
+              <Route path="/admin" element={<ProtectedRoute adminOnly><AdminLayout /></ProtectedRoute>}>
+                <Route index element={<AdminPageWrapper resource="dashboard"><AdminDashboard /></AdminPageWrapper>} />
+                <Route path="users" element={<AdminPageWrapper resource="members"><AdminUsers /></AdminPageWrapper>} />
+                <Route path="pets" element={<AdminPageWrapper resource="pets"><AdminPets /></AdminPageWrapper>} />
+                <Route path="orders" element={<AdminPageWrapper resource="orders"><AdminOrders /></AdminPageWrapper>} />
+                <Route path="products" element={<AdminPageWrapper resource="products"><AdminProducts /></AdminPageWrapper>} />
+                <Route path="payments" element={<AdminPageWrapper resource="payments"><AdminPayments /></AdminPageWrapper>} />
+                <Route path="service-subscriptions" element={<AdminPageWrapper resource="payments"><AdminServiceSubscriptions /></AdminPageWrapper>} />
+                <Route path="adoptions" element={<AdminPageWrapper resource="pets"><AdminAdoptions /></AdminPageWrapper>} />
+                <Route path="lost-reports" element={<AdminPageWrapper resource="lost_reports"><AdminLostReports /></AdminPageWrapper>} />
+                <Route path="flyer-templates" element={<AdminPageWrapper resource="flyer_templates"><AdminFlyerTemplates /></AdminPageWrapper>} />
+                <Route path="flyer-editor" element={<AdminPageWrapper resource="flyer_templates"><AdminFlyerEditor /></AdminPageWrapper>} />
+                <Route path="directory" element={<AdminPageWrapper resource="directory"><AdminDirectory /></AdminPageWrapper>} />
+                <Route path="memberships" element={<AdminPageWrapper resource="memberships"><AdminMemberships /></AdminPageWrapper>} />
+                <Route path="contacts" element={<AdminPageWrapper resource="contacts"><AdminContacts /></AdminPageWrapper>} />
+                <Route path="donations" element={<AdminPageWrapper resource="donations"><AdminDonations /></AdminPageWrapper>} />
+                <Route path="settings" element={<AdminPageWrapper resource="settings"><AdminSettings /></AdminPageWrapper>} />
+                <Route path="page-builder" element={<AdminPageWrapper resource="page_builder"><AdminPageBuilder /></AdminPageWrapper>} />
+                <Route path="permissions" element={<AdminPageWrapper resource="permissions"><AdminPermissions /></AdminPageWrapper>} />
+                <Route path="moderation" element={<AdminPageWrapper resource="permissions"><AdminModeration /></AdminPageWrapper>} />
+                <Route path="certificates" element={<AdminPageWrapper resource="certificates"><AdminCertificates /></AdminPageWrapper>} />
+                <Route path="map-settings" element={<AdminPageWrapper resource="settings"><AdminMapSettings /></AdminPageWrapper>} />
+                <Route path="seo" element={<AdminPageWrapper resource="settings"><AdminSeo /></AdminPageWrapper>} />
+                <Route path="blog" element={<AdminPageWrapper resource="blog"><AdminBlog /></AdminPageWrapper>} />
+              </Route>
               <Route path="/pet/:id" element={<PetProfile />} />
               <Route path="/store" element={<StorePage />} />
               <Route path="/search" element={<SearchPage />} />
@@ -240,29 +266,6 @@ function AppWithProviders() {
               <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
               <Route path="/lost-pets/country/:country" element={<LostPetsCountryFeedPage />} />
               <Route path="/lost-pets" element={<LostPetsPage />} />
-              <Route path="/admin" element={<ProtectedRoute adminOnly><AdminPageWrapper resource="dashboard"><AdminDashboard /></AdminPageWrapper></ProtectedRoute>} />
-              <Route path="/admin/users" element={<ProtectedRoute adminOnly><AdminPageWrapper resource="members"><AdminUsers /></AdminPageWrapper></ProtectedRoute>} />
-              <Route path="/admin/pets" element={<ProtectedRoute adminOnly><AdminPageWrapper resource="pets"><AdminPets /></AdminPageWrapper></ProtectedRoute>} />
-              <Route path="/admin/orders" element={<ProtectedRoute adminOnly><AdminPageWrapper resource="orders"><AdminOrders /></AdminPageWrapper></ProtectedRoute>} />
-              <Route path="/admin/products" element={<ProtectedRoute adminOnly><AdminPageWrapper resource="products"><AdminProducts /></AdminPageWrapper></ProtectedRoute>} />
-              <Route path="/admin/payments" element={<ProtectedRoute adminOnly><AdminPageWrapper resource="payments"><AdminPayments /></AdminPageWrapper></ProtectedRoute>} />
-              <Route path="/admin/service-subscriptions" element={<ProtectedRoute adminOnly><AdminPageWrapper resource="payments"><AdminServiceSubscriptions /></AdminPageWrapper></ProtectedRoute>} />
-              <Route path="/admin/adoptions" element={<ProtectedRoute adminOnly><AdminPageWrapper resource="pets"><AdminAdoptions /></AdminPageWrapper></ProtectedRoute>} />
-              <Route path="/admin/lost-reports" element={<ProtectedRoute adminOnly><AdminPageWrapper resource="lost_reports"><AdminLostReports /></AdminPageWrapper></ProtectedRoute>} />
-              <Route path="/admin/flyer-templates" element={<ProtectedRoute adminOnly><AdminPageWrapper resource="flyer_templates"><AdminFlyerTemplates /></AdminPageWrapper></ProtectedRoute>} />
-              <Route path="/admin/flyer-editor" element={<ProtectedRoute adminOnly><AdminPageWrapper resource="flyer_templates"><AdminFlyerEditor /></AdminPageWrapper></ProtectedRoute>} />
-              <Route path="/admin/directory" element={<ProtectedRoute adminOnly><AdminPageWrapper resource="directory"><AdminDirectory /></AdminPageWrapper></ProtectedRoute>} />
-              <Route path="/admin/memberships" element={<ProtectedRoute adminOnly><AdminPageWrapper resource="memberships"><AdminMemberships /></AdminPageWrapper></ProtectedRoute>} />
-              <Route path="/admin/contacts" element={<ProtectedRoute adminOnly><AdminPageWrapper resource="contacts"><AdminContacts /></AdminPageWrapper></ProtectedRoute>} />
-              <Route path="/admin/donations" element={<ProtectedRoute adminOnly><AdminPageWrapper resource="donations"><AdminDonations /></AdminPageWrapper></ProtectedRoute>} />
-              <Route path="/admin/settings" element={<ProtectedRoute adminOnly><AdminPageWrapper resource="settings"><AdminSettings /></AdminPageWrapper></ProtectedRoute>} />
-              <Route path="/admin/page-builder" element={<ProtectedRoute adminOnly><AdminPageWrapper resource="page_builder"><AdminPageBuilder /></AdminPageWrapper></ProtectedRoute>} />
-              <Route path="/admin/permissions" element={<ProtectedRoute adminOnly><AdminPageWrapper resource="permissions"><AdminPermissions /></AdminPageWrapper></ProtectedRoute>} />
-              <Route path="/admin/moderation" element={<ProtectedRoute adminOnly><AdminPageWrapper resource="permissions"><AdminModeration /></AdminPageWrapper></ProtectedRoute>} />
-              <Route path="/admin/certificates" element={<ProtectedRoute adminOnly><AdminPageWrapper resource="certificates"><AdminCertificates /></AdminPageWrapper></ProtectedRoute>} />
-              <Route path="/admin/map-settings" element={<ProtectedRoute adminOnly><AdminPageWrapper resource="settings"><AdminMapSettings /></AdminPageWrapper></ProtectedRoute>} />
-              <Route path="/admin/seo" element={<ProtectedRoute adminOnly><AdminPageWrapper resource="settings"><AdminSeo /></AdminPageWrapper></ProtectedRoute>} />
-              <Route path="/admin/blog" element={<ProtectedRoute adminOnly><AdminPageWrapper resource="settings"><AdminBlog /></AdminPageWrapper></ProtectedRoute>} />
               <Route path="/resources" element={<ResourcesPage />} />
               <Route path="/resources/:slug" element={<ResourcePost />} />
               <Route path="/verify-certificate" element={<CertificateVerify />} />

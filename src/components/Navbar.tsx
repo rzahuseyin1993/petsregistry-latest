@@ -202,7 +202,7 @@ const Navbar = () => {
                   <Smartphone className="h-4 w-4" />
                 </Button>
               </Link>
-              {storeEnabled && <CartDrawer />}
+              {storeEnabled && totalItems > 0 && <CartDrawer />}
               <Link to="/login">
                 <Button variant="outline" size="sm" className="gap-2 rounded-lg">
                   <LogIn className="h-4 w-4" /> Sign In
