@@ -25,7 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 // ── Auth ────────────────────────────────────────────────────────────────
-$TOKEN = getenv('UPLOAD_TOKEN') ?: 'YOUR_SHARED_SECRET_HERE';
+$TOKEN = getenv('UPLOAD_TOKEN') ?: '522c46cb6b45cc0153a25483134e32d7bb6f17dcf0aa0f5a41cb4bf7cb3a5abd';
 
 $auth = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
 if (!str_starts_with($auth, 'Bearer ') || substr($auth, 7) !== $TOKEN) {

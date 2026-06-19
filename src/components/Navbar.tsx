@@ -114,7 +114,7 @@ const Navbar = () => {
       )}
       <div className="container flex h-16 items-center justify-between">
         <Link to="/" className="flex items-center">
-          <img src={logo} alt="Pets Registry" className="h-10 w-auto" width={147} height={40} />
+          <img src={logo} alt="Pets Registry" className="h-12 w-auto" width={176} height={48} />
         </Link>
 
         <nav className="hidden items-center gap-1 lg:flex">
@@ -124,13 +124,13 @@ const Navbar = () => {
               <Link
                 key={link.to}
                 to={link.to}
-                className={`flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors ${
+                className={`flex items-center gap-2 rounded-lg px-3.5 py-2 text-md font-medium transition-colors ${
                   location.pathname === link.to
                     ? "bg-primary/10 text-primary"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 }`}
               >
-                <Icon className="h-4 w-4" />
+                <Icon className="h-5 w-5" />
                 {link.label}
               </Link>
             );
@@ -233,7 +233,7 @@ const Navbar = () => {
                     key={link.to}
                     to={link.to}
                     onClick={() => setOpen(false)}
-                    className="flex items-center gap-3 rounded-lg px-4 py-3 text-base font-medium text-foreground hover:bg-muted"
+                    className="flex items-center gap-3 rounded-lg px-4 py-3 text-md font-medium text-foreground hover:bg-muted"
                   >
                     <Icon className="h-5 w-5 text-muted-foreground" />
                     {link.label}
@@ -246,7 +246,7 @@ const Navbar = () => {
                   <Link
                     to="/m"
                     onClick={() => setOpen(false)}
-                    className="flex items-center gap-3 rounded-lg px-4 py-3 text-base font-medium text-foreground hover:bg-muted"
+                    className="flex items-center gap-3 rounded-lg px-4 py-3 text-md font-medium text-foreground hover:bg-muted"
                   >
                     <Smartphone className="h-5 w-5 text-muted-foreground" />
                     Mobile View
@@ -258,7 +258,7 @@ const Navbar = () => {
                         setOpen(false);
                         setCartOpen(true);
                       }}
-                      className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-base font-medium text-foreground hover:bg-muted"
+                      className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-md font-medium text-foreground hover:bg-muted"
                     >
                       <ShoppingCart className="h-5 w-5 text-muted-foreground" />
                       Shopping Cart
@@ -275,7 +275,7 @@ const Navbar = () => {
                       setOpen(false);
                       setNotifOpen(true);
                     }}
-                    className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-base font-medium text-foreground hover:bg-muted"
+                    className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-md font-medium text-foreground hover:bg-muted"
                   >
                     <Bell className="h-5 w-5 text-muted-foreground" />
                     Notifications

@@ -50,7 +50,7 @@ const AdminSidebar = () => {
   return (
     <aside className="flex h-full w-64 flex-col border-r border-border bg-card">
       <div className="flex h-16 items-center border-b border-border px-4">
-        <img src={logo} alt="Pets Registry" className="h-8 w-auto" />
+        <img src={logo} alt="Pets Registry" className="h-10 w-auto" />
       </div>
       <nav className="flex-1 space-y-1 overflow-auto p-4">
         {isLoading ? (
@@ -67,7 +67,7 @@ const AdminSidebar = () => {
                 to={link.to}
                 onMouseEnter={() => prefetchAdminRoute(link.to)}
                 onFocus={() => prefetchAdminRoute(link.to)}
-                className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-md font-medium transition-colors ${
                   isActive
                     ? "bg-primary/10 text-primary"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -82,8 +82,8 @@ const AdminSidebar = () => {
       </nav>
       <div className="border-t border-border p-4">
         <Link to="/">
-          <Button variant="ghost" className="w-full gap-2 text-sm text-muted-foreground">
-            <LogOut className="h-4 w-4" /> Exit Admin
+          <Button variant="ghost" className="w-full gap-2 text-md text-muted-foreground">
+            <LogOut className="h-5 w-5" /> Exit Admin
           </Button>
         </Link>
       </div>

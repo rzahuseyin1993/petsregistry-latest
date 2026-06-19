@@ -44,7 +44,7 @@ const Footer = () => {
         <div className="grid gap-8 md:grid-cols-4">
           <div>
             <Link to="/" className="flex items-center">
-              <img src={logo} alt="Pets Registry" className="h-9 w-auto" width={132} height={36} />
+              <img src={logo} alt="Pets Registry" className="h-11 w-auto" width={161} height={44} />
             </Link>
             <p className="mt-3 text-sm text-muted-foreground">
               Register your pets, keep them safe, and help reunite lost pets with their owners.
@@ -52,7 +52,7 @@ const Footer = () => {
           </div>
           <div>
             <h3 className="font-display font-semibold text-foreground">Quick Links</h3>
-            <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
+            <ul className="mt-3 space-y-2 text-md text-muted-foreground">
               <li><Link to="/search" className="hover:text-primary transition-colors">Find a Pet</Link></li>
               {storeEnabled && (
                 <li><Link to="/store" className="hover:text-primary transition-colors">Store</Link></li>
@@ -66,7 +66,7 @@ const Footer = () => {
           </div>
           <div>
             <h3 className="font-display font-semibold text-foreground">Support</h3>
-            <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
+            <ul className="mt-3 space-y-2 text-md text-muted-foreground">
               <li><Link to="/contact" className="hover:text-primary transition-colors">Contact Us</Link></li>
               <li><Link to="/fees" className="hover:text-primary transition-colors">Fees & Pricing</Link></li>
               <li><Link to="/verify" className="hover:text-primary transition-colors">Verify Certificate</Link></li>

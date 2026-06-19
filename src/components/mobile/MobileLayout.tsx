@@ -30,7 +30,7 @@ const MobileLayout = () => {
       {/* Top Header */}
       <header className="sticky top-0 z-50 flex h-14 items-center justify-between border-b border-border bg-card/95 px-4 backdrop-blur-md">
         <Link to="/m" className="flex items-center gap-2">
-          <img src={logo} alt="PetsRegistry" className="h-8 w-auto" />
+          <img src={logo} alt="PetsRegistry" className="h-10 w-auto" />
         </Link>
         <div className="flex items-center gap-1">
           <NotificationBell />

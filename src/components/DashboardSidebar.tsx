@@ -66,7 +66,7 @@ const DashboardSidebar = () => {
           const isActive = location.pathname === link.to;
           return (
             <Link key={link.to} to={link.to}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+              className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-md font-medium transition-colors ${
                 isActive ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}>
               <Icon className="h-5 w-5" />{link.label}
@@ -80,7 +80,7 @@ const DashboardSidebar = () => {
           <Button
             type="button"
             variant="outline"
-            className="w-full gap-2 border-accent text-accent text-sm"
+            className="w-full gap-2 border-accent text-accent text-md"
             onClick={goToUpgradePlans}
           >
             <Crown className="h-4 w-4" /> Upgrade Plan
@@ -89,20 +89,20 @@ const DashboardSidebar = () => {
       )}
 
       <div className="border-t border-border p-4">
-        <Button asChild variant="outline" className="mb-2 w-full gap-2 text-sm">
+        <Button asChild variant="outline" className="mb-2 w-full gap-2 text-md">
           <Link to="/m" title="Switch to Mobile View">
-            <Smartphone className="h-4 w-4" /> Mobile View
+            <Smartphone className="h-5 w-5" /> Mobile View
           </Link>
         </Button>
         {storeEnabled && (
-          <Button asChild variant="outline" className="mb-2 w-full gap-2 text-sm">
+          <Button asChild variant="outline" className="mb-2 w-full gap-2 text-md">
             <Link to="/store">
-              <Store className="h-4 w-4" /> Visit Store
+              <Store className="h-5 w-5" /> Visit Store
             </Link>
           </Button>
         )}
-        <Button variant="ghost" className="w-full gap-2 text-sm text-muted-foreground" onClick={signOut}>
-          <LogOut className="h-4 w-4" /> Sign Out
+        <Button variant="ghost" className="w-full gap-2 text-md text-muted-foreground" onClick={signOut}>
+          <LogOut className="h-5 w-5" /> Sign Out
         </Button>
       </div>
     </aside>

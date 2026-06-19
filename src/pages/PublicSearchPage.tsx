@@ -125,11 +125,17 @@ const PublicSearchPage = () => {
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {filteredLost.map((r: any) => {
                   const name = getLostReportPetName(r);
+                  const detailLink = getLostReportDetailLink(r);
+                  const mapsUrl =
+                    r.last_seen_lat && r.last_seen_lng
+                      ? `https://www.google.com/maps?q=${r.last_seen_lat},${r.last_seen_lng}`
+                      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(r.last_seen_address || "")}`;
+
                   return (
-                    <Link key={r.id} to={getLostReportDetailLink(r)}>
-                      <Card className="overflow-hidden transition hover:shadow-lg">
+                    <Card key={r.id} className="overflow-hidden transition hover:shadow-lg">
+                      <Link to={detailLink} className="block">
                         <ProtectedImage src={getLostReportImageUrl(r)} alt={name} className="aspect-[4/3] w-full object-cover" />
-                        <CardContent className="p-4">
+                        <CardContent className="p-4 pb-2">
                           <div className="flex items-start justify-between gap-2">
                             <div>
                               <h3 className="font-semibold text-foreground">{name}</h3>
@@ -138,28 +144,25 @@ const PublicSearchPage = () => {
                             <Badge variant="destructive" className="shrink-0">Lost</Badge>
                           </div>
                           {r.last_seen_address && (
-                            <div className="mt-2 space-y-1">
-                              <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                                <MapPin className="h-3 w-3" /> {r.last_seen_address}
-                              </p>
-                              <a
-                                href={
-                                  r.last_seen_lat && r.last_seen_lng
-                                    ? `https://www.google.com/maps?q=${r.last_seen_lat},${r.last_seen_lng}`
-                                    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(r.last_seen_address)}`
-                                }
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/5 px-2 py-0.5 text-[10px] font-medium text-primary hover:bg-primary/10"
-                              >
-                                <MapPin className="h-2.5 w-2.5" /> Open in Maps
-                              </a>
-                            </div>
+                            <p className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
+                              <MapPin className="h-3 w-3 shrink-0" /> {r.last_seen_address}
+                            </p>
                           )}
                         </CardContent>
-                      </Card>
-                    </Link>
+                      </Link>
+                      {r.last_seen_address && (
+                        <CardContent className="px-4 pb-4 pt-0">
+                          <a
+                            href={mapsUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/5 px-2 py-0.5 text-[10px] font-medium text-primary hover:bg-primary/10"
+                          >
+                            <MapPin className="h-2.5 w-2.5" /> Open in Maps
+                          </a>
+                        </CardContent>
+                      )}
+                    </Card>
                   );
                 })}
               </div>

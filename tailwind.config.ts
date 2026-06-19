@@ -13,6 +13,9 @@ export default {
       },
     },
     extend: {
+      fontSize: {
+        md: ["1rem", { lineHeight: "1.5rem" }],
+      },
       fontFamily: {
         display: ["Outfit", "sans-serif"],
         body: ["Inter", "sans-serif"],

@@ -16,10 +16,10 @@ type Message = { role: "user" | "assistant"; content: string; imageUrl?: string 
 type ChatSessionMeta = { id: string; title: string; created_at: string; updated_at: string };
 
 const SUGGESTIONS = [
-  "My dog has been scratching a lot, what could it be?",
-  "What's the best diet for an indoor cat?",
-  "How do I train my puppy to stop biting?",
-  "My parrot is losing feathers, should I be worried?",
+  { label: "Itchy skin", prompt: "My dog has been scratching a lot, what could it be?" },
+  { label: "Cat diet", prompt: "What's the best diet for an indoor cat?" },
+  { label: "Puppy biting", prompt: "How do I train my puppy to stop biting?" },
+  { label: "Feather loss", prompt: "My parrot is losing feathers, should I be worried?" },
 ];
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/pet-expert`;
@@ -305,18 +305,18 @@ export default function PetExpert() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <div className="flex min-h-screen flex-col bg-muted/40">
       <Navbar />
       <CmsRenderer slug="pet-expert" fallback={null} />
-      <main className="flex-1 flex overflow-hidden" style={{ height: 'calc(100vh - 64px)' }}>
+      <main className="flex flex-1 overflow-hidden" style={{ height: "calc(100vh - 64px)" }}>
         {/* Sidebar */}
         {user && (
-          <div className={`border-r border-border bg-card flex flex-col transition-all duration-300 ${sidebarOpen ? 'w-72' : 'w-0'} overflow-hidden shrink-0`}>
-            <div className="p-3 border-b border-border flex items-center justify-between">
-              <span className="font-display text-sm font-semibold text-foreground flex items-center gap-2">
-                <MessageSquare className="h-4 w-4 text-primary" /> Chat History
+          <div className={`flex shrink-0 flex-col overflow-hidden border-r border-primary/15 bg-card transition-all duration-300 ${sidebarOpen ? "w-72" : "w-0"}`}>
+            <div className="flex items-center justify-between border-b border-primary/15 bg-primary/10 p-3">
+              <span className="flex items-center gap-2 font-display text-sm font-semibold text-foreground">
+                <MessageSquare className="h-4 w-4 text-primary" /> History
               </span>
-              <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={startNewChat}>
+              <Button variant="outline" size="sm" className="gap-1.5 border-primary/30 bg-background text-xs hover:bg-primary/10" onClick={startNewChat}>
                 <Plus className="h-3.5 w-3.5" /> New
               </Button>
             </div>
@@ -325,22 +325,37 @@ export default function PetExpert() {
                 {chatSessions.length === 0 ? (
                   <p className="text-xs text-muted-foreground text-center py-8">No past chats yet</p>
                 ) : chatSessions.map((session) => (
-                  <button key={session.id} onClick={() => handleLoadSession(session.id)}
-                    className={`w-full text-left rounded-lg px-3 py-2.5 text-sm transition-colors group flex items-start gap-2 ${
-                      activeSessionId === session.id ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-foreground'
-                    }`}>
-                    <MessageSquare className="h-4 w-4 shrink-0 mt-0.5" />
-                    <div className="flex-1 min-w-0">
-                      <p className="truncate text-sm font-medium">{session.title}</p>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                        <Clock className="h-3 w-3" />{format(new Date(session.updated_at), "MMM d, h:mm a")}
-                      </p>
-                    </div>
-                    <button onClick={(e) => handleDeleteSession(session.id, e)}
-                      className="opacity-0 group-hover:opacity-100 shrink-0 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all">
+                  <div
+                    key={session.id}
+                    className={`group flex items-start gap-1 rounded-lg transition-colors ${
+                      activeSessionId === session.id ? "bg-primary/10" : "hover:bg-muted"
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleLoadSession(session.id)}
+                      className={`flex min-w-0 flex-1 items-start gap-2 rounded-lg px-3 py-2.5 text-left text-sm transition-colors ${
+                        activeSessionId === session.id ? "text-primary" : "text-foreground"
+                      }`}
+                    >
+                      <MessageSquare className="mt-0.5 h-4 w-4 shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">{session.title}</p>
+                        <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                          <Clock className="h-3 w-3" />
+                          {format(new Date(session.updated_at), "MMM d, h:mm a")}
+                        </p>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => handleDeleteSession(session.id, e)}
+                      className="mt-1.5 shrink-0 rounded p-1 text-muted-foreground opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+                      aria-label="Delete chat"
+                    >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
-                  </button>
+                  </div>
                 ))}
               </div>
             </ScrollArea>
@@ -348,55 +363,62 @@ export default function PetExpert() {
         )}
 
         {/* Main Chat */}
-        <div className="flex-1 flex flex-col min-w-0">
-          <div className="px-4 py-3 border-b border-border flex items-center gap-3">
+        <div className="flex min-w-0 flex-1 flex-col bg-gradient-to-br from-primary/[0.08] via-background to-accent/10">
+          <div className="flex items-center gap-3 border-b border-primary/15 bg-card/90 px-4 py-3 shadow-sm backdrop-blur-sm">
             {user && (
-              <Button variant="ghost" size="icon" className="shrink-0" onClick={() => setSidebarOpen(!sidebarOpen)}>
+              <Button variant="ghost" size="icon" className="shrink-0 hover:bg-primary/10" onClick={() => setSidebarOpen(!sidebarOpen)}>
                 {sidebarOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeft className="h-4 w-4" />}
               </Button>
             )}
-            <div className="flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
-                <Sparkles className="h-5 w-5 text-primary" />
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
+                <Sparkles className="h-5 w-5" />
               </div>
               <div>
-                <h1 className="font-display text-lg font-bold text-foreground">AI Pet Expert 🐾</h1>
-                <p className="text-xs text-muted-foreground">Get instant advice — upload a photo of your pet for visual diagnosis!</p>
+                <h1 className="font-display text-lg font-bold text-foreground">AI Pet Expert</h1>
+                <p className="text-xs text-muted-foreground">Type below or attach a photo</p>
               </div>
             </div>
           </div>
 
-          <ScrollArea className="flex-1 p-4" style={{ height: 'calc(100vh - 200px)' }}>
+          <ScrollArea className="flex-1 px-4 py-3" style={{ height: "calc(100vh - 200px)" }}>
             {messages.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 gap-4">
-                <Bot className="h-16 w-16 text-primary/20" />
-                <p className="text-muted-foreground text-center">Ask me anything about your pet!</p>
-                <button onClick={() => fileInputRef.current?.click()}
-                  className="bg-primary/5 border border-primary/20 rounded-xl p-4 max-w-md text-center hover:bg-primary/10 transition-colors cursor-pointer">
-                  <ImagePlus className="h-5 w-5 text-primary mx-auto mb-2" />
-                  <p className="text-sm font-medium text-foreground">📸 Upload a pet photo</p>
-                  <p className="text-xs text-muted-foreground mt-1">Send a photo of your sick pet and I'll try to identify the problem and suggest what to do.</p>
-                </button>
-                <div className="flex flex-wrap gap-2 justify-center max-w-md">
+              <div className="mx-auto flex max-w-2xl flex-col gap-5 pt-6">
+                <div className="flex items-center gap-3 rounded-2xl border border-primary/20 bg-card/90 p-4 shadow-sm">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/15">
+                    <Bot className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-display font-semibold text-foreground">What can I help with?</p>
+                    <p className="text-sm text-muted-foreground">Health, diet, training — or send a pet photo.</p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
                   {SUGGESTIONS.map((s) => (
-                    <button key={s} onClick={() => send(s)}
-                      className="text-xs bg-muted hover:bg-muted/80 text-muted-foreground rounded-full px-3 py-1.5 transition-colors border border-border">
-                      {s}
+                    <button
+                      key={s.label}
+                      type="button"
+                      onClick={() => send(s.prompt)}
+                      className="rounded-full border border-primary/25 bg-card px-3.5 py-1.5 text-sm font-medium text-foreground shadow-sm transition-colors hover:border-primary/50 hover:bg-primary/10"
+                    >
+                      {s.label}
                     </button>
                   ))}
                 </div>
               </div>
             ) : (
-              <div className="space-y-4 max-w-3xl mx-auto">
+              <div className="mx-auto max-w-3xl space-y-4">
                 {messages.map((m, i) => (
                   <div key={i} className={`flex gap-3 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                     {m.role === "assistant" && (
-                      <div className="shrink-0 w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
-                        <Bot className="h-4 w-4 text-primary" />
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
+                        <Bot className="h-4 w-4" />
                       </div>
                     )}
-                    <div className={`rounded-2xl px-4 py-3 max-w-[80%] text-sm whitespace-pre-wrap ${
-                      m.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
+                    <div className={`max-w-[80%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm shadow-sm ${
+                      m.role === "user"
+                        ? "bg-primary text-primary-foreground"
+                        : "border border-border bg-card text-foreground"
                     }`}>
                       {m.imageUrl && (
                         <img src={m.imageUrl} alt="Pet photo" className="rounded-lg max-h-48 mb-2 w-auto" />
@@ -404,19 +426,19 @@ export default function PetExpert() {
                       {m.content}
                     </div>
                     {m.role === "user" && (
-                      <div className="shrink-0 w-8 h-8 rounded-xl bg-muted flex items-center justify-center">
-                        <User className="h-4 w-4 text-muted-foreground" />
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-border bg-card shadow-sm">
+                        <User className="h-4 w-4 text-primary" />
                       </div>
                     )}
                   </div>
                 ))}
                 {isLoading && messages[messages.length - 1]?.role === "user" && (
                   <div className="flex gap-3">
-                    <div className="shrink-0 w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
-                      <Bot className="h-4 w-4 text-primary" />
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
+                      <Bot className="h-4 w-4" />
                     </div>
-                    <div className="bg-muted rounded-2xl px-4 py-3">
-                      <span className="animate-pulse text-muted-foreground text-sm">Analyzing...</span>
+                    <div className="rounded-2xl border border-border bg-card px-4 py-3 shadow-sm">
+                      <span className="animate-pulse text-sm text-muted-foreground">Analyzing...</span>
                     </div>
                   </div>
                 )}
@@ -426,45 +448,47 @@ export default function PetExpert() {
           </ScrollArea>
 
           {/* Input Area */}
-          <div className="border-t border-border p-3">
+          <div className="border-t border-primary/20 bg-card/95 p-4 shadow-[0_-8px_24px_rgba(0,0,0,0.06)] backdrop-blur-sm">
             {attachedImage && (
-              <div className="mb-2 max-w-3xl mx-auto flex items-center gap-2 bg-muted rounded-lg p-2">
-                <img src={attachedImage} alt="Attached" className="h-16 w-16 rounded object-cover" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-foreground font-medium">Photo attached — AI will analyze it</p>
-                  <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
-                    <Clock className="h-2.5 w-2.5" /> Auto-deletes within 24 hours for your privacy
-                  </p>
-                </div>
-                <Button variant="ghost" size="icon" className="shrink-0 h-6 w-6" onClick={() => { setAttachedImage(null); setAttachedFile(null); }}>
-                  <X className="h-3 w-3" />
+              <div className="mx-auto mb-2 flex max-w-3xl items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 p-2">
+                <img src={attachedImage} alt="Attached" className="h-14 w-14 rounded object-cover" />
+                <p className="flex-1 text-xs font-medium text-foreground">Photo attached</p>
+                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => { setAttachedImage(null); setAttachedFile(null); }}>
+                  <X className="h-3.5 w-3.5" />
                 </Button>
               </div>
             )}
-            <div className="flex gap-2 items-end max-w-3xl mx-auto w-full">
+            <div className="mx-auto flex w-full max-w-3xl items-end gap-2">
               {messages.length > 0 && (
-                <Button variant="ghost" size="icon" onClick={startNewChat} className="shrink-0 text-muted-foreground" title="New chat">
+                <Button variant="ghost" size="icon" onClick={startNewChat} className="shrink-0 text-muted-foreground hover:bg-primary/10" title="New chat">
                   <Plus className="h-4 w-4" />
                 </Button>
               )}
               <input type="file" ref={fileInputRef} accept="image/*" className="hidden" onChange={handleImageAttach} />
               <input type="file" ref={cameraInputRef} accept="image/*" capture="environment" className="hidden" onChange={handleImageAttach} />
-              <Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground" title={isMobileDevice ? "Take a photo with camera" : "Open webcam to take a photo"}
+              <Button variant="outline" size="icon" className="shrink-0 border-primary/30 hover:bg-primary/10" title={isMobileDevice ? "Take a photo" : "Webcam"}
                 onClick={handleCameraClick} disabled={isLoading}>
-                <Camera className="h-4 w-4" />
+                <Camera className="h-4 w-4 text-primary" />
               </Button>
-              <Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground" title="Upload pet photo"
+              <Button variant="outline" size="icon" className="shrink-0 border-primary/30 hover:bg-primary/10" title="Upload photo"
                 onClick={() => fileInputRef.current?.click()} disabled={isLoading}>
-                <ImagePlus className="h-4 w-4" />
+                <ImagePlus className="h-4 w-4 text-primary" />
               </Button>
-              <Textarea placeholder="Describe your pet's issue, take a photo or upload one..." value={input} onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown} rows={1} className="resize-none min-h-[40px] max-h-[120px] rounded-xl" disabled={isLoading} />
-              <Button onClick={() => send(input)} disabled={(!input.trim() && !attachedImage) || isLoading} size="icon" className="shrink-0 rounded-xl">
+              <Textarea
+                placeholder="Ask about your pet..."
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                rows={1}
+                className="min-h-[44px] max-h-[120px] flex-1 resize-none rounded-xl border-primary/25 bg-background shadow-inner focus-visible:ring-primary/40"
+                disabled={isLoading}
+              />
+              <Button onClick={() => send(input)} disabled={(!input.trim() && !attachedImage) || isLoading} size="icon" className="h-11 w-11 shrink-0 rounded-xl shadow-sm">
                 <Send className="h-4 w-4" />
               </Button>
             </div>
-            <p className="mt-1.5 text-center text-[10px] text-muted-foreground">
-              📸 Photos are auto-deleted within 24 hours · Powered by AI, not a substitute for a vet visit
+            <p className="mx-auto mt-2 max-w-3xl text-center text-[10px] text-muted-foreground">
+              AI advice only — not a substitute for a vet · Photos auto-delete within 24h
             </p>
           </div>
         </div>
