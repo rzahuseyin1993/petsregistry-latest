@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { uploadRaw, uploadFile as uploadFileUtil } from "@/lib/imageUpload";
+import { uploadRaw, uploadFile as uploadFileUtil, uploadImage } from "@/lib/imageUpload";
 import { completeCheckout } from "@/lib/airwallexCheckout";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -47,6 +47,8 @@ interface CanvasElement {
   zIndex: number;
   letterSpacing: number;
   lineHeight: number;
+  /** Auto-synced from Pet Info form — not repositioned on form edits */
+  fieldKey?: string;
 }
 
 const CANVAS_W = 420;
@@ -71,6 +73,23 @@ const defaultEl = (): Partial<CanvasElement> => ({
   letterSpacing: 0, lineHeight: 1.3, zIndex: 1,
 });
 
+const formatRewardLabel = (amount: string) => {
+  const trimmed = amount.trim();
+  if (!trimmed) return "";
+  if (/reward/i.test(trimmed)) return trimmed;
+  if (/^\$/.test(trimmed)) return `${trimmed} REWARD`;
+  return `$${trimmed} REWARD`;
+};
+
+const formatLostDateLabel = (date: string) => {
+  if (!date) return "";
+  try {
+    return `Lost on ${new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })}`;
+  } catch {
+    return `Lost on ${date}`;
+  }
+};
+
 /* ─── Build elements from a FlyerTemplate ─── */
 const buildFromTemplate = (t: FlyerTemplate, form: FormData): CanvasElement[] => {
   const els: CanvasElement[] = [];
@@ -78,47 +97,80 @@ const buildFromTemplate = (t: FlyerTemplate, form: FormData): CanvasElement[] =>
     els.push({ ...defaultEl(), id: genId(), type: "text", x: 0, y: 0, width: 200, height: 30, content: "", zIndex: els.length + 1, ...partial } as CanvasElement);
   };
 
+  const rewardY = form.lostDate ? 458 : 438;
+  const footerY = form.includeReward && form.reward.trim() ? 520 : form.lostDate || form.lastSeenAddress ? 500 : 480;
+
   // Header bar
-  add({ type: "shape", x: 0, y: 0, width: CANVAS_W, height: 70, backgroundColor: t.headerColor, content: "" });
-  // MISSING title
-  add({ type: "text", x: CANVAS_W / 2 - 130, y: 12, width: 260, height: 40, content: "MISSING", fontSize: 40, fontWeight: "900", color: t.headerText, textAlign: "center", letterSpacing: 4, fontFamily: t.fontFamily });
-  // Subtitle
-  add({ type: "text", x: CANVAS_W / 2 - 160, y: 50, width: 320, height: 18, content: "PLEASE HELP US FIND OUR BELOVED PET", fontSize: 10, fontWeight: "400", color: t.headerText, textAlign: "center", letterSpacing: 1, fontFamily: t.fontFamily, opacity: 0.9 });
+  add({ fieldKey: "header-bg", type: "shape", x: 0, y: 0, width: CANVAS_W, height: 70, backgroundColor: t.headerColor, content: "" });
+  add({ fieldKey: "header-title", type: "text", x: CANVAS_W / 2 - 130, y: 12, width: 260, height: 40, content: "MISSING", fontSize: 40, fontWeight: "900", color: t.headerText, textAlign: "center", letterSpacing: 4, fontFamily: t.fontFamily });
+  add({ fieldKey: "header-subtitle", type: "text", x: CANVAS_W / 2 - 160, y: 50, width: 320, height: 18, content: "PLEASE HELP US FIND OUR BELOVED PET", fontSize: 10, fontWeight: "400", color: t.headerText, textAlign: "center", letterSpacing: 1, fontFamily: t.fontFamily, opacity: 0.9 });
 
   // Pet photo placeholder
-  add({ type: "shape", x: 30, y: 80, width: 360, height: 200, backgroundColor: "#E5E7EB", borderRadius: 0, content: form.imageUrl ? "" : "📷 Pet Photo" });
+  add({ fieldKey: "pet-photo", type: "shape", x: 30, y: 80, width: 360, height: 200, backgroundColor: "#E5E7EB", borderRadius: 0, content: form.imageUrl ? "" : "📷 Pet Photo" });
 
   // Pet name
-  add({ type: "text", x: 30, y: 290, width: 360, height: 32, content: form.petName || "PET NAME", fontSize: 24, fontWeight: "800", color: t.bodyText, textAlign: "center", fontFamily: t.fontFamily });
+  add({ fieldKey: "pet-name", type: "text", x: 30, y: 290, width: 360, height: 32, content: form.petName || "PET NAME", fontSize: 24, fontWeight: "800", color: t.bodyText, textAlign: "center", fontFamily: t.fontFamily });
 
   // Pet details section
-  add({ type: "text", x: 30, y: 326, width: 170, height: 20, content: `Species: ${form.species || "—"}`, fontSize: 12, fontWeight: "400", color: t.bodyText, fontFamily: t.fontFamily });
-  add({ type: "text", x: 220, y: 326, width: 170, height: 20, content: `Breed: ${form.breed || "—"}`, fontSize: 12, fontWeight: "400", color: t.bodyText, fontFamily: t.fontFamily });
-  add({ type: "text", x: 30, y: 350, width: 170, height: 20, content: `Color: ${form.color || "—"}`, fontSize: 12, fontWeight: "400", color: t.bodyText, fontFamily: t.fontFamily });
+  add({ fieldKey: "species", type: "text", x: 30, y: 326, width: 170, height: 20, content: `Species: ${form.species || "—"}`, fontSize: 12, fontWeight: "400", color: t.bodyText, fontFamily: t.fontFamily });
+  add({ fieldKey: "breed", type: "text", x: 220, y: 326, width: 170, height: 20, content: `Breed: ${form.breed || "—"}`, fontSize: 12, fontWeight: "400", color: t.bodyText, fontFamily: t.fontFamily });
+  add({ fieldKey: "color", type: "text", x: 30, y: 350, width: 170, height: 20, content: `Color: ${form.color || "—"}`, fontSize: 12, fontWeight: "400", color: t.bodyText, fontFamily: t.fontFamily });
 
   // Description
   if (form.description) {
-    add({ type: "text", x: 30, y: 380, width: 360, height: 40, content: form.description, fontSize: 11, fontWeight: "400", color: t.bodyText, textAlign: "center", fontFamily: t.fontFamily, lineHeight: 1.5 });
+    add({ fieldKey: "description", type: "text", x: 30, y: 374, width: 360, height: 40, content: form.description, fontSize: 11, fontWeight: "400", color: t.bodyText, textAlign: "center", fontFamily: t.fontFamily, lineHeight: 1.5 });
   }
 
-  // Last seen
+  // Lost date
+  if (form.lostDate) {
+    add({ fieldKey: "lost-date", type: "text", x: 30, y: 418, width: 360, height: 20, content: formatLostDateLabel(form.lostDate), fontSize: 11, fontWeight: "600", color: t.bodyText, textAlign: "center", fontFamily: t.fontFamily });
+  }
+
+  // Last seen location
   if (form.lastSeenAddress) {
-    add({ type: "shape", x: 30, y: 430, width: 360, height: 30, backgroundColor: t.bgAccent || "#F3F4F6", borderRadius: 6, content: "" });
-    add({ type: "text", x: 34, y: 434, width: 352, height: 22, content: `📍 Last seen at ${form.lastSeenAddress}`, fontSize: 11, fontWeight: "600", color: t.bodyText, textAlign: "center", fontFamily: t.fontFamily });
+    const locY = form.lostDate ? 442 : 418;
+    add({ fieldKey: "last-seen-bg", type: "shape", x: 30, y: locY, width: 360, height: 30, backgroundColor: t.bgAccent || "#F3F4F6", borderRadius: 6, content: "" });
+    add({ fieldKey: "last-seen", type: "text", x: 34, y: locY + 4, width: 352, height: 22, content: `📍 Last seen at ${form.lastSeenAddress}`, fontSize: 11, fontWeight: "600", color: t.bodyText, textAlign: "center", fontFamily: t.fontFamily });
   }
 
   // Reward
-  if (form.reward) {
-    add({ type: "shape", x: 60, y: 470, width: 300, height: 36, backgroundColor: t.headerColor, borderRadius: 6, content: "" });
-    add({ type: "text", x: 64, y: 474, width: 292, height: 28, content: `${form.reward} REWARD`, fontSize: 18, fontWeight: "800", color: t.headerText, textAlign: "center", fontFamily: t.fontFamily });
+  if (form.includeReward && form.reward.trim()) {
+    add({ fieldKey: "reward-bg", type: "shape", x: 60, y: rewardY, width: 300, height: 36, backgroundColor: t.headerColor, borderRadius: 6, content: "" });
+    add({ fieldKey: "reward", type: "text", x: 64, y: rewardY + 4, width: 292, height: 28, content: formatRewardLabel(form.reward), fontSize: 18, fontWeight: "800", color: t.headerText, textAlign: "center", fontFamily: t.fontFamily });
   }
 
   // Contact footer bar
-  add({ type: "shape", x: 0, y: 520, width: CANVAS_W, height: 74, backgroundColor: t.ctaColor || t.accentColor, content: "" });
-  add({ type: "text", x: CANVAS_W / 2 - 150, y: 526, width: 300, height: 16, content: "CALL OR TEXT WITH ANY INFORMATION", fontSize: 10, fontWeight: "400", color: t.ctaText || t.headerText, textAlign: "center", letterSpacing: 1, fontFamily: t.fontFamily });
-  add({ type: "text", x: CANVAS_W / 2 - 150, y: 546, width: 300, height: 40, content: form.contactPhone || "+123 456 7890", fontSize: 28, fontWeight: "900", color: t.ctaText || t.headerText, textAlign: "center", letterSpacing: 2, fontFamily: t.fontFamily });
+  add({ fieldKey: "footer-bg", type: "shape", x: 0, y: footerY, width: CANVAS_W, height: 74, backgroundColor: t.ctaColor || t.accentColor, content: "" });
+  add({ fieldKey: "footer-label", type: "text", x: CANVAS_W / 2 - 150, y: footerY + 6, width: 300, height: 16, content: "CALL OR TEXT WITH ANY INFORMATION", fontSize: 10, fontWeight: "400", color: t.ctaText || t.headerText, textAlign: "center", letterSpacing: 1, fontFamily: t.fontFamily });
+  add({ fieldKey: "phone", type: "text", x: CANVAS_W / 2 - 150, y: footerY + 26, width: 300, height: 40, content: form.contactPhone || "+123 456 7890", fontSize: 28, fontWeight: "900", color: t.ctaText || t.headerText, textAlign: "center", letterSpacing: 2, fontFamily: t.fontFamily });
 
   return els;
+};
+
+/** Keep custom layers; refresh auto-managed template layers when Pet Info changes */
+const mergeFormIntoElements = (prev: CanvasElement[], t: FlyerTemplate, form: FormData): CanvasElement[] => {
+  const custom = prev.filter((e) => !e.fieldKey);
+  const prevManaged = new Map(prev.filter((e) => e.fieldKey).map((e) => [e.fieldKey!, e]));
+  const managed = buildFromTemplate(t, form).map((e) => {
+    if (!e.fieldKey) return e;
+    const existing = prevManaged.get(e.fieldKey);
+    if (!existing) return e;
+    return {
+      ...e,
+      id: existing.id,
+      x: existing.x,
+      y: existing.y,
+      width: existing.width,
+      height: existing.height,
+      zIndex: existing.zIndex,
+      fontSize: existing.fontSize,
+      fontWeight: existing.fontWeight,
+      color: existing.color,
+      textAlign: existing.textAlign,
+    };
+  });
+  const maxZ = managed.reduce((m, e) => Math.max(m, e.zIndex), 0);
+  return [...managed, ...custom.map((e, i) => ({ ...e, zIndex: maxZ + i + 1 }))];
 };
 
 interface FormData {
@@ -127,9 +179,11 @@ interface FormData {
   breed: string;
   color: string;
   description: string;
+  lostDate: string;
   lastSeenAddress: string;
   contactPhone: string;
   reward: string;
+  includeReward: boolean;
   imageUrl: string;
   petId: string;
 }
@@ -151,6 +205,7 @@ const LostFlyerBuilder = () => {
   const [searchParams] = useSearchParams();
   const reportId = searchParams.get("report");
   const canvasRef = useRef<HTMLDivElement>(null);
+  const petPhotoInputRef = useRef<HTMLInputElement>(null);
 
   // Template selection
   const [selectedTemplate, setSelectedTemplate] = useState<FlyerTemplate>(flyerTemplates[0]);
@@ -159,8 +214,8 @@ const LostFlyerBuilder = () => {
   // Form data
   const [formData, setFormData] = useState<FormData>({
     petName: "", species: "", breed: "", color: "",
-    description: "", lastSeenAddress: "", contactPhone: "",
-    reward: "", imageUrl: "", petId: "",
+    description: "", lostDate: "", lastSeenAddress: "", contactPhone: "",
+    reward: "", includeReward: false, imageUrl: "", petId: "",
   });
 
   // Canvas editor state
@@ -176,6 +231,7 @@ const LostFlyerBuilder = () => {
   const [uploadDesc, setUploadDesc] = useState("");
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
 
   // AI Flyer state
   const [showAiFlyer, setShowAiFlyer] = useState(false);
@@ -282,25 +338,29 @@ const LostFlyerBuilder = () => {
     if (report) {
       const pet = report.pets as any;
       const image = pet?.pet_images?.sort((a: any, b: any) => a.sort_order - b.sort_order)[0];
-      const newForm = {
+      const rewardStr = report.reward ? String(report.reward) : "";
+      const newForm: FormData = {
         petName: pet?.name || "", species: pet?.species || "",
         breed: pet?.breed || "", color: pet?.color || "",
         description: report.description || "",
+        lostDate: report.last_seen_date || "",
         lastSeenAddress: report.last_seen_address || "",
         contactPhone: report.contact_phone || "",
-        reward: report.reward || "", imageUrl: image?.image_url || "",
+        reward: rewardStr,
+        includeReward: !!rewardStr,
+        imageUrl: image?.image_url || "",
         petId: pet?.id || "",
       };
       setFormData(newForm);
       setElements(buildFromTemplate(selectedTemplate, newForm));
     }
-  }, [report]);
+  }, [report, selectedTemplate]);
 
   // Build initial elements when template changes
   const applyTemplate = (tmpl: FlyerTemplate) => {
     setSelectedTemplate(tmpl);
     setSelectedCustom(null);
-    setElements(buildFromTemplate(tmpl, formData));
+    setElements((prev) => mergeFormIntoElements(prev, tmpl, formData));
     setSelectedId(null);
   };
 
@@ -310,6 +370,12 @@ const LostFlyerBuilder = () => {
       setElements(buildFromTemplate(selectedTemplate, formData));
     }
   }, []);
+
+  // Live-sync Pet Info → flyer preview (skip when using a custom background only)
+  useEffect(() => {
+    if (selectedCustom) return;
+    setElements((prev) => mergeFormIntoElements(prev, selectedTemplate, formData));
+  }, [formData, selectedTemplate, selectedCustom]);
 
   /* ─── Canvas interaction ─── */
   const updateElement = useCallback((id: string, updates: Partial<CanvasElement>) => {
@@ -532,6 +598,35 @@ const LostFlyerBuilder = () => {
     else { toast.success("Design deleted"); queryClient.invalidateQueries({ queryKey: ["custom-flyer-templates"] }); queryClient.invalidateQueries({ queryKey: ["my-flyer-designs"] }); }
   };
 
+  const handlePetPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { toast.error("Please choose an image file"); return; }
+    if (file.size > 8 * 1024 * 1024) { toast.error("Image must be under 8MB"); return; }
+
+    // Instant local preview while uploading
+    const reader = new FileReader();
+    reader.onload = () => setFormData((prev) => ({ ...prev, imageUrl: reader.result as string }));
+    reader.readAsDataURL(file);
+
+    if (!user) return;
+    setPhotoUploading(true);
+    try {
+      const publicUrl = await uploadImage(file, "pet-photos", user.id);
+      setFormData((prev) => ({ ...prev, imageUrl: publicUrl }));
+      toast.success("Pet photo uploaded!");
+    } catch (err: any) {
+      toast.error(err.message || "Photo upload failed — preview shown locally");
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
+
+  const updateFormField = <K extends keyof FormData>(key: K, value: FormData[K]) => {
+    setFormData((prev) => ({ ...prev, [key]: value }));
+  };
+
   const getFlyerPrice = () => {
     if (flyerBillingInterval === "monthly") return flyerPrices?.["service_price_flyer_monthly"] || "1";
     if (flyerBillingInterval === "yearly") return flyerPrices?.["service_price_flyer_yearly"] || "10";
@@ -632,8 +727,9 @@ const LostFlyerBuilder = () => {
     { label: "Breed", preset: { content: `Breed: ${formData.breed || "—"}`, fontSize: 12, width: 180, height: 20 } },
     { label: "Color", preset: { content: `Color: ${formData.color || "—"}`, fontSize: 12, width: 180, height: 20 } },
     { label: "Phone", preset: { content: formData.contactPhone || "+123 456 7890", fontSize: 28, fontWeight: "900", textAlign: "center", width: 300, height: 40 } },
-    { label: "Reward", preset: { content: formData.reward ? `${formData.reward} REWARD` : "$100 REWARD", fontSize: 18, fontWeight: "800", textAlign: "center", width: 260, height: 28 } },
-    { label: "Address", preset: { content: `📍 ${formData.lastSeenAddress || "Last seen location"}`, fontSize: 11, fontWeight: "600", textAlign: "center", width: 340, height: 22 } },
+    { label: "Reward", preset: { content: formData.includeReward && formData.reward ? formatRewardLabel(formData.reward) : "$100 REWARD", fontSize: 18, fontWeight: "800", textAlign: "center", width: 260, height: 28 } },
+    { label: "Lost Date", preset: { content: formData.lostDate ? formatLostDateLabel(formData.lostDate) : "Lost on —", fontSize: 11, fontWeight: "600", textAlign: "center", width: 340, height: 22 } },
+    { label: "Location", preset: { content: `📍 Last seen at ${formData.lastSeenAddress || "location"}`, fontSize: 11, fontWeight: "600", textAlign: "center", width: 340, height: 22 } },
     { label: "Description", preset: { content: formData.description || "Description...", fontSize: 11, textAlign: "center", width: 340, height: 40, lineHeight: 1.5 } },
     { label: "MISSING", preset: { content: "MISSING", fontSize: 40, fontWeight: "900", textAlign: "center", letterSpacing: 4, width: 300, height: 50 } },
     { label: "Rectangle", type: "shape" as const, preset: { backgroundColor: "#DC2626", width: 300, height: 50, content: "" } },
@@ -787,35 +883,111 @@ const LostFlyerBuilder = () => {
               </div>
             </div>
 
-            {/* Form Data (collapsed) */}
+            {/* Pet Info */}
             <div>
               <p className="text-xs font-semibold text-foreground mb-2">Pet Info</p>
               <div className="space-y-1.5">
+                {/* Pet photo upload */}
+                <div>
+                  <Label className="text-[10px]">Pet Photo</Label>
+                  <input
+                    ref={petPhotoInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handlePetPhotoUpload}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => petPhotoInputRef.current?.click()}
+                    className="mt-0.5 w-full rounded-md border border-dashed border-border bg-muted/30 p-2 text-center hover:bg-muted/50 transition-colors"
+                  >
+                    {formData.imageUrl ? (
+                      <img src={formData.imageUrl} alt="Pet" className="mx-auto h-16 w-full rounded object-cover" />
+                    ) : (
+                      <div className="flex flex-col items-center gap-1 py-2">
+                        <ImagePlus className="h-5 w-5 text-muted-foreground" />
+                        <span className="text-[10px] text-muted-foreground">Click to upload photo</span>
+                      </div>
+                    )}
+                  </button>
+                  {photoUploading && (
+                    <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
+                      <Loader2 className="h-3 w-3 animate-spin" /> Uploading...
+                    </p>
+                  )}
+                  {formData.imageUrl && !photoUploading && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 text-[10px] w-full mt-0.5"
+                      onClick={() => updateFormField("imageUrl", "")}
+                    >
+                      Remove photo
+                    </Button>
+                  )}
+                </div>
+
                 {[
-                  { key: "petName", label: "Name", placeholder: "Buddy" },
-                  { key: "species", label: "Species", placeholder: "Dog" },
-                  { key: "breed", label: "Breed", placeholder: "Golden Retriever" },
-                  { key: "color", label: "Color", placeholder: "Golden" },
-                  { key: "contactPhone", label: "Phone", placeholder: "+1 234 567 890" },
-                  { key: "reward", label: "Reward", placeholder: "$100" },
-                  { key: "lastSeenAddress", label: "Last Seen", placeholder: "123 Main St" },
-                  { key: "imageUrl", label: "Image URL", placeholder: "https://..." },
-                ].map(({ key, label, placeholder }) => (
+                  { key: "petName" as const, label: "Name", placeholder: "Buddy" },
+                  { key: "species" as const, label: "Species", placeholder: "Dog" },
+                  { key: "breed" as const, label: "Breed", placeholder: "Golden Retriever" },
+                  { key: "color" as const, label: "Color", placeholder: "Golden" },
+                  { key: "contactPhone" as const, label: "Phone", placeholder: "+1 234 567 890" },
+                  { key: "lostDate" as const, label: "Date Lost", placeholder: "", type: "date" as const },
+                  { key: "lastSeenAddress" as const, label: "Last Seen Location", placeholder: "123 Main St, City" },
+                ].map(({ key, label, placeholder, type }) => (
                   <div key={key}>
                     <Label className="text-[10px]">{label}</Label>
                     <Input
-                      value={(formData as any)[key]}
-                      onChange={(e) => setFormData({ ...formData, [key]: e.target.value })}
+                      type={type || "text"}
+                      value={formData[key]}
+                      onChange={(e) => updateFormField(key, e.target.value)}
                       placeholder={placeholder}
                       className="h-7 text-xs"
                     />
                   </div>
                 ))}
+
+                {/* Reward toggle + amount */}
+                <div>
+                  <Label className="text-[10px]">Reward Offered?</Label>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={formData.includeReward ? "default" : "outline"}
+                      className="h-7 text-[10px] flex-1"
+                      onClick={() => updateFormField("includeReward", true)}
+                    >
+                      Yes
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={!formData.includeReward ? "default" : "outline"}
+                      className="h-7 text-[10px] flex-1"
+                      onClick={() => updateFormField("includeReward", false)}
+                    >
+                      No
+                    </Button>
+                  </div>
+                  {formData.includeReward && (
+                    <Input
+                      value={formData.reward}
+                      onChange={(e) => updateFormField("reward", e.target.value)}
+                      placeholder="e.g. 100 or $100"
+                      className="h-7 text-xs mt-1"
+                    />
+                  )}
+                </div>
+
                 <div>
                   <Label className="text-[10px]">Description</Label>
                   <Textarea
                     value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    onChange={(e) => updateFormField("description", e.target.value)}
                     placeholder="Any distinguishing features..."
                     rows={2}
                     className="text-xs"
