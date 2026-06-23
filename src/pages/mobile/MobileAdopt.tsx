@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Heart, PawPrint, DollarSign, MessageCircle } from "lucide-react";
+import { Heart, PawPrint, DollarSign, MessageCircle, Crown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -13,7 +13,7 @@ import { useVisitorGeo } from "@/contexts/VisitorGeoContext";
 import { fetchBrowseAdoptions } from "@/lib/geoBrowseQueries";
 
 const MobileAdopt = () => {
-  const { user } = useAuth();
+  const { user, membership } = useAuth();
   const { visitorCountry, countryFilter } = useVisitorGeo();
 
   const { data: adoptions = [], isLoading, refetch } = useQuery({
@@ -39,7 +39,14 @@ const MobileAdopt = () => {
   });
 
   const handleAdoptRequest = async (adoptionId: string) => {
-    if (!user) { toast.error("Please sign in to adopt"); return; }
+    if (!user) {
+      toast.error("Please register and become a member to adopt");
+      return;
+    }
+    if (!membership) {
+      toast.error("An active membership is required to adopt and receive the pet transfer");
+      return;
+    }
     const listing = adoptions.find((l: any) => l.id === adoptionId);
     const { error } = await supabase
       .from("pet_adoptions")
@@ -106,9 +113,9 @@ const MobileAdopt = () => {
           </h2>
           <div className="grid grid-cols-2 gap-2">
             {[
-              { step: "1", title: "Sign Up & Browse", desc: "Create a free account, then browse pets below." },
-              { step: "2", title: "Contact & Meet Up", desc: "Message the owner to arrange a meeting." },
-              { step: "3", title: "Pay the Owner", desc: "Pay any adoption fee directly on the spot." },
+              { step: "1", title: "Contact & Meet", desc: "Message the owner (no membership needed)." },
+              { step: "2", title: "Become a Member", desc: "Join when ready for the official transfer." },
+              { step: "3", title: "Pay the Owner", desc: "Pay any adoption fee in person when you meet." },
               { step: "4", title: "Confirm Transfer", desc: "Both confirm in dashboard. Pet transfers automatically." },
             ].map((s) => (
               <div key={s.step} className="flex gap-2">
@@ -172,24 +179,28 @@ const MobileAdopt = () => {
                         )}
                       </div>
                     </div>
-                    <div className="flex gap-1.5 mt-1.5">
-                      {user && user.id !== a.owner_id ? (
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {user?.id === a.owner_id ? (
+                        <Badge variant="secondary" className="text-[9px] h-5">Your listing</Badge>
+                      ) : (
                         <>
                           <ContactOwnerDialog ownerId={a.owner_id} petName={pet?.name || "Pet"} adoptionId={a.id}>
                             <Button size="sm" variant="outline" className="h-7 text-[10px] gap-1 px-2">
                               <MessageCircle className="h-3 w-3" /> Contact
                             </Button>
                           </ContactOwnerDialog>
-                          <Button size="sm" className="h-7 text-[10px] gap-1 px-2" onClick={() => handleAdoptRequest(a.id)}>
-                            <Heart className="h-3 w-3" /> Adopt
-                          </Button>
+                          {membership ? (
+                            <Button size="sm" className="h-7 text-[10px] gap-1 px-2" onClick={() => handleAdoptRequest(a.id)}>
+                              <Heart className="h-3 w-3" /> Adopt
+                            </Button>
+                          ) : (
+                            <Link to={user ? "/m/membership" : "/m/register"}>
+                              <Button size="sm" className="h-7 text-[10px] gap-1 px-2">
+                                <Crown className="h-3 w-3" /> Member
+                              </Button>
+                            </Link>
+                          )}
                         </>
-                      ) : !user ? (
-                        <Link to="/m/login">
-                          <Button size="sm" variant="outline" className="h-7 text-[10px]">Sign in to Adopt</Button>
-                        </Link>
-                      ) : (
-                        <Badge variant="secondary" className="text-[9px] h-5">Your listing</Badge>
                       )}
                     </div>
                   </CardContent>

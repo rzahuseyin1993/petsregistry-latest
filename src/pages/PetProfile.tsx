@@ -228,6 +228,7 @@ const PetProfile = () => {
 
   const images = (pet.pet_images || []).sort((a: any, b: any) => a.sort_order - b.sort_order);
   const owner = pet?.owner;
+  const petCode = (pet as any).pet_code || pet.id.slice(0, 10).toUpperCase();
 
   return (
     <div className={isMobile ? "" : "flex min-h-screen flex-col bg-background"}>
@@ -236,10 +237,12 @@ const PetProfile = () => {
         <div className="container max-w-4xl">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
             {/* Verified badge */}
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 shadow-sm">
-              <CheckCircle className="h-4 w-4 text-success" />
-              <span className="text-sm font-medium text-foreground">Verified Pet Profile</span>
-              <span className="text-xs font-mono font-semibold text-primary">{(pet as any).pet_code || pet.id.slice(0, 10).toUpperCase()}</span>
+            <div className="mb-6 flex w-full flex-col gap-2 rounded-2xl border border-border bg-card px-4 py-3 shadow-sm sm:inline-flex sm:w-auto sm:flex-row sm:items-center sm:gap-3 sm:rounded-full sm:py-2">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 shrink-0 text-success" />
+                <span className="text-sm font-medium text-foreground">Verified Pet Profile</span>
+              </div>
+              <span className="font-mono text-sm font-semibold tracking-wide text-primary sm:text-xs">{petCode}</span>
             </div>
 
             <div className="grid gap-6 lg:grid-cols-3">
@@ -302,8 +305,20 @@ const PetProfile = () => {
                       {pet.age && <div className="flex items-center gap-2 rounded-lg bg-muted/50 p-3 text-sm"><Calendar className="h-4 w-4 text-primary" /><span className="text-muted-foreground">Age:</span><span className="font-medium">{pet.age}</span></div>}
                       {pet.color && <div className="flex items-center gap-2 rounded-lg bg-muted/50 p-3 text-sm"><Palette className="h-4 w-4 text-primary" /><span className="text-muted-foreground">Color:</span><span className="font-medium">{pet.color}</span></div>}
                       {pet.weight && <div className="flex items-center gap-2 rounded-lg bg-muted/50 p-3 text-sm"><Weight className="h-4 w-4 text-primary" /><span className="text-muted-foreground">Weight:</span><span className="font-medium">{pet.weight}</span></div>}
-                      {pet.microchip_number && <div className="flex items-center gap-2 rounded-lg bg-muted/50 p-3 text-sm"><Cpu className="h-4 w-4 text-primary" /><span className="text-muted-foreground">Microchip:</span><span className="font-medium font-mono">{pet.microchip_number}</span></div>}
-                      <div className="flex items-center gap-2 rounded-lg bg-muted/50 p-3 text-sm"><QrCode className="h-4 w-4 text-primary" /><span className="text-muted-foreground">Pet ID:</span><span className="font-medium font-mono text-primary">{(pet as any).pet_code || pet.id.slice(0, 10).toUpperCase()}</span></div>
+                      {pet.microchip_number && (
+                        <div className="col-span-2 flex items-center gap-2 rounded-lg bg-muted/50 p-3 text-sm sm:col-span-1">
+                          <Cpu className="h-4 w-4 shrink-0 text-primary" />
+                          <span className="text-muted-foreground">Microchip:</span>
+                          <span className="min-w-0 font-medium font-mono">{pet.microchip_number}</span>
+                        </div>
+                      )}
+                      <div className="col-span-2 flex flex-col gap-1.5 rounded-lg bg-muted/50 p-3 sm:col-span-2">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <QrCode className="h-4 w-4 shrink-0 text-primary" />
+                          <span>Pet ID</span>
+                        </div>
+                        <span className="font-mono text-base font-semibold tracking-wide text-primary">{petCode}</span>
+                      </div>
                     </div>
 
                     {/* Active Lost / recently-Found Report panel — visible to everyone */}
@@ -390,7 +405,7 @@ const PetProfile = () => {
                       <QRCodeSVG value={profileUrl} size={160} />
                     </div>
                     <p className="mt-3 text-center text-xs text-muted-foreground">Scan to view this pet's profile</p>
-                    <p className="mt-1 text-center text-xs font-mono font-semibold text-primary break-all">{(pet as any).pet_code || pet.id.toUpperCase()}</p>
+                    <p className="mt-1 text-center text-sm font-mono font-semibold tracking-wide text-primary">{petCode}</p>
                     {!authLoading && (pet as any)?.canDownloadQr && (
                       <div className="mt-4 w-full space-y-2">
                         <p className="text-center text-xs font-medium text-muted-foreground">Download for pet tag</p>

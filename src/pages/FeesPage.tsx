@@ -95,12 +95,12 @@ const FeesPage = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-muted/40">
       <Navbar />
       <main>
-        <section className="bg-gradient-to-br from-primary/10 via-background to-accent/10 py-16">
-          <div className="container text-center max-w-3xl">
-            <Badge className="mb-3" variant="secondary">Transparent Pricing</Badge>
+        <section className="border-b border-primary/15 bg-gradient-to-br from-primary/15 via-background to-accent/15 py-16">
+          <div className="container max-w-3xl text-center">
+            <Badge className="mb-3 border-primary/30 bg-primary/10 text-primary">Transparent Pricing</Badge>
             <h1 className="font-display text-4xl font-bold text-foreground sm:text-5xl">
               Service Fees & Pricing
             </h1>
@@ -108,9 +108,9 @@ const FeesPage = () => {
               All our services in one place. Choose what fits — and remember: paid members get the Lost Pet Flyer Builder
               free for life and 1 free pet certificate credit.
             </p>
-            <div className="mt-6 flex justify-center gap-3 flex-wrap">
-              <Link to="/membership"><Button size="lg" className="gap-2"><Crown className="h-4 w-4" /> View Memberships</Button></Link>
-              <Link to="/donate"><Button size="lg" variant="outline" className="gap-2"><HandHeart className="h-4 w-4" /> Support Us</Button></Link>
+            <div className="mt-6 flex flex-wrap justify-center gap-3">
+              <Link to="/membership"><Button size="lg" className="gap-2 shadow-sm"><Crown className="h-4 w-4" /> View Memberships</Button></Link>
+              <Link to="/donate"><Button size="lg" variant="outline" className="gap-2 border-primary/30 bg-card hover:bg-primary/10"><HandHeart className="h-4 w-4" /> Support Us</Button></Link>
             </div>
           </div>
         </section>
@@ -120,32 +120,32 @@ const FeesPage = () => {
             {services.map((svc) => {
               const Icon = svc.icon;
               return (
-                <Card key={svc.key} className="relative overflow-hidden">
+                <Card key={svc.key} className="relative overflow-hidden border-primary/20 bg-card shadow-md transition-shadow hover:shadow-lg">
                   {svc.memberFree && (
                     <div className="absolute right-0 top-0 rounded-bl-xl bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">
                       FREE for paid members
                     </div>
                   )}
-                  <CardHeader>
+                  <CardHeader className="border-b border-primary/10 bg-primary/[0.06]">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                        <Icon className="h-6 w-6 text-primary" />
+                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
+                        <Icon className="h-6 w-6" />
                       </div>
                       <div>
                         <CardTitle className="text-xl">{svc.name}</CardTitle>
                       </div>
                     </div>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <p className="text-sm text-muted-foreground">{svc.description}</p>
+                  <CardContent className="space-y-4 bg-gradient-to-b from-card to-muted/20 p-6">
+                    <p className="text-sm text-foreground/80">{svc.description}</p>
                     {svc.tiers.length > 0 && (
                       <div className="grid gap-2">
                         {svc.tiers.map((t: any, i: number) => (
-                          <div key={i} className="flex items-center justify-between rounded-lg border p-3">
-                            <span className="font-medium text-sm">{t.label}</span>
+                          <div key={i} className="flex items-center justify-between rounded-lg border border-primary/20 bg-primary/5 px-3 py-3">
+                            <span className="text-sm font-medium text-foreground">{t.label}</span>
                             <div className="flex items-center gap-2">
-                              {t.badge && <Badge variant="secondary" className="text-xs">{t.badge}</Badge>}
-                              <span className="text-lg font-bold text-foreground">
+                              {t.badge && <Badge className="bg-primary/15 text-xs text-primary hover:bg-primary/15">{t.badge}</Badge>}
+                              <span className="text-lg font-bold text-primary">
                                 {t.price}<span className="text-xs font-normal text-muted-foreground">{t.suffix}</span>
                               </span>
                             </div>
@@ -153,16 +153,16 @@ const FeesPage = () => {
                         ))}
                       </div>
                     )}
-                    <ul className="space-y-1.5">
+                    <ul className="space-y-1.5 rounded-lg border border-border/80 bg-background/60 p-3">
                       {svc.benefits.map((b, i) => (
-                        <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
-                          <Check className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
+                        <li key={i} className="flex items-start gap-2 text-sm text-foreground/85">
+                          <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                           <span>{b}</span>
                         </li>
                       ))}
                     </ul>
                     <Link to={svc.cta.to} className="block">
-                      <Button className="w-full">{svc.cta.label}</Button>
+                      <Button className="w-full shadow-sm">{svc.cta.label}</Button>
                     </Link>
                   </CardContent>
                 </Card>
@@ -172,28 +172,30 @@ const FeesPage = () => {
 
           {/* Plans cards summary */}
           {plans.length > 0 && (
-            <div className="mt-12 rounded-xl border bg-card p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <ShieldCheck className="h-5 w-5 text-primary" />
+            <div className="mt-12 rounded-2xl border border-primary/20 bg-card p-6 shadow-md">
+              <div className="mb-4 flex items-center gap-2">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/15">
+                  <ShieldCheck className="h-5 w-5 text-primary" />
+                </div>
                 <h2 className="font-display text-xl font-semibold">Why join as a paid member?</h2>
               </div>
-              <p className="text-sm text-muted-foreground mb-4">
+              <p className="mb-4 text-sm text-muted-foreground">
                 A single membership pays for itself. Here's what you unlock:
               </p>
               <div className="grid gap-3 sm:grid-cols-2">
                 {plans.map((p: any) => (
-                  <div key={p.id} className="rounded-lg border p-4">
-                    <h3 className="font-semibold">{p.name}</h3>
-                    <p className="text-sm text-muted-foreground mt-1">{p.description}</p>
+                  <div key={p.id} className="rounded-xl border border-primary/15 bg-primary/5 p-4">
+                    <h3 className="font-semibold text-foreground">{p.name}</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">{p.description}</p>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          <div className="mt-8 rounded-lg border bg-muted/30 p-4 text-center text-sm text-muted-foreground">
+          <div className="mt-8 rounded-xl border border-primary/15 bg-primary/5 p-4 text-center text-sm text-muted-foreground">
             All prices in USD. Pay securely with credit card (Stripe) or PayPal. Have a question?{" "}
-            <Link to="/contact" className="text-primary underline">Contact us</Link>.
+            <Link to="/contact" className="font-medium text-primary underline">Contact us</Link>.
           </div>
         </section>
       </main>

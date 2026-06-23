@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import MembershipBadge from "@/components/MembershipBadge";
-import { Heart, MapPin, DollarSign, PawPrint, MessageCircle } from "lucide-react";
+import { Heart, DollarSign, PawPrint, Crown } from "lucide-react";
 import { Link } from "react-router-dom";
 import ContactOwnerDialog from "@/components/ContactOwnerDialog";
 import { useAuth } from "@/contexts/AuthContext";
@@ -16,7 +16,7 @@ import { useVisitorGeo } from "@/contexts/VisitorGeoContext";
 import { fetchBrowseAdoptions } from "@/lib/geoBrowseQueries";
 
 const AdoptionPage = () => {
-  const { user } = useAuth();
+  const { user, membership } = useAuth();
   const { visitorCountry, countryFilter } = useVisitorGeo();
 
   const { data: listings = [], refetch } = useQuery({
@@ -43,7 +43,14 @@ const AdoptionPage = () => {
   });
 
   const handleAdoptRequest = async (adoptionId: string) => {
-    if (!user) { toast.error("Please sign in to adopt"); return; }
+    if (!user) {
+      toast.error("Please register and become a member to adopt");
+      return;
+    }
+    if (!membership) {
+      toast.error("An active membership is required to adopt and receive the pet transfer");
+      return;
+    }
     const listing = listings.find((l: any) => l.id === adoptionId);
     const { error } = await supabase
       .from("pet_adoptions")
@@ -124,15 +131,15 @@ const AdoptionPage = () => {
                 <div className="flex gap-3">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-600 font-bold text-sm">1</div>
                   <div>
-                    <p className="font-semibold text-sm text-foreground">Sign Up & Browse</p>
-                    <p className="text-xs text-muted-foreground">Create a free account, then browse available pets below.</p>
+                    <p className="font-semibold text-sm text-foreground">Contact & Meet</p>
+                    <p className="text-xs text-muted-foreground">Message the owner (no membership needed) to arrange a meet-up.</p>
                   </div>
                 </div>
                 <div className="flex gap-3">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-600 font-bold text-sm">2</div>
                   <div>
-                    <p className="font-semibold text-sm text-foreground">Contact & Meet Up</p>
-                    <p className="text-xs text-muted-foreground">Message the owner to arrange a meeting. Check the pet in person.</p>
+                    <p className="font-semibold text-sm text-foreground">Become a Member</p>
+                    <p className="text-xs text-muted-foreground">Join as a paid member when you are ready for the official pet transfer.</p>
                   </div>
                 </div>
                 <div className="flex gap-3">
@@ -190,7 +197,7 @@ const AdoptionPage = () => {
                       {listing.description && (
                         <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{listing.description}</p>
                       )}
-                      <div className="mt-3 flex items-center justify-between">
+                      <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         {listing.adoption_fee > 0 ? (
                           <span className="flex items-center gap-1 text-sm font-semibold text-foreground">
                             <DollarSign className="h-4 w-4" /> {listing.adoption_fee}
@@ -198,19 +205,23 @@ const AdoptionPage = () => {
                         ) : (
                           <span className="text-sm font-medium text-emerald-600">Free</span>
                         )}
-                        {user && user.id !== listing.owner_id ? (
-                          <div className="flex gap-2">
-                            <ContactOwnerDialog ownerId={listing.owner_id} petName={pet?.name || "Pet"} adoptionId={listing.id} />
-                            <Button size="sm" className="gap-2" onClick={() => handleAdoptRequest(listing.id)}>
-                              <Heart className="h-4 w-4" /> Adopt
-                            </Button>
-                          </div>
-                        ) : !user ? (
-                          <Link to="/login">
-                            <Button size="sm" variant="outline">Sign in to Adopt</Button>
-                          </Link>
-                        ) : (
+                        {user?.id === listing.owner_id ? (
                           <Badge variant="secondary">Your listing</Badge>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            <ContactOwnerDialog ownerId={listing.owner_id} petName={pet?.name || "Pet"} adoptionId={listing.id} />
+                            {membership ? (
+                              <Button size="sm" className="gap-2" onClick={() => handleAdoptRequest(listing.id)}>
+                                <Heart className="h-4 w-4" /> Adopt
+                              </Button>
+                            ) : (
+                              <Link to={user ? "/membership" : "/register"}>
+                                <Button size="sm" variant="default" className="gap-2">
+                                  <Crown className="h-4 w-4" /> Sign up to be a member
+                                </Button>
+                              </Link>
+                            )}
+                          </div>
                         )}
                       </div>
                     </CardContent>

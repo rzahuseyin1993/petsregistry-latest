@@ -1,13 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { MessageCircle, Phone, Mail, User } from "lucide-react";
+import { MessageCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 interface ContactOwnerDialogProps {
@@ -17,68 +16,89 @@ interface ContactOwnerDialogProps {
   children?: React.ReactNode;
 }
 
+const escapeHtml = (s: string) =>
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+/** Adoption inquiry — anyone can message the owner to arrange an in-person meet-up. */
 const ContactOwnerDialog = ({ ownerId, petName, adoptionId, children }: ContactOwnerDialogProps) => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
 
-  // Fetch owner's public profile to check if they share contact info
-  const { data: ownerProfile } = useQuery({
-    queryKey: ["owner-profile", ownerId],
-    queryFn: async () => {
-      const { data } = await supabase.rpc("get_public_profile", { _user_id: ownerId });
-      return data as any;
-    },
-    enabled: open,
-  });
+  useEffect(() => {
+    if (!open) return;
+    if (user) {
+      setName(profile?.full_name || "");
+      setEmail(profile?.email || user.email || "");
+      setPhone(profile?.phone || "");
+    }
+  }, [open, user, profile]);
+
+  const resetForm = () => {
+    setName("");
+    setEmail("");
+    setPhone("");
+    setMessage("");
+  };
 
   const handleSendMessage = async () => {
-    if (!user) { toast.error("Please sign in first"); return; }
-    if (!message.trim()) { toast.error("Please write a message"); return; }
-    
+    if (!name.trim() || !email.trim()) {
+      toast.error("Please enter your name and email so the owner can reply");
+      return;
+    }
+    if (!message.trim()) {
+      toast.error("Please write a message");
+      return;
+    }
+
     setSending(true);
     try {
-      // Send in-app notification to owner
-      await supabase.rpc("insert_system_notification", {
+      const contactLine = [name.trim(), email.trim(), phone.trim() ? `phone: ${phone.trim()}` : null]
+        .filter(Boolean)
+        .join(" · ");
+
+      const { error: notifyErr } = await supabase.rpc("insert_system_notification", {
         _user_id: ownerId,
-        _title: `Message about ${petName}`,
-        _message: message.trim(),
+        _title: `Adoption inquiry for ${petName}`,
+        _message: `From ${contactLine}\n\n${message.trim().slice(0, 500)}`,
         _type: "adoption",
         _link: "/dashboard/adoption",
       });
+      if (notifyErr) throw notifyErr;
 
-      // Also send email if owner has email
+      const { data: ownerProfile } = await supabase
+        .from("profiles")
+        .select("email, full_name")
+        .eq("user_id", ownerId)
+        .maybeSingle();
+
       if (ownerProfile?.email) {
-        const { data: senderProfile } = await supabase
-          .from("profiles")
-          .select("full_name, email, phone")
-          .eq("user_id", user.id)
-          .single();
-
         await supabase.functions.invoke("send-smtp-email", {
           body: {
             to: ownerProfile.email,
             subject: `Someone is interested in adopting ${petName}`,
-            html: `
-              <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px">
-                <h2 style="color:#e11d48">🐾 Adoption Inquiry for ${petName}</h2>
-                <p><strong>From:</strong> ${senderProfile?.full_name || "A member"} (${senderProfile?.email || user.email})</p>
-                ${senderProfile?.phone ? `<p><strong>Phone:</strong> ${senderProfile.phone}</p>` : ""}
-                <div style="background:#f9fafb;border-radius:8px;padding:16px;margin:16px 0">
-                  <p style="margin:0;white-space:pre-wrap">${message.trim()}</p>
-                </div>
-                <p>Log in to your <strong>Adoption Manager</strong> to respond.</p>
-                <p style="margin-top:24px;color:#6b7280;font-size:13px">— Pet Registry Team</p>
-              </div>
-            `,
+            html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px">
+              <h2 style="color:#e11d48">🐾 Adoption inquiry for ${escapeHtml(petName)}</h2>
+              <p>Hi ${escapeHtml(ownerProfile.full_name || "Pet Owner")},</p>
+              <p>Someone would like to adopt <strong>${escapeHtml(petName)}</strong> and arrange a meet-up in person.</p>
+              <p><strong>From:</strong> ${escapeHtml(name.trim())}</p>
+              <p><strong>Email:</strong> <a href="mailto:${escapeHtml(email.trim())}">${escapeHtml(email.trim())}</a></p>
+              ${phone.trim() ? `<p><strong>Phone:</strong> ${escapeHtml(phone.trim())}</p>` : ""}
+              <div style="background:#fff1f2;border-radius:8px;padding:16px;margin:16px 0;white-space:pre-wrap">${escapeHtml(message.trim())}</div>
+              <p>Reply to them directly to arrange where and when to meet. Listing ref: ${escapeHtml(adoptionId)}</p>
+              <p style="margin-top:24px;color:#6b7280;font-size:13px">— Pets Registry</p>
+            </div>`,
           },
         }).catch(() => {});
       }
 
       toast.success("Message sent to the pet owner!");
-      setMessage("");
       setOpen(false);
+      resetForm();
     } catch {
       toast.error("Failed to send message. Please try again.");
     } finally {
@@ -103,60 +123,57 @@ const ContactOwnerDialog = ({ ownerId, petName, adoptionId, children }: ContactO
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
-          {/* Show owner contact details if they opted in */}
-          {ownerProfile && (ownerProfile.show_name || ownerProfile.show_phone) && (
-            <div className="rounded-lg border border-border bg-muted/50 p-4 space-y-2">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Owner Contact Info</p>
-              {ownerProfile.show_name && ownerProfile.full_name && (
-                <div className="flex items-center gap-2 text-sm text-foreground">
-                  <User className="h-4 w-4 text-muted-foreground" /> {ownerProfile.full_name}
-                </div>
-              )}
-              {ownerProfile.show_phone && ownerProfile.phone && (
-                <div className="flex items-center gap-2 text-sm text-foreground">
-                  <Phone className="h-4 w-4 text-muted-foreground" />
-                  <a href={`tel:${ownerProfile.phone}`} className="text-primary hover:underline">{ownerProfile.phone}</a>
-                </div>
-              )}
-              {ownerProfile.email && (
-                <div className="flex items-center gap-2 text-sm text-foreground">
-                  <Mail className="h-4 w-4 text-muted-foreground" />
-                  <a href={`mailto:${ownerProfile.email}`} className="text-primary hover:underline">{ownerProfile.email}</a>
-                </div>
-              )}
-            </div>
-          )}
+        <p className="text-sm text-muted-foreground">
+          Send a message to arrange a meet-up in person. The owner will contact you using the details below.
+        </p>
 
-          {/* Message form */}
-          {user ? (
-            <div className="space-y-3">
-              <div>
-                <Label htmlFor="adoption-message">Send a message</Label>
-                <Textarea
-                  id="adoption-message"
-                  placeholder={`Hi! I'm interested in adopting ${petName}. I'd love to learn more about them...`}
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  rows={4}
-                  className="mt-1"
-                  maxLength={1000}
-                />
-                <p className="text-xs text-muted-foreground mt-1">{message.length}/1000</p>
-              </div>
-              <Button onClick={handleSendMessage} disabled={sending || !message.trim()} className="w-full gap-2">
-                <MessageCircle className="h-4 w-4" />
-                {sending ? "Sending..." : "Send Message"}
-              </Button>
+        <div className="space-y-3">
+          <div>
+            <Label htmlFor="adoption-contact-name">Your name *</Label>
+            <Input
+              id="adoption-contact-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Your full name"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="adoption-contact-email">Email *</Label>
+              <Input
+                id="adoption-contact-email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@email.com"
+              />
             </div>
-          ) : (
-            <div className="text-center py-4">
-              <p className="text-sm text-muted-foreground mb-3">Sign in to contact the owner</p>
-              <Button asChild variant="outline">
-                <a href="/login">Sign In</a>
-              </Button>
+            <div>
+              <Label htmlFor="adoption-contact-phone">Phone</Label>
+              <Input
+                id="adoption-contact-phone"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="Optional"
+              />
             </div>
-          )}
+          </div>
+          <div>
+            <Label htmlFor="adoption-message">Your message *</Label>
+            <Textarea
+              id="adoption-message"
+              placeholder={`Hi! I'm interested in adopting ${petName}. When and where could we meet?`}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              rows={4}
+              maxLength={1000}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">{message.length}/1000</p>
+          </div>
+          <Button onClick={handleSendMessage} disabled={sending || !message.trim()} className="w-full gap-2">
+            <MessageCircle className="h-4 w-4" />
+            {sending ? "Sending..." : "Send to Owner"}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

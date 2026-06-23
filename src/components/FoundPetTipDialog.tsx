@@ -14,12 +14,7 @@ interface Props {
   trigger?: React.ReactNode;
 }
 
-/**
- * Public "I Found This Pet" tip form.
- * Anyone (logged-in or not) can submit a sighting; it lands in the admin
- * Contact Submissions inbox tagged as a found-pet tip. Admin verifies & contacts the owner.
- * No status change is made directly — prevents abuse.
- */
+/** Public "I Found This Pet" form — notifies the pet owner directly (in-app + email). */
 const FoundPetTipDialog = ({ petId, petName, trigger }: Props) => {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -27,15 +22,23 @@ const FoundPetTipDialog = ({ petId, petName, trigger }: Props) => {
   const [phone, setPhone] = useState("");
   const [whereFound, setWhereFound] = useState("");
   const [details, setDetails] = useState("");
-  // Tiny human-check
   const [a] = useState(() => Math.floor(Math.random() * 8) + 2);
   const [b] = useState(() => Math.floor(Math.random() * 8) + 2);
   const [captcha, setCaptcha] = useState("");
   const [sending, setSending] = useState(false);
 
+  const resetForm = () => {
+    setName("");
+    setEmail("");
+    setPhone("");
+    setWhereFound("");
+    setDetails("");
+    setCaptcha("");
+  };
+
   const submit = async () => {
     if (!name.trim() || !email.trim()) {
-      toast.error("Please share your name and email so we can connect you with the owner");
+      toast.error("Please share your name and email so the owner can reach you");
       return;
     }
     if (parseInt(captcha, 10) !== a + b) {
@@ -44,32 +47,71 @@ const FoundPetTipDialog = ({ petId, petName, trigger }: Props) => {
     }
 
     setSending(true);
-    const message = [
-      `Pet: ${petName} (id: ${petId})`,
-      `Profile: ${window.location.origin}/pet/${petId}`,
-      ``,
-      `Where found: ${whereFound || "(not provided)"}`,
-      `Details: ${details || "(none)"}`,
-      ``,
-      `Reporter phone: ${phone || "(not provided)"}`,
-    ].join("\n");
+    try {
+      const { data: petRow, error: petErr } = await supabase
+        .from("pets")
+        .select("owner_id, name")
+        .eq("id", petId)
+        .maybeSingle();
+      if (petErr || !petRow?.owner_id) throw new Error("Could not find this pet's owner");
 
-    const { error } = await supabase.from("contact_submissions").insert({
-      name: name.trim(),
-      email: email.trim(),
-      subject: `🐾 Found-pet tip for ${petName}`,
-      message,
-      source: "found_pet_tip",
-    });
-    setSending(false);
+      const profileUrl = `${window.location.origin}/pet/${petId}`;
+      const bodyLines = [
+        details.trim() || "Someone reported finding your pet.",
+        "",
+        `Where: ${whereFound.trim() || "(not provided)"}`,
+        `Profile: ${profileUrl}`,
+      ];
+      const fullMessage = bodyLines.join("\n");
+      const contactLine = [name.trim(), email.trim(), phone.trim() ? `phone: ${phone.trim()}` : null]
+        .filter(Boolean)
+        .join(" · ");
 
-    if (error) {
-      toast.error("Could not send tip. Please try again.");
-      return;
+      const { error: notifyErr } = await supabase.rpc("insert_system_notification", {
+        _user_id: petRow.owner_id,
+        _title: `🐾 Someone found ${petRow.name || petName}!`,
+        _message: `From ${contactLine}\n\n${fullMessage.slice(0, 500)}`,
+        _type: "lost_pet",
+        _link: "/dashboard/inbox",
+      });
+      if (notifyErr) throw notifyErr;
+
+      const { data: ownerProfile } = await supabase
+        .from("profiles")
+        .select("email, full_name")
+        .eq("user_id", petRow.owner_id)
+        .maybeSingle();
+
+      if (ownerProfile?.email) {
+        const safe = (s: string) =>
+          s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+        await supabase.functions.invoke("send-smtp-email", {
+          body: {
+            to: ownerProfile.email,
+            subject: `🐾 Someone found ${petRow.name || petName}!`,
+            html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px">
+              <h2 style="color:#16a34a">Good news — someone may have found ${safe(petRow.name || petName)}</h2>
+              <p><strong>From:</strong> ${safe(name.trim())}</p>
+              <p><strong>Email:</strong> <a href="mailto:${safe(email.trim())}">${safe(email.trim())}</a></p>
+              ${phone.trim() ? `<p><strong>Phone:</strong> ${safe(phone.trim())}</p>` : ""}
+              ${whereFound.trim() ? `<p><strong>Where found:</strong> ${safe(whereFound.trim())}</p>` : ""}
+              <div style="background:#f0fdf4;border-radius:8px;padding:16px;margin:16px 0;white-space:pre-wrap">${safe(details.trim() || "No extra details provided.")}</div>
+              <p><a href="${safe(profileUrl)}">View pet profile</a></p>
+              <p style="color:#6b7280;font-size:13px;margin-top:24px">— Pets Registry</p>
+            </div>`,
+          },
+        }).catch(() => {});
+      }
+
+      toast.success("Thank you! Your message was sent directly to the pet owner.");
+      setOpen(false);
+      resetForm();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Could not send message. Please try again.";
+      toast.error(msg);
+    } finally {
+      setSending(false);
     }
-    toast.success("Thank you! Admin will verify and connect you with the owner.");
-    setOpen(false);
-    setName(""); setEmail(""); setPhone(""); setWhereFound(""); setDetails(""); setCaptcha("");
   };
 
   return (
@@ -85,7 +127,8 @@ const FoundPetTipDialog = ({ petId, petName, trigger }: Props) => {
         <DialogHeader>
           <DialogTitle>You found {petName}? Thank you! 🙏</DialogTitle>
           <DialogDescription>
-            Share what you know — admin will verify your tip and put you in touch with the owner. To protect against abuse, status will not change automatically.
+            Share what you know — your message goes <strong>directly to the pet owner</strong> by notification and email.
+            The owner can contact you using the details you provide. Pet status will not change automatically.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3 pt-2">
@@ -118,7 +161,7 @@ const FoundPetTipDialog = ({ petId, petName, trigger }: Props) => {
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)} disabled={sending}>Cancel</Button>
-          <Button onClick={submit} disabled={sending}>{sending ? "Sending…" : "Send tip"}</Button>
+          <Button onClick={submit} disabled={sending}>{sending ? "Sending…" : "Send to owner"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
