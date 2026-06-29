@@ -104,6 +104,8 @@ const buildTemplateElements = (tpl: CertificateTemplate): CanvasElement[] => {
   add({ type: "text", x: CANVAS_W / 2 - 220, y: 30, width: 440, height: 40, content: "CERTIFICATE OF PET REGISTRATION", fontSize: 26, fontWeight: "700", color: tpl.headerColor, textAlign: "center", letterSpacing: 3, fontFamily: tpl.fontFamily });
   // Subtitle
   add({ type: "text", x: CANVAS_W / 2 - 160, y: 72, width: 320, height: 24, content: "Official Document — Pets Registry", fontSize: 11, fontWeight: "400", color: tpl.accentColor, textAlign: "center", letterSpacing: 2, fontFamily: tpl.fontFamily });
+  // Certificate number (auto-filled from Pet ID)
+  add({ type: "text", x: CANVAS_W / 2 - 160, y: 96, width: 320, height: 22, content: "Certificate No: {{certificate_number}}", fontSize: 13, fontWeight: "700", color: tpl.headerColor, textAlign: "center", letterSpacing: 1, fontFamily: tpl.fontFamily });
   // Divider
   add({ type: "shape", x: CANVAS_W / 2 - 100, y: 100, width: 200, height: 2, backgroundColor: tpl.borderColor, shapeType: "rect", content: "" });
 
@@ -115,7 +117,7 @@ const buildTemplateElements = (tpl: CertificateTemplate): CanvasElement[] => {
     { label: "Species: {{species}}", y: 170 },
     { label: "Breed: {{breed}}", y: 192 },
     { label: "Color: {{color}}", y: 214 },
-    { label: "Pet Code: {{pet_code}}", y: 236 },
+    { label: "Pet ID: {{pet_code}}", y: 236 },
     { label: "Microchip: {{microchip}}", y: 258 },
   ];
   petFields.forEach((f) => {
@@ -150,7 +152,8 @@ const CERT_QUICK_ELEMENTS = [
   { label: "Species", type: "text" as const, preset: { content: "Species: {{species}}", fontSize: 13, fontWeight: "400", color: "#2D2A26", width: 220, height: 22 } },
   { label: "Breed", type: "text" as const, preset: { content: "Breed: {{breed}}", fontSize: 13, fontWeight: "400", color: "#2D2A26", width: 220, height: 22 } },
   { label: "Color", type: "text" as const, preset: { content: "Color: {{color}}", fontSize: 13, fontWeight: "400", color: "#2D2A26", width: 220, height: 22 } },
-  { label: "Pet Code", type: "text" as const, preset: { content: "Pet Code: {{pet_code}}", fontSize: 13, fontWeight: "400", color: "#2D2A26", width: 220, height: 22 } },
+  { label: "Certificate No", type: "text" as const, preset: { content: "Certificate No: {{certificate_number}}", fontSize: 14, fontWeight: "700", color: "#2D2A26", textAlign: "center", width: 320, height: 22 } },
+  { label: "Pet ID", type: "text" as const, preset: { content: "Pet ID: {{pet_code}}", fontSize: 13, fontWeight: "400", color: "#2D2A26", width: 220, height: 22 } },
   { label: "Microchip", type: "text" as const, preset: { content: "Microchip: {{microchip}}", fontSize: 13, fontWeight: "400", color: "#2D2A26", width: 220, height: 22 } },
   { label: "Owner", type: "text" as const, preset: { content: "Owner: {{owner_name}}", fontSize: 13, fontWeight: "400", color: "#2D2A26", width: 220, height: 22 } },
   { label: "Email", type: "text" as const, preset: { content: "Email: {{owner_email}}", fontSize: 13, fontWeight: "400", color: "#2D2A26", width: 220, height: 22 } },

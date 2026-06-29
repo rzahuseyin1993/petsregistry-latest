@@ -1,21 +1,60 @@
+export const FOUND_SIGHTING_TAG = "[FOUND PET SIGHTING]";
+
 export type LostReportRow = {
   id: string;
   pet_id?: string | null;
   is_guest?: boolean | null;
+  reporter_id?: string | null;
   guest_pet_name?: string | null;
   guest_pet_species?: string | null;
   guest_pet_breed?: string | null;
   guest_pet_photo_url?: string | null;
   last_seen_date?: string | null;
   created_at?: string | null;
+  description?: string | null;
+  status?: string | null;
+  last_seen_address?: string | null;
+  last_seen_lat?: number | null;
+  last_seen_lng?: number | null;
+  reward?: string | null;
   pets?: {
     id?: string;
     name?: string;
     species?: string;
     breed?: string | null;
+    owner_id?: string | null;
     pet_images?: { image_url: string; sort_order: number }[];
   } | null;
 };
+
+export type LostReportTipContext = {
+  id: string;
+  isGuest?: boolean | null;
+  reporterId?: string | null;
+  guestPetName?: string | null;
+};
+
+export function isFoundSightingReport(report: { description?: string | null }): boolean {
+  return typeof report.description === "string" && report.description.startsWith(FOUND_SIGHTING_TAG);
+}
+
+export function stripFoundSightingTag(description: string | null | undefined): string {
+  if (!description) return "";
+  return description.replace(FOUND_SIGHTING_TAG, "").trim();
+}
+
+export function getLostReportDescription(report: LostReportRow): string {
+  return stripFoundSightingTag(report.description);
+}
+
+export function toLostReportTipContext(report: LostReportRow): LostReportTipContext {
+  return {
+    id: report.id,
+    isGuest: report.is_guest,
+    reporterId: report.reporter_id,
+    guestPetName: report.guest_pet_name,
+  };
+}
 
 export function getLostReportPetName(report: LostReportRow): string {
   if (report.guest_pet_name?.trim()) return report.guest_pet_name.trim();

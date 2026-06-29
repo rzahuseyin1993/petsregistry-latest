@@ -31,18 +31,47 @@ const AdminOrders = () => {
   const { data: orders = [] } = useQuery({
     queryKey: ["admin-orders"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("orders")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      const userIds = [...new Set(data.map((o) => o.user_id))];
+      const [storeRes, certRes] = await Promise.all([
+        supabase.from("orders").select("*").order("created_at", { ascending: false }),
+        supabase.from("certificate_credit_orders" as any).select("*").order("created_at", { ascending: false }),
+      ]);
+      if (storeRes.error) throw storeRes.error;
+      if (certRes.error) throw certRes.error;
+
+      const allUserIds = [
+        ...new Set([
+          ...(storeRes.data || []).map((o) => o.user_id),
+          ...(certRes.data || []).map((o: any) => o.user_id),
+        ]),
+      ];
       const { data: profiles } = await supabase
         .from("profiles")
         .select("user_id, email, full_name, phone")
-        .in("user_id", userIds);
+        .in("user_id", allUserIds);
       const profileMap: Record<string, any> = Object.fromEntries((profiles || []).map((p) => [p.user_id, p]));
-      return data.map((o) => ({ ...o, profile: profileMap[o.user_id] || null }));
+
+      const storeOrders = (storeRes.data || []).map((o) => ({
+        ...o,
+        profile: profileMap[o.user_id] || null,
+        orderKind: "store" as const,
+      }));
+      const certOrders = (certRes.data || []).map((o: any) => ({
+        id: o.id,
+        user_id: o.user_id,
+        total: o.total,
+        status: o.status === "paid" ? "completed" : o.status,
+        payment_id: o.payment_id,
+        payment_method: o.payment_method,
+        created_at: o.created_at,
+        profile: profileMap[o.user_id] || null,
+        orderKind: "certificate" as const,
+        quantity: o.quantity,
+        credits_granted: o.credits_granted,
+      }));
+
+      return [...storeOrders, ...certOrders].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      );
     },
   });
 
@@ -92,8 +121,8 @@ const AdminOrders = () => {
           <main className="flex-1 bg-background p-6 md:p-8">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="font-display text-2xl font-bold text-foreground">Store Orders</h1>
-            <p className="text-sm text-muted-foreground">{orders.length} total orders</p>
+            <h1 className="font-display text-2xl font-bold text-foreground">Orders</h1>
+            <p className="text-sm text-muted-foreground">{orders.length} total (store + certificate credits)</p>
           </div>
           <Button variant="outline" className="gap-2" onClick={() => exportToCsv("orders", orders.map((o: any) => ({
             order_id: o.id.slice(0, 8).toUpperCase(), customer: o.profile?.full_name || "",
@@ -120,6 +149,7 @@ const AdminOrders = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Type</TableHead>
                   <TableHead>Order ID</TableHead>
                   <TableHead>Customer</TableHead>
                   <TableHead>Email</TableHead>
@@ -135,18 +165,26 @@ const AdminOrders = () => {
                   const q = searchTerm.toLowerCase();
                   return !q || o.id.toLowerCase().includes(q) || (o.profile?.full_name || "").toLowerCase().includes(q) || (o.profile?.email || "").toLowerCase().includes(q) || o.status.toLowerCase().includes(q);
                 }).length === 0 ? (
-                  <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">{searchTerm ? "No orders match your search" : "No orders yet"}</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">{searchTerm ? "No orders match your search" : "No orders yet"}</TableCell></TableRow>
                 ) : orders.filter((o: any) => {
                   const q = searchTerm.toLowerCase();
                   return !q || o.id.toLowerCase().includes(q) || (o.profile?.full_name || "").toLowerCase().includes(q) || (o.profile?.email || "").toLowerCase().includes(q) || o.status.toLowerCase().includes(q);
                 }).map((order) => (
                   <TableRow key={order.id}>
+                    <TableCell>
+                      <Badge variant="outline" className="text-[10px]">
+                        {order.orderKind === "certificate" ? "Certificate" : "Store"}
+                      </Badge>
+                    </TableCell>
                     <TableCell className="font-mono text-xs font-medium">{order.id.slice(0, 8).toUpperCase()}</TableCell>
                     <TableCell className="font-medium">{order.profile?.full_name || "—"}</TableCell>
                     <TableCell className="text-xs">{order.profile?.email || "—"}</TableCell>
                     <TableCell className="font-medium">${Number(order.total).toFixed(2)}</TableCell>
                     <TableCell>{order.payment_method || "—"}</TableCell>
                     <TableCell>
+                      {order.orderKind === "certificate" ? (
+                        <Badge variant="outline" className={orderStatusStyles[order.status] || ""}>{order.status}</Badge>
+                      ) : (
                       <PermissionGate resource="orders" action="edit" fallback={
                         <Badge variant="outline" className={orderStatusStyles[order.status] || ""}>{order.status}</Badge>
                       }>
@@ -166,6 +204,7 @@ const AdminOrders = () => {
                           </SelectContent>
                         </Select>
                       </PermissionGate>
+                      )}
                     </TableCell>
                     <TableCell className="text-xs">{new Date(order.created_at).toLocaleDateString()}</TableCell>
                     <TableCell>

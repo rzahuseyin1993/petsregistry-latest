@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import MembershipBadge from "@/components/MembershipBadge";
 import { Mail, Phone, User, Calendar, Palette, Weight, QrCode, Shield, CheckCircle, Cpu, Download, MessageCircle, Lock, Crown, AlertTriangle, MapPin, Gift, HeartHandshake } from "lucide-react";
 import FoundPetTipDialog from "@/components/FoundPetTipDialog";
+import { getLostReportDescription, getLostReportPetName, toLostReportTipContext } from "@/lib/lostReportDisplay";
 import { QRCodeSVG } from "qrcode.react";
 import { motion } from "framer-motion";
 import { useState, useCallback } from "react";
@@ -229,6 +230,7 @@ const PetProfile = () => {
   const images = (pet.pet_images || []).sort((a: any, b: any) => a.sort_order - b.sort_order);
   const owner = pet?.owner;
   const petCode = (pet as any).pet_code || pet.id.slice(0, 10).toUpperCase();
+  const displayPetName = lostReport ? getLostReportPetName(lostReport) : pet.name;
 
   return (
     <div className={isMobile ? "" : "flex min-h-screen flex-col bg-background"}>
@@ -287,7 +289,7 @@ const PetProfile = () => {
                 <Card className="mt-6 border-border">
                   <CardContent className="p-5">
                     <div className="flex items-center gap-3 mb-4 flex-wrap">
-                      <h1 className="font-display text-3xl font-bold text-foreground">{pet.name}</h1>
+                      <h1 className="font-display text-3xl font-bold text-foreground">{displayPetName}</h1>
                       {lostReport && !isFoundReport ? (
                         <Badge variant="outline" className={statusStyles.lost}>
                           <AlertTriangle className="mr-1 h-3 w-3" /> Lost
@@ -334,8 +336,8 @@ const PetProfile = () => {
                             {isFoundReport ? "Great news — this pet has been found! 🎉" : "This pet is currently reported lost"}
                           </h3>
                         </div>
-                        {lostReport.description && (
-                          <p className="text-sm text-foreground/90 mb-3">{lostReport.description}</p>
+                        {getLostReportDescription(lostReport) && (
+                          <p className="text-sm text-foreground/90 mb-3">{getLostReportDescription(lostReport)}</p>
                         )}
                         <div className="space-y-2">
                           {(lostReport.last_seen_address || (lostReport.last_seen_lat && lostReport.last_seen_lng)) && (
@@ -376,7 +378,11 @@ const PetProfile = () => {
                           )}
 
                           {!isFoundReport && (
-                            <FoundPetTipDialog petId={resolvedId!} petName={pet.name} />
+                            <FoundPetTipDialog
+                              petId={resolvedId!}
+                              petName={displayPetName}
+                              lostReport={toLostReportTipContext(lostReport)}
+                            />
                           )}
 
                           {!isFoundReport && isReporter && (

@@ -7,9 +7,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import ProtectedImage from "@/components/ProtectedImage";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import FoundPetTipDialog from "@/components/FoundPetTipDialog";
+import LostReportDetailDialog from "@/components/LostReportDetailDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { AlertTriangle, MapPin, Clock, Gift, FileDown } from "lucide-react";
 import { generateLostFlyer } from "@/lib/generateLostFlyer";
 import { motion } from "framer-motion";
@@ -17,15 +19,18 @@ import { useBrowseCountryFilter } from "@/hooks/useBrowseCountryFilter";
 import { fetchBrowseLostReports } from "@/lib/geoBrowseQueries";
 import {
   formatLostReportDate,
+  getLostReportDescription,
   getLostReportDetailLink,
   getLostReportImageUrl,
   getLostReportPetName,
   getLostReportSpeciesBreed,
+  isFoundSightingReport,
+  toLostReportTipContext,
 } from "@/lib/lostReportDisplay";
 
-const FOUND_TAG = "[FOUND PET SIGHTING]";
-
 const LostPetsPage = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const reportId = searchParams.get("report");
   const [tab, setTab] = useState<"all" | "lost" | "found">("all");
   const {
     mode,
@@ -48,7 +53,7 @@ const LostPetsPage = () => {
     const lostList: any[] = [];
     const foundList: any[] = [];
     for (const r of lostReports as any[]) {
-      const isFound = typeof r.description === "string" && r.description.startsWith(FOUND_TAG);
+      const isFound = isFoundSightingReport(r);
       (isFound ? foundList : lostList).push(r);
     }
     return { lost: lostList, found: foundList };
@@ -96,6 +101,11 @@ const LostPetsPage = () => {
       return enabled;
     },
   });
+
+  const highlightedReport = useMemo(
+    () => (reportId ? (lostReports as any[]).find((r) => r.id === reportId) ?? null : null),
+    [reportId, lostReports],
+  );
 
   const handleDownloadFlyer = async (report: any) => {
     const pet = report.pets;
@@ -186,6 +196,9 @@ const LostPetsPage = () => {
                 const pet = report.pets;
                 const name = getLostReportPetName(report);
                 const detailLink = getLostReportDetailLink(report);
+                const isFound = isFoundSightingReport(report);
+                const description = getLostReportDescription(report);
+                const petId = report.pet_id || pet?.id;
                 return (
                   <motion.div
                     key={report.id}
@@ -202,14 +215,12 @@ const LostPetsPage = () => {
                           />
                           <Badge
                             className={`absolute left-3 top-3 ${
-                              typeof report.description === "string" && report.description.startsWith(FOUND_TAG)
+                              isFound
                                 ? "bg-primary text-primary-foreground"
                                 : "bg-destructive text-destructive-foreground animate-pulse"
                             }`}
                           >
-                            {typeof report.description === "string" && report.description.startsWith(FOUND_TAG)
-                              ? "FOUND"
-                              : "LOST"}
+                            {isFound ? "FOUND" : "LOST"}
                           </Badge>
                           {report.reward && (
                             <Badge className="absolute right-3 top-3 bg-success text-success-foreground gap-1">
@@ -243,14 +254,29 @@ const LostPetsPage = () => {
                             </a>
                           </div>
                         )}
-                        {report.description && (
-                          <p className="mt-2 text-sm text-muted-foreground line-clamp-2">{report.description}</p>
+                        {description && (
+                          <p className="mt-2 text-sm text-muted-foreground line-clamp-2">{description}</p>
                         )}
-                        <div className="mt-3 flex items-center justify-between">
+                        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                           <span className="flex items-center gap-1 text-xs text-muted-foreground">
                             <Clock className="h-3 w-3" />
                             Last seen {formatLostReportDate(report)}
                           </span>
+                          <div className="flex flex-wrap gap-2">
+                            {!isFound && petId && (
+                              <div onClick={(e) => e.preventDefault()}>
+                                <FoundPetTipDialog
+                                  petId={petId}
+                                  petName={name}
+                                  lostReport={toLostReportTipContext(report)}
+                                  trigger={
+                                    <Button size="sm" variant="default" className="h-7 gap-1 text-xs bg-success hover:bg-success/90 text-success-foreground">
+                                      I Found This Pet
+                                    </Button>
+                                  }
+                                />
+                              </div>
+                            )}
                           {pet?.owner_id && flyerEnabledOwners.has(pet.owner_id) && (
                             <Button
                               variant="outline"
@@ -261,6 +287,7 @@ const LostPetsPage = () => {
                               <FileDown className="h-3 w-3" /> Download Flyer
                             </Button>
                           )}
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
@@ -272,6 +299,17 @@ const LostPetsPage = () => {
         </div>
       </main>
       } />
+      <LostReportDetailDialog
+        report={highlightedReport}
+        open={!!highlightedReport}
+        onOpenChange={(open) => {
+          if (!open) {
+            const next = new URLSearchParams(searchParams);
+            next.delete("report");
+            setSearchParams(next, { replace: true });
+          }
+        }}
+      />
       <Footer />
     </div>
   );

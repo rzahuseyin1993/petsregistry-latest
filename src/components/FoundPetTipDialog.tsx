@@ -1,27 +1,34 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { HeartHandshake } from "lucide-react";
+import { Camera, HeartHandshake, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { uploadImage } from "@/lib/imageUpload";
+import type { LostReportTipContext } from "@/lib/lostReportDisplay";
 
 interface Props {
   petId: string;
   petName: string;
+  lostReport?: LostReportTipContext | null;
   trigger?: React.ReactNode;
 }
 
-/** Public "I Found This Pet" form — notifies the pet owner directly (in-app + email). */
-const FoundPetTipDialog = ({ petId, petName, trigger }: Props) => {
+/** Public "I Found This Pet" form — notifies the pet owner/reporter directly (in-app + email). */
+const FoundPetTipDialog = ({ petId, petName, lostReport, trigger }: Props) => {
+  const displayName = lostReport?.guestPetName?.trim() || petName;
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [whereFound, setWhereFound] = useState("");
   const [details, setDetails] = useState("");
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const [a] = useState(() => Math.floor(Math.random() * 8) + 2);
   const [b] = useState(() => Math.floor(Math.random() * 8) + 2);
   const [captcha, setCaptcha] = useState("");
@@ -34,6 +41,25 @@ const FoundPetTipDialog = ({ petId, petName, trigger }: Props) => {
     setWhereFound("");
     setDetails("");
     setCaptcha("");
+    setPhotoFile(null);
+    setPhotoPreview(null);
+  };
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please choose an image file");
+      return;
+    }
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
+    e.target.value = "";
+  };
+
+  const clearPhoto = () => {
+    setPhotoFile(null);
+    setPhotoPreview(null);
   };
 
   const submit = async () => {
@@ -48,60 +74,31 @@ const FoundPetTipDialog = ({ petId, petName, trigger }: Props) => {
 
     setSending(true);
     try {
-      const { data: petRow, error: petErr } = await supabase
-        .from("pets")
-        .select("owner_id, name")
-        .eq("id", petId)
-        .maybeSingle();
-      if (petErr || !petRow?.owner_id) throw new Error("Could not find this pet's owner");
-
-      const profileUrl = `${window.location.origin}/pet/${petId}`;
-      const bodyLines = [
-        details.trim() || "Someone reported finding your pet.",
-        "",
-        `Where: ${whereFound.trim() || "(not provided)"}`,
-        `Profile: ${profileUrl}`,
-      ];
-      const fullMessage = bodyLines.join("\n");
-      const contactLine = [name.trim(), email.trim(), phone.trim() ? `phone: ${phone.trim()}` : null]
-        .filter(Boolean)
-        .join(" · ");
-
-      const { error: notifyErr } = await supabase.rpc("insert_system_notification", {
-        _user_id: petRow.owner_id,
-        _title: `🐾 Someone found ${petRow.name || petName}!`,
-        _message: `From ${contactLine}\n\n${fullMessage.slice(0, 500)}`,
-        _type: "lost_pet",
-        _link: "/dashboard/inbox",
-      });
-      if (notifyErr) throw notifyErr;
-
-      const { data: ownerProfile } = await supabase
-        .from("profiles")
-        .select("email, full_name")
-        .eq("user_id", petRow.owner_id)
-        .maybeSingle();
-
-      if (ownerProfile?.email) {
-        const safe = (s: string) =>
-          s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-        await supabase.functions.invoke("send-smtp-email", {
-          body: {
-            to: ownerProfile.email,
-            subject: `🐾 Someone found ${petRow.name || petName}!`,
-            html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px">
-              <h2 style="color:#16a34a">Good news — someone may have found ${safe(petRow.name || petName)}</h2>
-              <p><strong>From:</strong> ${safe(name.trim())}</p>
-              <p><strong>Email:</strong> <a href="mailto:${safe(email.trim())}">${safe(email.trim())}</a></p>
-              ${phone.trim() ? `<p><strong>Phone:</strong> ${safe(phone.trim())}</p>` : ""}
-              ${whereFound.trim() ? `<p><strong>Where found:</strong> ${safe(whereFound.trim())}</p>` : ""}
-              <div style="background:#f0fdf4;border-radius:8px;padding:16px;margin:16px 0;white-space:pre-wrap">${safe(details.trim() || "No extra details provided.")}</div>
-              <p><a href="${safe(profileUrl)}">View pet profile</a></p>
-              <p style="color:#6b7280;font-size:13px;margin-top:24px">— Pets Registry</p>
-            </div>`,
-          },
-        }).catch(() => {});
+      let photoUrl: string | undefined;
+      if (photoFile) {
+        try {
+          photoUrl = await uploadImage(photoFile, "pet-photos", "found-tip");
+        } catch {
+          toast.message("Photo upload failed — sending tip without photo");
+        }
       }
+
+      const { data, error } = await supabase.functions.invoke("found-pet-tip", {
+        body: {
+          petId,
+          lostReportId: lostReport?.id ?? null,
+          tipperName: name.trim(),
+          tipperEmail: email.trim(),
+          tipperPhone: phone.trim() || null,
+          whereFound: whereFound.trim() || null,
+          details: details.trim() || null,
+          photoUrl: photoUrl ?? null,
+          origin: window.location.origin,
+        },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
       toast.success("Thank you! Your message was sent directly to the pet owner.");
       setOpen(false);
@@ -123,9 +120,9 @@ const FoundPetTipDialog = ({ petId, petName, trigger }: Props) => {
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>You found {petName}? Thank you! 🙏</DialogTitle>
+          <DialogTitle>You found {displayName}? Thank you! 🙏</DialogTitle>
           <DialogDescription>
             Share what you know — your message goes <strong>directly to the pet owner</strong> by notification and email.
             The owner can contact you using the details you provide. Pet status will not change automatically.
@@ -153,6 +150,39 @@ const FoundPetTipDialog = ({ petId, petName, trigger }: Props) => {
           <div>
             <Label htmlFor="ftd">Details</Label>
             <Textarea id="ftd" rows={3} placeholder="What does it look like? Is it safe? Any injuries?" value={details} onChange={(e) => setDetails(e.target.value)} />
+          </div>
+          <div>
+            <Label>Photo (optional)</Label>
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handlePhotoChange}
+            />
+            {photoPreview ? (
+              <div className="relative mt-1.5 overflow-hidden rounded-lg border border-border">
+                <img src={photoPreview} alt="Preview" className="max-h-40 w-full object-cover" />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="icon"
+                  className="absolute right-2 top-2 h-7 w-7"
+                  onClick={clearPhoto}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-1.5 w-full gap-2"
+                onClick={() => photoInputRef.current?.click()}
+              >
+                <Camera className="h-4 w-4" /> Add a photo
+              </Button>
+            )}
           </div>
           <div>
             <Label htmlFor="ftc">Quick check: {a} + {b} = ?</Label>

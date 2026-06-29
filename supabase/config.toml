@@ -15,6 +15,9 @@ verify_jwt = false
 [functions.certificate-checkout]
 verify_jwt = false
 
+[functions.certificate-confirm]
+verify_jwt = false
+
 [functions.airwallex-webhook]
 verify_jwt = false
 

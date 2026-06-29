@@ -254,6 +254,15 @@ const AdminDirectory = () => {
                         {listing.is_featured && <Badge className="bg-accent text-accent-foreground"><Star className="mr-1 h-3 w-3" />Featured</Badge>}
                       </div>
                       <p className="text-sm text-muted-foreground">{listing.category} • {listing.city || "N/A"} • Owner: {getOwnerName(listing.owner_id)}</p>
+                      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                        {listing.phone && <span>📞 {listing.phone}</span>}
+                        {listing.email && <span>✉ {listing.email}</span>}
+                        {listing.address && <span className="truncate max-w-[240px]">📍 {listing.address}</span>}
+                      </div>
+                      {listing.description && (
+                        <p className="mt-1 text-xs text-muted-foreground line-clamp-2 max-w-xl">{listing.description}</p>
+                      )}
+                      <p className="mt-1 text-[10px] text-muted-foreground">Submitted {new Date(listing.created_at).toLocaleString()}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 flex-wrap">

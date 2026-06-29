@@ -288,6 +288,48 @@ export type Database = {
         }
         Relationships: []
       }
+      certificate_credit_orders: {
+        Row: {
+          id: string
+          user_id: string
+          quantity: number
+          unit_price: number
+          total: number
+          status: string
+          payment_id: string | null
+          payment_method: string | null
+          credits_granted: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          quantity: number
+          unit_price: number
+          total: number
+          status?: string
+          payment_id?: string | null
+          payment_method?: string | null
+          credits_granted?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          quantity?: number
+          unit_price?: number
+          total?: number
+          status?: string
+          payment_id?: string | null
+          payment_method?: string | null
+          credits_granted?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       certificate_templates: {
         Row: {
           background_url: string | null
@@ -1824,6 +1866,10 @@ export type Database = {
       grant_certificate_credit: {
         Args: { _amount: number; _is_purchase?: boolean; _user_id: string }
         Returns: undefined
+      }
+      fulfill_certificate_credit_order: {
+        Args: { _order_id: string; _payment_id?: string; _payment_method?: string }
+        Returns: boolean
       }
       has_role: {
         Args: {

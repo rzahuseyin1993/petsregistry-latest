@@ -19,13 +19,39 @@ const MobileOrders = () => {
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ["my-orders", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("orders")
-        .select("*, order_items(*, products(name, image_url))")
-        .eq("user_id", user!.id)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
+      const [storeRes, certRes] = await Promise.all([
+        supabase
+          .from("orders")
+          .select("*, order_items(*, products(name, image_url))")
+          .eq("user_id", user!.id)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("certificate_credit_orders" as any)
+          .select("*")
+          .eq("user_id", user!.id)
+          .order("created_at", { ascending: false }),
+      ]);
+      if (storeRes.error) throw storeRes.error;
+      if (certRes.error) throw certRes.error;
+
+      const storeOrders = (storeRes.data || []).map((o: any) => ({ ...o, orderKind: "store" as const }));
+      const certOrders = (certRes.data || []).map((o: any) => ({
+        id: o.id,
+        created_at: o.created_at,
+        total: o.total,
+        status: o.status === "paid" ? "completed" : o.status,
+        orderKind: "certificate" as const,
+        order_items: [{
+          id: o.id,
+          quantity: o.quantity,
+          price: o.unit_price,
+          products: { name: `${o.quantity} Certificate Credit${o.quantity === 1 ? "" : "s"}` },
+        }],
+      }));
+
+      return [...storeOrders, ...certOrders].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      );
     },
     enabled: !!user,
   });
@@ -62,6 +88,9 @@ const MobileOrders = () => {
                   <div>
                     <p className="font-mono text-[10px] font-medium text-muted-foreground">
                       #{order.id.slice(0, 8).toUpperCase()}
+                      {order.orderKind === "certificate" && (
+                        <Badge variant="secondary" className="ml-1 text-[9px]">Cert</Badge>
+                      )}
                     </p>
                     <p className="text-[10px] text-muted-foreground">
                       {new Date(order.created_at).toLocaleDateString()}

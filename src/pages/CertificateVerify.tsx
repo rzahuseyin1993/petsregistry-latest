@@ -24,7 +24,7 @@ const CertificateVerify = () => {
     const { data } = await supabase
       .from("certificate_verification" as any)
       .select("*")
-      .or(`certificate_number.eq.${trimmed},verification_code.eq.${code.trim().toLowerCase()}`)
+      .or(`certificate_number.eq.${trimmed},verification_code.eq.${code.trim().toLowerCase()},pet_code.eq.${trimmed}`)
       .maybeSingle();
     setResult(data);
     setLoading(false);
@@ -39,7 +39,7 @@ const CertificateVerify = () => {
             <ShieldCheck className="h-8 w-8 text-primary" />
           </div>
           <h1 className="font-display text-3xl font-bold text-foreground mb-2">Certificate Verification</h1>
-          <p className="text-muted-foreground">Enter a certificate number to verify its authenticity</p>
+          <p className="text-muted-foreground">Enter a certificate number or Pet ID (e.g. PR-2026-100005) to verify</p>
         </div>
 
         <Card>
@@ -49,7 +49,7 @@ const CertificateVerify = () => {
           <CardContent className="space-y-4">
             <div className="flex gap-2">
               <Input
-                placeholder="e.g. CERT-001234"
+                placeholder="e.g. PR-2026-100005"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && verify()}

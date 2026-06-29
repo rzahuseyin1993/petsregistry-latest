@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import DashboardSidebar from "@/components/DashboardSidebar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,8 @@ import html2canvas from "html2canvas";
 import QRCode from "qrcode";
 import { certificateTemplates, type CertificateTemplate } from "@/lib/certificateTemplates";
 import CertificateCreditsCard from "@/components/CertificateCreditsCard";
+import CertificatePurchaseHistory from "@/components/CertificatePurchaseHistory";
+import { buildCertificatePetData, fillCertificateTemplate } from "@/lib/certificateData";
 
 /* ─── Render certificate from template fields ─── */
 const renderFromTemplate = (
@@ -25,18 +28,7 @@ const renderFromTemplate = (
   const colors = (template.colors as any) || {};
   const fields = ((template.fields as any[]) || []).filter((f: any) => f.visible);
 
-  const replacePlaceholders = (label: string) => {
-    return label
-      .replace("{{pet_name}}", petData.pet_name || "—")
-      .replace("{{species}}", petData.species || "—")
-      .replace("{{breed}}", petData.breed || "—")
-      .replace("{{color}}", petData.color || "—")
-      .replace("{{pet_code}}", petData.pet_code || "—")
-      .replace("{{microchip}}", petData.microchip || "—")
-      .replace("{{owner_name}}", petData.owner_name || "—")
-      .replace("{{owner_email}}", petData.owner_email || "—")
-      .replace("{{date_issued}}", petData.date_issued || "—");
-  };
+  const replacePlaceholders = (label: string) => fillCertificateTemplate(label, petData);
 
   return (
     <div
@@ -112,7 +104,7 @@ const renderFromTemplate = (
           );
         }
 
-        const isCentered = ["title", "subtitle", "signature_line", "signature_label", "footer"].includes(field.key);
+        const isCentered = ["title", "subtitle", "certificate_number", "signature_line", "signature_label", "footer"].includes(field.key);
         // Scale font sizes using container query units (cqw) for responsive scaling
         // Original design: 28px title at ~800px wide → ~3.5cqw
         const scaledFontSize = `${(field.fontSize / 8)}cqw`;
@@ -162,12 +154,13 @@ const DEFAULT_CERTIFICATE_TEMPLATE = {
   fields: [
     { id: "f1", type: "label", key: "title", label: "CERTIFICATE OF PET REGISTRATION", x: 50, y: 8, fontSize: 28, fontWeight: "700", color: "#2D2A26", visible: true },
     { id: "f2", type: "label", key: "subtitle", label: "Official Document — Pets Registry", x: 50, y: 15, fontSize: 12, fontWeight: "400", color: "#8B7355", visible: true },
+    { id: "f2b", type: "data", key: "certificate_number", label: "Certificate No: {{certificate_number}}", x: 50, y: 21, fontSize: 15, fontWeight: "700", color: "#2D2A26", visible: true },
     { id: "f3", type: "label", key: "pet_header", label: "PET DETAILS", x: 15, y: 30, fontSize: 10, fontWeight: "600", color: "#8B7355", visible: true },
     { id: "f4", type: "data", key: "pet_name", label: "Name: {{pet_name}}", x: 15, y: 36, fontSize: 13, fontWeight: "400", color: "#2D2A26", visible: true },
     { id: "f5", type: "data", key: "species", label: "Species: {{species}}", x: 15, y: 42, fontSize: 13, fontWeight: "400", color: "#2D2A26", visible: true },
     { id: "f6", type: "data", key: "breed", label: "Breed: {{breed}}", x: 15, y: 48, fontSize: 13, fontWeight: "400", color: "#2D2A26", visible: true },
     { id: "f7", type: "data", key: "color", label: "Color: {{color}}", x: 15, y: 54, fontSize: 13, fontWeight: "400", color: "#2D2A26", visible: true },
-    { id: "f8", type: "data", key: "pet_code", label: "Pet Code: {{pet_code}}", x: 15, y: 60, fontSize: 13, fontWeight: "400", color: "#2D2A26", visible: true },
+    { id: "f8", type: "data", key: "pet_code", label: "Pet ID: {{pet_code}}", x: 15, y: 60, fontSize: 13, fontWeight: "400", color: "#2D2A26", visible: true },
     { id: "f9", type: "data", key: "microchip", label: "Microchip: {{microchip}}", x: 15, y: 66, fontSize: 13, fontWeight: "400", color: "#2D2A26", visible: true },
     { id: "f10", type: "label", key: "owner_header", label: "OWNER INFORMATION", x: 60, y: 30, fontSize: 10, fontWeight: "600", color: "#8B7355", visible: true },
     { id: "f11", type: "data", key: "owner_name", label: "Owner: {{owner_name}}", x: 60, y: 36, fontSize: 13, fontWeight: "400", color: "#2D2A26", visible: true },
@@ -183,6 +176,8 @@ const DEFAULT_CERTIFICATE_TEMPLATE = {
 const DashboardCertificates = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const paymentConfirmRef = useRef(false);
   const [showNewDialog, setShowNewDialog] = useState(false);
   const [selectedPetId, setSelectedPetId] = useState("");
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
@@ -211,6 +206,49 @@ const DashboardCertificates = () => {
     },
     enabled: !!user,
   });
+
+  // Confirm payment after checkout return (webhook fallback for Airwallex)
+  useEffect(() => {
+    const creditsAdded = searchParams.get("credits_added");
+    const orderId = searchParams.get("order_id");
+    if (!creditsAdded || !orderId || !user || paymentConfirmRef.current) return;
+
+    paymentConfirmRef.current = true;
+    let cancelled = false;
+    let attempts = 0;
+
+    const runConfirm = async () => {
+      const { data, error } = await supabase.functions.invoke("certificate-confirm", {
+        body: { order_id: orderId },
+      });
+      if (cancelled) return;
+
+      if (error) {
+        toast.error("Could not confirm payment yet. Please refresh in a moment.");
+        setSearchParams({}, { replace: true });
+        return;
+      }
+
+      if (data?.credits_granted || data?.status === "paid") {
+        queryClient.invalidateQueries({ queryKey: ["my-cert-credits", user.id] });
+        queryClient.invalidateQueries({ queryKey: ["cert-credit-orders", user.id] });
+        toast.success(`${data.quantity || 1} certificate credit(s) added to your account!`);
+        setSearchParams({}, { replace: true });
+        return;
+      }
+
+      attempts += 1;
+      if (attempts < 6) {
+        setTimeout(runConfirm, 2500);
+      } else {
+        toast.info("Payment received. Credits may take a moment — refresh if they don't appear.");
+        setSearchParams({}, { replace: true });
+      }
+    };
+
+    runConfirm();
+    return () => { cancelled = true; };
+  }, [searchParams, user, queryClient, setSearchParams]);
 
   const { data: templates = [] } = useQuery({
     queryKey: ["certificate-templates-active"],
@@ -394,17 +432,19 @@ const DashboardCertificates = () => {
 
   const getPetData = (cert: any) => {
     const pet = cert.pets || pets.find((p: any) => p.id === cert.pet_id) || {};
-    return {
-      pet_name: pet.name || "",
-      species: pet.species || "",
-      breed: pet.breed || "",
-      color: pet.color || "",
-      pet_code: pet.pet_code || "",
-      microchip: pet.microchip_number || "",
-      owner_name: profile?.full_name || "",
-      owner_email: profile?.email || "",
-      date_issued: new Date(cert.created_at).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }),
-    };
+    return buildCertificatePetData({ pet, profile, cert });
+  };
+
+  const ensureCertificateNumberField = (template: any) => {
+    if (!template?.fields) return template;
+    const fields = [...(template.fields as any[])];
+    if (fields.some((f) => f.key === "certificate_number")) return template;
+    const certField = DEFAULT_CERTIFICATE_TEMPLATE.fields.find((f) => f.key === "certificate_number");
+    if (!certField) return template;
+    const subtitleIdx = fields.findIndex((f) => f.key === "subtitle");
+    const insertAt = subtitleIdx >= 0 ? subtitleIdx + 1 : 1;
+    fields.splice(insertAt, 0, certField);
+    return { ...template, fields };
   };
 
   const getTemplate = (cert: any) => {
@@ -412,7 +452,8 @@ const DashboardCertificates = () => {
       ? (cert.design_data as any).fallbackTemplate
       : null;
 
-    return fallbackTemplate || templates.find((t: any) => t.id === cert.template_id) || templates[0] || DEFAULT_CERTIFICATE_TEMPLATE;
+    const template = fallbackTemplate || templates.find((t: any) => t.id === cert.template_id) || templates[0] || DEFAULT_CERTIFICATE_TEMPLATE;
+    return ensureCertificateNumberField(template);
   };
 
   const handleDownload = async (cert: any) => {
@@ -491,6 +532,8 @@ const DashboardCertificates = () => {
         <div className="mb-6">
           <CertificateCreditsCard />
         </div>
+
+        <CertificatePurchaseHistory />
 
         {!hasAdminTemplates && (
           <Card className="mb-4 border-dashed">
@@ -594,7 +637,9 @@ const DashboardCertificates = () => {
                 <SelectTrigger><SelectValue placeholder="Select a pet" /></SelectTrigger>
                 <SelectContent>
                   {availablePets.map((p: any) => (
-                    <SelectItem key={p.id} value={p.id}>{p.name} ({p.species})</SelectItem>
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name} ({p.pet_code || p.species})
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -663,7 +708,7 @@ const DashboardCertificates = () => {
                 <div className="flex items-center justify-between rounded-lg border p-4 bg-muted/50">
                   <div>
                     <p className="font-medium text-foreground">Certificate for {payConfirmCert.pets?.name || "Pet"}</p>
-                    <p className="text-sm text-muted-foreground">This will use 1 credit and assign a unique verification number.</p>
+                    <p className="text-sm text-muted-foreground">Uses 1 credit. Your pet&apos;s ID becomes the certificate number automatically.</p>
                   </div>
                   <Award className="h-8 w-8 text-amber-500" />
                 </div>

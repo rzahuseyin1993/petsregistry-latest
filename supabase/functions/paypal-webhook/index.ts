@@ -120,11 +120,21 @@ serve(async (req) => {
           }
         } else if (type === "certificate_credit") {
           const qty = parseInt(metadata.quantity || "1");
-          await supabase.rpc("grant_certificate_credit", {
-            _user_id: userId,
-            _amount: qty,
-            _is_purchase: true,
-          });
+          const orderId = metadata.order_id;
+          if (orderId) {
+            const { error: fulfillErr } = await supabase.rpc("fulfill_certificate_credit_order", {
+              _order_id: orderId,
+              _payment_id: paymentId,
+              _payment_method: "paypal",
+            });
+            if (fulfillErr) console.error("fulfill_certificate_credit_order:", fulfillErr);
+          } else {
+            await supabase.rpc("grant_certificate_credit", {
+              _user_id: userId,
+              _amount: qty,
+              _is_purchase: true,
+            });
+          }
           await supabase.from("admin_messages").insert({
             sender_id: userId,
             recipient_id: userId,

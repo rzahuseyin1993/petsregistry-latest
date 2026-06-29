@@ -77,12 +77,38 @@ async function completeDonation(
 async function grantCertificateCredits(
   supabase: ReturnType<typeof createClient>,
   metadata: Record<string, string>,
-  _paymentId: string,
+  paymentId: string,
+  paymentMethod = "airwallex",
 ) {
   const userId = metadata.user_id;
   const qty = parseInt(metadata.quantity || "1", 10);
+  const orderId = metadata.order_id;
   if (!userId || qty <= 0) return;
 
+  if (orderId) {
+    const { data: fulfilled, error } = await supabase.rpc("fulfill_certificate_credit_order", {
+      _order_id: orderId,
+      _payment_id: paymentId,
+      _payment_method: paymentMethod,
+    });
+    if (error) {
+      console.error("fulfill_certificate_credit_order:", error);
+      return;
+    }
+    if (fulfilled) {
+      await supabase.from("admin_messages").insert({
+        sender_id: userId,
+        recipient_id: userId,
+        subject: `Certificate Credits Purchased — ${qty} credit(s)`,
+        message:
+          `<p>Thank you! <strong>${qty} certificate credit(s)</strong> have been added to your account.</p><p>You can now create and issue ${qty} pet certificate(s) from your dashboard.</p>`,
+        is_html: true,
+      });
+    }
+    return;
+  }
+
+  // Legacy payments without order_id
   await supabase.rpc("grant_certificate_credit", {
     _user_id: userId,
     _amount: qty,

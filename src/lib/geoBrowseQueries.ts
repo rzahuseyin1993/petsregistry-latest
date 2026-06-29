@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { filterByOwnerCountry, getVisitorCountryFilter } from "@/lib/geoCountry";
 import type { VisitorCountry } from "@/lib/geoCountry";
+import { isIdentifierPetQuery, normalizePetSearchQuery } from "@/lib/petSearch";
 
 export async function fetchBrowsePets(visitor: VisitorCountry | null, limit = 50) {
   const { data, error } = await supabase
@@ -13,9 +14,13 @@ export async function fetchBrowsePets(visitor: VisitorCountry | null, limit = 50
 }
 
 export async function searchBrowsePets(query: string, visitor: VisitorCountry | null) {
-  const country = getVisitorCountryFilter(visitor);
+  const normalized = normalizePetSearchQuery(query);
+  if (!normalized) return [];
+
+  const worldwide = isIdentifierPetQuery(normalized);
+  const country = worldwide ? null : getVisitorCountryFilter(visitor);
   const { data: matchIds, error } = await supabase.rpc("search_pets_global" as any, {
-    _query: query,
+    _query: normalized,
     _country: country,
   });
   if (error) throw error;
@@ -27,6 +32,7 @@ export async function searchBrowsePets(query: string, visitor: VisitorCountry | 
     .in("id", ids)
     .order("created_at", { ascending: false });
   if (fetchErr) throw fetchErr;
+  if (worldwide) return (results || []) as { owner_country?: string | null }[];
   return filterByOwnerCountry((results || []) as { owner_country?: string | null }[], visitor);
 }
 

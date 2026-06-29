@@ -1,8 +1,10 @@
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useState, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import FoundPetTipDialog from "@/components/FoundPetTipDialog";
+import LostReportDetailDialog from "@/components/LostReportDetailDialog";
 import { AlertTriangle, MapPin, HeartHandshake, PlusCircle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import BrowseCountryBar from "@/components/BrowseCountryBar";
@@ -10,15 +12,18 @@ import { useBrowseCountryFilter } from "@/hooks/useBrowseCountryFilter";
 import { fetchBrowseLostReports } from "@/lib/geoBrowseQueries";
 import {
   formatLostReportDate,
+  getLostReportDescription,
   getLostReportDetailLink,
   getLostReportImageUrl,
   getLostReportPetName,
   getLostReportSpeciesBreed,
+  isFoundSightingReport,
+  toLostReportTipContext,
 } from "@/lib/lostReportDisplay";
 
-const FOUND_TAG = "[FOUND PET SIGHTING]";
-
 const MobileLostPets = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const reportId = searchParams.get("report");
   const [tab, setTab] = useState<"all" | "lost" | "found">("all");
   const {
     mode,
@@ -41,7 +46,7 @@ const MobileLostPets = () => {
     const lost: any[] = [];
     const found: any[] = [];
     for (const r of reports as any[]) {
-      const isFound = typeof r.description === "string" && r.description.startsWith(FOUND_TAG);
+      const isFound = isFoundSightingReport(r);
       (isFound ? found : lost).push(r);
     }
     return { lost, found };
@@ -49,6 +54,10 @@ const MobileLostPets = () => {
 
   const list = tab === "found" ? found : tab === "lost" ? lost : reports;
   const isFoundView = tab === "found";
+  const highlightedReport = useMemo(
+    () => (reportId ? (reports as any[]).find((r) => r.id === reportId) ?? null : null),
+    [reportId, reports],
+  );
 
   return (
     <div className="p-4 space-y-4">
@@ -126,9 +135,9 @@ const MobileLostPets = () => {
           {list.map((r: any) => {
             const name = getLostReportPetName(r);
             const detailLink = getLostReportDetailLink(r).replace("/lost-pets", "/m/lost-pets").replace("/pet/", "/m/pet/");
-            const cleanDesc = isFoundView && r.description
-              ? r.description.replace(FOUND_TAG, "").trim()
-              : r.description;
+            const description = getLostReportDescription(r);
+            const isLost = !isFoundSightingReport(r);
+            const petId = r.pet_id || r.pets?.id;
             return (
               <Link key={r.id} to={detailLink}>
                 <Card className="overflow-hidden border-border/60 shadow-sm">
@@ -178,10 +187,24 @@ const MobileLostPets = () => {
                           </a>
                         </>
                       )}
-                      {cleanDesc && (
+                      {description && (
                         <p className="text-[10px] text-muted-foreground line-clamp-2 leading-snug">
-                          {cleanDesc}
+                          {description}
                         </p>
+                      )}
+                      {isLost && petId && (
+                        <div onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
+                          <FoundPetTipDialog
+                            petId={petId}
+                            petName={name}
+                            lostReport={toLostReportTipContext(r)}
+                            trigger={
+                              <Button size="sm" className="mt-1 h-6 gap-1 px-2 text-[9px] bg-success hover:bg-success/90 text-success-foreground">
+                                I Found This Pet
+                              </Button>
+                            }
+                          />
+                        </div>
                       )}
                       {!isFoundView && r.reward && (
                         <Badge variant="secondary" className="text-[9px] h-4 px-1.5 bg-amber-100 text-amber-700">
@@ -196,6 +219,17 @@ const MobileLostPets = () => {
           })}
         </div>
       )}
+      <LostReportDetailDialog
+        report={highlightedReport}
+        open={!!highlightedReport}
+        onOpenChange={(open) => {
+          if (!open) {
+            const next = new URLSearchParams(searchParams);
+            next.delete("report");
+            setSearchParams(next, { replace: true });
+          }
+        }}
+      />
     </div>
   );
 };

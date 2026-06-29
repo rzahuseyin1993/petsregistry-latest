@@ -13,8 +13,9 @@ import { fetchBrowsePets, searchBrowsePets } from "@/lib/geoBrowseQueries";
 
 const MobileSearch = () => {
   const [params] = useSearchParams();
-  const [query, setQuery] = useState(params.get("q") || "");
-  const [searchTerm, setSearchTerm] = useState(params.get("q") || "");
+  const initialQ = params.get("q") || "";
+  const [query, setQuery] = useState(initialQ);
+  const [searchTerm, setSearchTerm] = useState(initialQ);
   const [showScanner, setShowScanner] = useState(false);
   const navigate = useNavigate();
   const { visitorCountry, countryFilter } = useVisitorGeo();
@@ -80,7 +81,7 @@ const MobileSearch = () => {
         <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by name, ID, breed…"
+          placeholder="Pet ID, microchip, name, breed…"
           className="h-10 rounded-xl text-sm"
         />
         <Button
@@ -116,6 +117,9 @@ const MobileSearch = () => {
                   <CardContent className="p-2.5">
                     <p className="truncate text-sm font-semibold text-foreground">{pet.name}</p>
                     <p className="truncate text-[11px] text-muted-foreground">{pet.breed || pet.species}</p>
+                    {pet.pet_code && (
+                      <p className="truncate font-mono text-[10px] text-primary">{pet.pet_code}</p>
+                    )}
                     <Badge variant={pet.status === "lost" ? "destructive" : "secondary"} className="mt-1 text-[10px]">
                       {pet.status}
                     </Badge>

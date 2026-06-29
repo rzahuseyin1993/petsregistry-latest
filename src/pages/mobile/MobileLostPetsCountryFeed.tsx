@@ -15,9 +15,8 @@ import {
   getLostReportImageUrl,
   getLostReportPetName,
   getLostReportSpeciesBreed,
+  isFoundSightingReport,
 } from "@/lib/lostReportDisplay";
-
-const FOUND_TAG = "[FOUND PET SIGHTING]";
 
 const MobileLostPetsCountryFeed = () => {
   const { country: countryParam } = useParams<{ country: string }>();
@@ -93,7 +92,7 @@ const MobileLostPetsCountryFeed = () => {
         <div className="space-y-2.5">
           {reports.map((r: any) => {
             const name = getLostReportPetName(r);
-            const isFound = typeof r.description === "string" && r.description.startsWith(FOUND_TAG);
+            const isFound = isFoundSightingReport(r);
             const detailLink = getLostReportDetailLink(r).replace("/lost-pets", "/m/lost-pets").replace("/pet/", "/m/pet/");
             return (
               <Link key={r.id} to={detailLink}>
