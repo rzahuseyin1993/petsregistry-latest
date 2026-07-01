@@ -12,6 +12,19 @@ export interface CertificateTemplate {
 }
 
 export const certificateTemplates: CertificateTemplate[] = [
+  // ★ Recommended — premium official layout
+  {
+    id: "pets-registry-official",
+    name: "Pets Registry Official",
+    description: "★ Recommended — white & gold premium certificate with company logo",
+    bgColor: "#FFFFFF",
+    borderColor: "#B8860B",
+    accentColor: "#8B6914",
+    textColor: "#2C2416",
+    headerColor: "#1A1408",
+    fontFamily: "'Georgia', 'Times New Roman', serif",
+    style: "luxury",
+  },
   // 1 — Classic Cream
   {
     id: "classic-cream",

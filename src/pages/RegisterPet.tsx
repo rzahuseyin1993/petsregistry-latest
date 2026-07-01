@@ -16,6 +16,8 @@ import { resizeImage, uploadRaw } from "@/lib/imageUpload";
 import { useNavigate } from "react-router-dom";
 import { useMobilePath } from "@/hooks/useIsMobileRoute";
 import WebcamCaptureDialog from "@/components/WebcamCaptureDialog";
+import PetBirthFields, { birthFormToPetPayload, emptyBirthForm } from "@/components/PetBirthFields";
+import { useQuery } from "@tanstack/react-query";
 
 const speciesOptions = ["Dog", "Cat", "Bird", "Fish", "Rabbit", "Hamster", "Reptile", "Bear", "Other"];
 
@@ -37,6 +39,17 @@ const RegisterPet = () => {
   const [weight, setWeight] = useState("");
   const [notes, setNotes] = useState("");
   const [microchipNumber, setMicrochipNumber] = useState("");
+  const [showBirthDetails, setShowBirthDetails] = useState(false);
+  const [birthForm, setBirthForm] = useState(emptyBirthForm);
+
+  const { data: myPets = [] } = useQuery({
+    queryKey: ["my-pets-register", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const { data } = await supabase.from("pets").select("id, name, pet_code").eq("owner_id", user!.id);
+      return data || [];
+    },
+  });
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -84,7 +97,18 @@ const RegisterPet = () => {
       // Insert pet
       const { data: pet, error: petError } = await supabase
         .from("pets")
-        .insert({ owner_id: user.id, name: petName, species, breed, age, color, weight, notes, microchip_number: microchipNumber || null })
+        .insert({
+          owner_id: user.id,
+          name: petName,
+          species,
+          breed,
+          age,
+          color,
+          weight,
+          notes,
+          microchip_number: microchipNumber || null,
+          ...(showBirthDetails ? birthFormToPetPayload(birthForm) : {}),
+        })
         .select()
         .single();
       if (petError) throw petError;
@@ -207,6 +231,27 @@ const RegisterPet = () => {
                   <Label htmlFor="notes">Additional Notes</Label>
                   <Textarea id="notes" placeholder="Any special notes..." value={notes} onChange={(e) => setNotes(e.target.value)} />
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Birth &amp; breeding (optional)</CardTitle>
+                <p className="text-sm text-muted-foreground">Add now if you plan to get a birth certificate</p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <p className="text-sm font-medium">Include birth / parent details</p>
+                  <Switch checked={showBirthDetails} onCheckedChange={setShowBirthDetails} />
+                </div>
+                {showBirthDetails && (
+                  <PetBirthFields
+                    values={birthForm}
+                    onChange={(patch) => setBirthForm((v) => ({ ...v, ...patch }))}
+                    myPets={myPets as any}
+                    compact
+                  />
+                )}
               </CardContent>
             </Card>
 

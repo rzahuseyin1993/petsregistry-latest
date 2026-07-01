@@ -13,6 +13,67 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+type CreditProductType =
+  | "ownership"
+  | "birth"
+  | "bundle"
+  | "ownership_pack_10"
+  | "birth_pack_10"
+  | "reseller_mixed_pack_10";
+
+function productQuantities(product: CreditProductType, qty: number) {
+  switch (product) {
+    case "birth":
+      return { ownership: 0, birth: qty };
+    case "bundle":
+      return { ownership: qty, birth: qty };
+    case "ownership_pack_10":
+      return { ownership: 10 * qty, birth: 0 };
+    case "birth_pack_10":
+      return { ownership: 0, birth: 10 * qty };
+    case "reseller_mixed_pack_10":
+      return { ownership: 5 * qty, birth: 5 * qty };
+    default:
+      return { ownership: qty, birth: 0 };
+  }
+}
+
+function priceKeyForProduct(product: CreditProductType): string {
+  const map: Record<CreditProductType, string> = {
+    ownership: "service_price_certificate_ownership",
+    birth: "service_price_certificate_birth",
+    bundle: "service_price_certificate_bundle",
+    ownership_pack_10: "service_price_certificate_ownership_pack_10",
+    birth_pack_10: "service_price_certificate_birth_pack_10",
+    reseller_mixed_pack_10: "service_price_certificate_reseller_mixed_pack_10",
+  };
+  return map[product] || "service_price_certificate_one_time";
+}
+
+function defaultPrice(product: CreditProductType): number {
+  const map: Record<CreditProductType, number> = {
+    ownership: 15,
+    birth: 15,
+    bundle: 30,
+    ownership_pack_10: 120,
+    birth_pack_10: 120,
+    reseller_mixed_pack_10: 120,
+  };
+  return map[product] ?? 15;
+}
+
+function productLabel(product: CreditProductType): string {
+  const labels: Record<CreditProductType, string> = {
+    ownership: "Ownership Certificate Credit",
+    birth: "Birth Certificate Credit",
+    bundle: "Ownership + Birth Bundle",
+    ownership_pack_10: "Ownership Pack (10)",
+    birth_pack_10: "Birth Pack (10)",
+    reseller_mixed_pack_10: "Reseller Mixed Pack (5+5)",
+  };
+  return labels[product] || "Certificate Credit";
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -22,28 +83,60 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    const { user_id, quantity = 1, provider = "airwallex" } = await req.json();
+    const {
+      user_id,
+      quantity = 1,
+      provider = "airwallex",
+      credit_type = "ownership",
+    } = await req.json();
     if (!user_id) throw new Error("user_id is required");
 
+    const product = String(credit_type) as CreditProductType;
     const qty = Math.max(1, Math.min(20, parseInt(String(quantity), 10) || 1));
+
+    if (product === "reseller_mixed_pack_10" || product === "ownership_pack_10" || product === "birth_pack_10") {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("is_certificate_reseller")
+        .eq("user_id", user_id)
+        .maybeSingle();
+      if (!profile?.is_certificate_reseller) {
+        throw new Error("Reseller packs require a shop/reseller account. Contact support to enable.");
+      }
+    }
 
     const { data: priceRow } = await supabase
       .from("site_settings")
       .select("value")
-      .eq("key", "service_price_certificate_one_time")
+      .eq("key", priceKeyForProduct(product))
       .maybeSingle();
-    const unitPrice = parseFloat(priceRow?.value || "15");
+
+    let unitPrice = parseFloat(priceRow?.value || String(defaultPrice(product)));
+    if (Number.isNaN(unitPrice) || unitPrice <= 0) {
+      const { data: fallback } = await supabase
+        .from("site_settings")
+        .select("value")
+        .eq("key", "service_price_certificate_one_time")
+        .maybeSingle();
+      unitPrice = parseFloat(fallback?.value || "15");
+    }
+
     const totalAmount = unitPrice * qty;
+    const { ownership, birth } = productQuantities(product, qty);
+    const displayQty = ownership + birth > 0 ? Math.max(ownership, birth, qty) : qty;
 
     const { data: pendingOrder, error: orderErr } = await supabase
       .from("certificate_credit_orders")
       .insert({
         user_id,
-        quantity: qty,
+        quantity: displayQty,
         unit_price: unitPrice,
         total: totalAmount,
         status: "pending",
         payment_method: provider,
+        credit_type: product,
+        ownership_qty: ownership,
+        birth_qty: birth,
       })
       .select("id")
       .single();
@@ -54,6 +147,7 @@ serve(async (req) => {
     }
 
     const orderId = pendingOrder.id as string;
+    const label = productLabel(product);
 
     const cleanupOrder = async () => {
       await supabase.from("certificate_credit_orders").delete().eq("id", orderId);
@@ -109,6 +203,7 @@ serve(async (req) => {
         descriptor: "PetsRegistry Certificate",
         metadata: {
           type: "certificate_credit",
+          credit_type: product,
           user_id,
           quantity: String(qty),
           order_id: orderId,
@@ -138,9 +233,10 @@ serve(async (req) => {
           cancel_url: cancelUrl,
           "line_items[0][price_data][currency]": "usd",
           "line_items[0][price_data][unit_amount]": String(Math.round(unitPrice * 100)),
-          "line_items[0][price_data][product_data][name]": `Pet Certificate Credit`,
+          "line_items[0][price_data][product_data][name]": label,
           "line_items[0][quantity]": String(qty),
           "metadata[type]": "certificate_credit",
+          "metadata[credit_type]": product,
           "metadata[user_id]": user_id,
           "metadata[quantity]": String(qty),
           "metadata[order_id]": orderId,
@@ -178,9 +274,10 @@ serve(async (req) => {
         payerEmail,
         purchase_units: [{
           amount: { currency_code: "USD", value: totalAmount.toFixed(2) },
-          description: `${qty} Pet Certificate Credit(s)`,
+          description: `${qty} × ${label}`,
           custom_id: JSON.stringify({
             type: "certificate_credit",
+            credit_type: product,
             user_id,
             quantity: String(qty),
             order_id: orderId,

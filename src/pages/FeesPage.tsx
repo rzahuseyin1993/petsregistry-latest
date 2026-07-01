@@ -52,17 +52,20 @@ const FeesPage = () => {
     {
       key: "certificate",
       icon: FileText,
-      name: "Pet Certificates (Credit-based)",
-      description: "Buy credits — 1 credit creates 1 official, verifiable pet certificate with QR code. Members receive 1 free credit.",
+      name: "Pet Certificates",
+      description: "Official ownership ($15) and birth ($15) certificates — verifiable worldwide. Members receive 1 free ownership credit.",
       cta: { label: "Buy Credits", to: "/dashboard/certificates" },
       tiers: [
-        { label: "Per Credit", price: fmt("service_price_certificate_one_time", "15"), suffix: "/credit" },
+        { label: "Ownership", price: fmt("service_price_certificate_ownership", "15"), suffix: "/cert" },
+        { label: "Birth", price: fmt("service_price_certificate_birth", "15"), suffix: "/cert" },
+        { label: "Both (bundle)", price: fmt("service_price_certificate_bundle", "30"), suffix: "/pet" },
       ],
       benefits: [
-        "Official certificate number (CERT-XXXXXX)",
-        "QR code for instant verification",
-        "Downloadable PDF",
+        "Ownership certificate — proof of registered owner",
+        "Birth certificate — date of birth & parentage",
+        "Downloadable PDF + print for buyers",
         "Lifetime verification at /verify",
+        "Breeder litter registration",
       ],
     },
     {

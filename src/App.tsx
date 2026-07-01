@@ -71,6 +71,7 @@ const PetMapPage = lazy(() => import("./pages/PetMapPage"));
 const DashboardOrders = lazy(() => import("./pages/DashboardOrders"));
 const AdminPermissions = lazy(() => import("./pages/AdminPermissions"));
 const DashboardCertificates = lazy(() => import("./pages/DashboardCertificates"));
+const LitterRegistration = lazy(() => import("./pages/LitterRegistration"));
 const AdminCertificates = lazy(() => import("./pages/AdminCertificates"));
 const AdminMapSettings = lazy(() => import("./pages/AdminMapSettings"));
 const AdminSeo = lazy(() => import("./pages/AdminSeo"));
@@ -256,6 +257,7 @@ function AppWithProviders() {
               <Route path="/dashboard/inbox" element={<ProtectedRoute><DashboardInbox /></ProtectedRoute>} />
               <Route path="/dashboard/orders" element={<ProtectedRoute><DashboardOrders /></ProtectedRoute>} />
               <Route path="/dashboard/certificates" element={<ProtectedRoute><DashboardCertificates /></ProtectedRoute>} />
+              <Route path="/dashboard/register-litter" element={<ProtectedRoute><LitterRegistration /></ProtectedRoute>} />
               <Route path="/dashboard/articles" element={<ProtectedRoute adminOnly><DashboardArticles /></ProtectedRoute>} />
               
               <Route path="/adopt" element={<AdoptionPage />} />

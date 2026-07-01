@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Coins, Plus, Minus, Search } from "lucide-react";
@@ -14,6 +15,7 @@ const AdminCertificateCreditsManager = () => {
   const [search, setSearch] = useState("");
   const [grantEmail, setGrantEmail] = useState("");
   const [grantAmount, setGrantAmount] = useState(1);
+  const [grantType, setGrantType] = useState<"ownership" | "birth">("ownership");
   const [granting, setGranting] = useState(false);
 
   const grantToEmail = async () => {
@@ -33,9 +35,10 @@ const AdminCertificateCreditsManager = () => {
         _user_id: profile.user_id,
         _amount: Math.max(1, grantAmount),
         _is_purchase: false,
+        _credit_type: grantType,
       });
       if (error) return toast.error(error.message);
-      toast.success(`Granted ${grantAmount} credit(s) to ${profile.full_name || profile.email}`);
+      toast.success(`Granted ${grantAmount} ${grantType} credit(s) to ${profile.full_name || profile.email}`);
       setGrantEmail("");
       setGrantAmount(1);
       queryClient.invalidateQueries({ queryKey: ["admin-cert-credits"] });
@@ -43,7 +46,6 @@ const AdminCertificateCreditsManager = () => {
       setGranting(false);
     }
   };
-
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["admin-cert-credits"],
@@ -56,7 +58,7 @@ const AdminCertificateCreditsManager = () => {
       if (userIds.length === 0) return [];
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("user_id, full_name, email")
+        .select("user_id, full_name, email, is_certificate_reseller")
         .in("user_id", userIds);
       const pmap: Record<string, any> = {};
       (profiles || []).forEach((p: any) => { pmap[p.user_id] = p; });
@@ -64,33 +66,32 @@ const AdminCertificateCreditsManager = () => {
     },
   });
 
-  const adjust = async (userId: string, currentCredits: number, delta: number) => {
-    // Use RPC which handles upsert (creates row if missing)
+  const adjust = async (userId: string, field: "ownership_credits" | "birth_credits", current: number, delta: number) => {
     if (delta > 0) {
       const { error } = await supabase.rpc("grant_certificate_credit", {
         _user_id: userId,
         _amount: delta,
         _is_purchase: false,
+        _credit_type: field === "birth_credits" ? "birth" : "ownership",
       });
       if (error) return toast.error(error.message);
     } else {
-      const newAmount = Math.max(0, currentCredits + delta);
+      const newAmount = Math.max(0, current + delta);
       const { error } = await supabase
         .from("certificate_credits" as any)
-        .upsert({ user_id: userId, credits: newAmount }, { onConflict: "user_id" });
+        .update({ [field]: newAmount })
+        .eq("user_id", userId);
       if (error) return toast.error(error.message);
     }
     queryClient.invalidateQueries({ queryKey: ["admin-cert-credits"] });
-    toast.success(`Credits ${delta > 0 ? "added" : "removed"}`);
+    toast.success("Credits updated");
   };
 
-  const setExact = async (userId: string, amount: number) => {
-    const { error } = await supabase
-      .from("certificate_credits" as any)
-      .upsert({ user_id: userId, credits: Math.max(0, amount) }, { onConflict: "user_id" });
+  const toggleReseller = async (userId: string, current: boolean) => {
+    const { error } = await supabase.from("profiles").update({ is_certificate_reseller: !current }).eq("user_id", userId);
     if (error) return toast.error(error.message);
     queryClient.invalidateQueries({ queryKey: ["admin-cert-credits"] });
-    toast.success("Credits updated");
+    toast.success(!current ? "Reseller enabled" : "Reseller disabled");
   };
 
   const filtered = rows.filter((r: any) => {
@@ -108,48 +109,40 @@ const AdminCertificateCreditsManager = () => {
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
-          <p className="text-xs font-medium text-muted-foreground">Grant credits to any member by email</p>
+          <p className="text-xs font-medium text-muted-foreground">Grant credits by email</p>
           <div className="flex flex-col sm:flex-row gap-2">
-            <Input
-              type="email"
-              placeholder="member@example.com"
-              value={grantEmail}
-              onChange={(e) => setGrantEmail(e.target.value)}
-              className="flex-1"
-            />
-            <Input
-              type="number"
-              min={1}
-              value={grantAmount}
-              onChange={(e) => setGrantAmount(parseInt(e.target.value) || 1)}
-              className="sm:w-24"
-              placeholder="Credits"
-            />
-            <Button onClick={grantToEmail} disabled={granting} className="gap-2">
-              <Plus className="h-4 w-4" /> {granting ? "Granting..." : "Grant"}
-            </Button>
+            <Input type="email" placeholder="member@example.com" value={grantEmail} onChange={(e) => setGrantEmail(e.target.value)} className="flex-1" />
+            <Select value={grantType} onValueChange={(v) => setGrantType(v as "ownership" | "birth")}>
+              <SelectTrigger className="sm:w-36"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ownership">Ownership</SelectItem>
+                <SelectItem value="birth">Birth</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input type="number" min={1} value={grantAmount} onChange={(e) => setGrantAmount(parseInt(e.target.value) || 1)} className="sm:w-20" />
+            <Button onClick={grantToEmail} disabled={granting} className="gap-2"><Plus className="h-4 w-4" /> Grant</Button>
           </div>
         </div>
         <div className="relative max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Search member..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
         </div>
-        <div className="border rounded-lg overflow-hidden">
+        <div className="border rounded-lg overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Member</TableHead>
-                <TableHead className="text-center">Credits</TableHead>
-                <TableHead className="text-center">Lifetime</TableHead>
-                <TableHead className="text-center">Free Claimed</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="text-center">Ownership</TableHead>
+                <TableHead className="text-center">Birth</TableHead>
+                <TableHead className="text-center">Reseller</TableHead>
+                <TableHead className="text-right">Adjust</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow><TableCell colSpan={5} className="text-center py-6">Loading...</TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={5} className="text-center py-6 text-muted-foreground">No member credits yet</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="text-center py-6 text-muted-foreground">No credits yet</TableCell></TableRow>
               ) : filtered.map((r: any) => (
                 <TableRow key={r.id}>
                   <TableCell>
@@ -157,29 +150,22 @@ const AdminCertificateCreditsManager = () => {
                     <div className="text-xs text-muted-foreground">{r.profile?.email}</div>
                   </TableCell>
                   <TableCell className="text-center">
-                    <Badge variant="secondary" className="text-base font-bold">{r.credits}</Badge>
+                    <Badge variant="secondary">{r.ownership_credits ?? r.credits ?? 0}</Badge>
                   </TableCell>
-                  <TableCell className="text-center text-sm text-muted-foreground">{r.lifetime_purchased}</TableCell>
                   <TableCell className="text-center">
-                    {r.free_credit_claimed ? <Badge className="bg-green-600 text-white">Yes</Badge> : <Badge variant="outline">No</Badge>}
+                    <Badge variant="secondary">{r.birth_credits ?? 0}</Badge>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Button size="sm" variant={r.profile?.is_certificate_reseller ? "default" : "outline"} onClick={() => toggleReseller(r.user_id, !!r.profile?.is_certificate_reseller)}>
+                      {r.profile?.is_certificate_reseller ? "Yes" : "No"}
+                    </Button>
                   </TableCell>
                   <TableCell className="text-right">
-                    <div className="flex gap-1 justify-end items-center">
-                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => adjust(r.user_id, r.credits, -1)}>
-                        <Minus className="h-3 w-3" />
-                      </Button>
-                      <Input
-                        type="number"
-                        defaultValue={r.credits}
-                        onBlur={(e) => {
-                          const v = parseInt(e.target.value);
-                          if (!isNaN(v) && v !== r.credits) setExact(r.user_id, v);
-                        }}
-                        className="h-7 w-16 text-center text-sm"
-                      />
-                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => adjust(r.user_id, r.credits, 1)}>
-                        <Plus className="h-3 w-3" />
-                      </Button>
+                    <div className="flex gap-1 justify-end">
+                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => adjust(r.user_id, "ownership_credits", r.ownership_credits ?? 0, -1)}><Minus className="h-3 w-3" /></Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => adjust(r.user_id, "ownership_credits", r.ownership_credits ?? 0, 1)}><Plus className="h-3 w-3" /></Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => adjust(r.user_id, "birth_credits", r.birth_credits ?? 0, -1)}><Minus className="h-3 w-3" /></Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => adjust(r.user_id, "birth_credits", r.birth_credits ?? 0, 1)}><Plus className="h-3 w-3" /></Button>
                     </div>
                   </TableCell>
                 </TableRow>

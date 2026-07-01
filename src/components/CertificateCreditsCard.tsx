@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Coins, Gift, ShoppingCart, Loader2 } from "lucide-react";
+import { Coins, Gift, ShoppingCart, Loader2, FileText, Baby } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -17,11 +17,25 @@ import {
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  CREDIT_PRODUCT_LABELS,
+  CREDIT_PRODUCT_PRICE_KEYS,
+  DEFAULT_CERTIFICATE_PRICES,
+  type CreditProductType,
+} from "@/lib/certificateTypes";
+
+const RETAIL_PRODUCTS: CreditProductType[] = ["ownership", "birth", "bundle"];
+const RESELLER_PRODUCTS: CreditProductType[] = [
+  "ownership_pack_10",
+  "birth_pack_10",
+  "reseller_mixed_pack_10",
+];
 
 const CertificateCreditsCard = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [buyOpen, setBuyOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<CreditProductType>("ownership");
   const [quantity, setQuantity] = useState(1);
   const [pendingProvider, setPendingProvider] = useState<PaymentProvider | null>(null);
   const [claiming, setClaiming] = useState(false);
@@ -36,6 +50,19 @@ const CertificateCreditsCard = () => {
         .eq("user_id", user!.id)
         .maybeSingle();
       return data as any;
+    },
+  });
+
+  const { data: profile } = useQuery({
+    queryKey: ["my-profile-reseller", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("is_certificate_reseller")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      return data;
     },
   });
 
@@ -54,17 +81,24 @@ const CertificateCreditsCard = () => {
     },
   });
 
-  const { data: pricing } = useQuery({
-    queryKey: ["cert-price"],
+  const { data: pricingMap = {} } = useQuery({
+    queryKey: ["cert-prices-all"],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("site_settings")
-        .select("value")
-        .eq("key", "service_price_certificate_one_time")
-        .maybeSingle();
-      return parseFloat(data?.value || "15");
+      const keys = Object.values(CREDIT_PRODUCT_PRICE_KEYS);
+      const { data } = await supabase.from("site_settings").select("key, value").in("key", [
+        ...keys,
+        "service_price_certificate_one_time",
+      ]);
+      const map: Record<string, number> = {};
+      (data || []).forEach((row: any) => {
+        map[row.key] = parseFloat(row.value);
+      });
+      return map;
     },
   });
+
+  const getPrice = (product: CreditProductType) =>
+    pricingMap[CREDIT_PRODUCT_PRICE_KEYS[product]] ?? DEFAULT_CERTIFICATE_PRICES[product];
 
   const { data: gateways = [] } = useQuery({
     queryKey: ["active-payment-gateways"],
@@ -78,7 +112,6 @@ const CertificateCreditsCard = () => {
     },
   });
 
-  // Auto-claim free credit on load
   useEffect(() => {
     if (!user || !hasMembership || claiming) return;
     if (credits?.free_credit_claimed) return;
@@ -88,20 +121,20 @@ const CertificateCreditsCard = () => {
         const { data } = await supabase.rpc("claim_free_certificate_credit" as any, { _user_id: user.id });
         if (data) {
           queryClient.invalidateQueries({ queryKey: ["my-cert-credits", user.id] });
-          toast.success("🎁 Member free certificate credit claimed!");
+          toast.success("Member free ownership credit claimed!");
         }
       } finally {
         setClaiming(false);
       }
     })();
-  }, [user, hasMembership, credits]);
+  }, [user, hasMembership, credits, claiming, queryClient]);
 
   const handleBuy = async (provider: PaymentProvider) => {
     if (!user) return;
     setPendingProvider(provider);
     try {
       const { data, error } = await supabase.functions.invoke("certificate-checkout", {
-        body: { user_id: user.id, quantity, provider },
+        body: { user_id: user.id, quantity, provider, credit_type: selectedProduct },
       });
       if (error) throw new Error(await parseFunctionError(error));
       if (data?.error) throw new Error(data.error);
@@ -118,8 +151,28 @@ const CertificateCreditsCard = () => {
   const cardProvider = getCardProvider(gateways);
   const hasPayPal = gateways.includes("paypal");
   const canCheckout = !!cardProvider || hasPayPal;
+  const isReseller = !!profile?.is_certificate_reseller;
+  const total = getPrice(selectedProduct) * quantity;
 
-  const total = (pricing || 15) * quantity;
+  const ProductButton = ({ product }: { product: CreditProductType }) => (
+    <button
+      type="button"
+      onClick={() => setSelectedProduct(product)}
+      className={`rounded-lg border-2 p-3 text-left transition-all ${
+        selectedProduct === product ? "border-primary bg-primary/5 ring-2 ring-primary/20" : "border-border hover:border-primary/40"
+      }`}
+    >
+      <div className="flex items-center gap-2 mb-1">
+        {product.includes("birth") ? (
+          <Baby className="h-4 w-4 text-orange-500" />
+        ) : (
+          <FileText className="h-4 w-4 text-amber-600" />
+        )}
+        <span className="text-sm font-semibold">{CREDIT_PRODUCT_LABELS[product]}</span>
+      </div>
+      <p className="text-lg font-bold">${getPrice(product).toFixed(0)}</p>
+    </button>
+  );
 
   return (
     <>
@@ -127,41 +180,62 @@ const CertificateCreditsCard = () => {
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center justify-between text-base">
             <span className="flex items-center gap-2"><Coins className="h-5 w-5 text-amber-500" /> Certificate Credits</span>
-            <Badge variant="secondary" className="text-lg font-bold px-3">{credits?.credits || 0}</Badge>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-lg border bg-card p-3 text-center">
+              <p className="text-xs text-muted-foreground mb-1">Ownership</p>
+              <Badge variant="secondary" className="text-lg font-bold px-3">
+                {credits?.ownership_credits ?? credits?.credits ?? 0}
+              </Badge>
+            </div>
+            <div className="rounded-lg border bg-card p-3 text-center">
+              <p className="text-xs text-muted-foreground mb-1">Birth</p>
+              <Badge variant="secondary" className="text-lg font-bold px-3">
+                {credits?.birth_credits ?? 0}
+              </Badge>
+            </div>
+          </div>
           <p className="text-sm text-muted-foreground">
-            1 credit = 1 certificate. {hasMembership && credits?.free_credit_claimed && (
-              <span className="text-green-600 font-medium">✓ Member free credit claimed</span>
-            )}
+            Ownership = proof you own the pet. Birth = date of birth &amp; parentage.
             {hasMembership && !credits?.free_credit_claimed && (
-              <span className="text-primary font-medium">🎁 Claiming your free member credit...</span>
+              <span className="block text-primary font-medium mt-1">Claiming your free ownership credit…</span>
+            )}
+            {hasMembership && credits?.free_credit_claimed && (
+              <span className="block text-green-600 font-medium mt-1">✓ Member free ownership credit claimed</span>
             )}
           </p>
           <Button onClick={() => setBuyOpen(true)} className="w-full gap-2" size="sm">
-            <ShoppingCart className="h-4 w-4" /> Buy Credits (${pricing || 15} each)
+            <ShoppingCart className="h-4 w-4" /> Buy Credits
           </Button>
-          {credits?.lifetime_purchased > 0 && (
-            <p className="text-xs text-muted-foreground text-center">Lifetime purchased: {credits.lifetime_purchased}</p>
-          )}
         </CardContent>
       </Card>
 
       <Dialog open={buyOpen} onOpenChange={(open) => !pendingProvider && setBuyOpen(open)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Gift className="h-5 w-5 text-primary" /> Choose payment method
+              <Gift className="h-5 w-5 text-primary" /> Buy certificate credits
             </DialogTitle>
             <DialogDescription>
-              Buy <span className="font-semibold text-foreground">{quantity}</span> certificate credit
-              {quantity === 1 ? "" : "s"} for <span className="font-semibold text-foreground">${total.toFixed(2)}</span>
+              Choose a product, then pay securely. Credits are applied to your account instantly after payment.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {RETAIL_PRODUCTS.map((p) => <ProductButton key={p} product={p} />)}
+            </div>
+            {isReseller && (
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground mb-2">Shop / reseller packs</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {RESELLER_PRODUCTS.map((p) => <ProductButton key={p} product={p} />)}
+                </div>
+              </div>
+            )}
             <div>
-              <label className="text-sm font-medium">Quantity</label>
+              <label className="text-sm font-medium">Quantity (packs)</label>
               <Input
                 type="number"
                 min="1"
@@ -172,7 +246,7 @@ const CertificateCreditsCard = () => {
               />
             </div>
             <div className="rounded-lg bg-muted p-3 flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Total</span>
+              <span className="text-sm text-muted-foreground">{CREDIT_PRODUCT_LABELS[selectedProduct]}</span>
               <span className="text-xl font-bold text-foreground">${total.toFixed(2)}</span>
             </div>
             {!canCheckout ? (
@@ -180,14 +254,8 @@ const CertificateCreditsCard = () => {
             ) : (
               <div className="space-y-2">
                 {cardProvider && (
-                  <Button
-                    className="w-full gap-2"
-                    disabled={!!pendingProvider}
-                    onClick={() => handleBuy(cardProvider)}
-                  >
-                    {pendingProvider === cardProvider ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : null}
+                  <Button className="w-full gap-2" disabled={!!pendingProvider} onClick={() => handleBuy(cardProvider)}>
+                    {pendingProvider === cardProvider ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                     Pay with {getPaymentProviderLabel(cardProvider)} — ${total.toFixed(2)}
                   </Button>
                 )}
@@ -198,17 +266,12 @@ const CertificateCreditsCard = () => {
                     disabled={!!pendingProvider}
                     onClick={() => handleBuy("paypal")}
                   >
-                    {pendingProvider === "paypal" ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : null}
+                    {pendingProvider === "paypal" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                     Pay with PayPal — ${total.toFixed(2)}
                   </Button>
                 )}
               </div>
             )}
-            <p className="text-center text-xs text-muted-foreground">
-              Payments processed securely via Airwallex or PayPal
-            </p>
           </div>
         </DialogContent>
       </Dialog>

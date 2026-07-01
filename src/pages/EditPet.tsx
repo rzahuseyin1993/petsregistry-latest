@@ -16,6 +16,7 @@ import { useNavigate, useParams, Link } from "react-router-dom";
 import { useMobilePath } from "@/hooks/useIsMobileRoute";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import WebcamCaptureDialog from "@/components/WebcamCaptureDialog";
+import PetBirthFields, { birthFormToPetPayload, emptyBirthForm, petToBirthForm } from "@/components/PetBirthFields";
 
 const speciesOptions = ["Dog", "Cat", "Bird", "Fish", "Rabbit", "Hamster", "Reptile", "Bear", "Other"];
 
@@ -37,6 +38,20 @@ const EditPet = () => {
   const [newImageFiles, setNewImageFiles] = useState<File[]>([]);
   const [newImagePreviews, setNewImagePreviews] = useState<string[]>([]);
   const [webcamOpen, setWebcamOpen] = useState(false);
+  const [birthForm, setBirthForm] = useState(emptyBirthForm);
+  const [sirePhotoFile, setSirePhotoFile] = useState<File | null>(null);
+  const [damPhotoFile, setDamPhotoFile] = useState<File | null>(null);
+  const [sirePreview, setSirePreview] = useState<string | null>(null);
+  const [damPreview, setDamPreview] = useState<string | null>(null);
+
+  const { data: myPets = [] } = useQuery({
+    queryKey: ["my-pets-edit-list", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const { data } = await supabase.from("pets").select("id, name, pet_code").eq("owner_id", user!.id);
+      return (data || []).filter((p) => p.id !== id);
+    },
+  });
 
   const { data: pet, isLoading } = useQuery({
     queryKey: ["edit-pet", id],
@@ -63,6 +78,9 @@ const EditPet = () => {
       setWeight(pet.weight || "");
       setNotes(pet.notes || "");
       setMicrochipNumber(pet.microchip_number || "");
+      setBirthForm(petToBirthForm(pet));
+      setSirePreview(pet.sire_photo_url || null);
+      setDamPreview(pet.dam_photo_url || null);
     }
   }, [pet]);
 
@@ -119,6 +137,29 @@ const EditPet = () => {
     }
     setLoading(true);
     try {
+      let sireUrl: string | undefined;
+      let damUrl: string | undefined;
+      if (sirePhotoFile) {
+        const resized = await resizeImage(sirePhotoFile);
+        sireUrl = await uploadRaw({
+          bucket: "pet-photos",
+          path: `${user.id}/${id}/sire-${Date.now()}.webp`,
+          body: resized,
+          contentType: "image/webp",
+          upsert: true,
+        });
+      }
+      if (damPhotoFile) {
+        const resized = await resizeImage(damPhotoFile);
+        damUrl = await uploadRaw({
+          bucket: "pet-photos",
+          path: `${user.id}/${id}/dam-${Date.now()}.webp`,
+          body: resized,
+          contentType: "image/webp",
+          upsert: true,
+        });
+      }
+
       const { error: updErr } = await supabase
         .from("pets")
         .update({
@@ -130,6 +171,10 @@ const EditPet = () => {
           weight,
           notes,
           microchip_number: microchipNumber || null,
+          ...birthFormToPetPayload(birthForm, {
+            sire_photo_url: sireUrl ?? pet?.sire_photo_url,
+            dam_photo_url: damUrl ?? pet?.dam_photo_url,
+          }),
         })
         .eq("id", id)
         .eq("owner_id", user.id);
@@ -304,6 +349,16 @@ const EditPet = () => {
                 </div>
               </CardContent>
             </Card>
+
+            <PetBirthFields
+              values={birthForm}
+              onChange={(patch) => setBirthForm((v) => ({ ...v, ...patch }))}
+              myPets={myPets as any}
+              sirePhotoPreview={sirePreview}
+              damPhotoPreview={damPreview}
+              onSirePhoto={(f) => { setSirePhotoFile(f); setSirePreview(URL.createObjectURL(f)); }}
+              onDamPhoto={(f) => { setDamPhotoFile(f); setDamPreview(URL.createObjectURL(f)); }}
+            />
 
             <div className="flex gap-3">
               <Button type="button" variant="outline" className="flex-1" onClick={() => navigate(mp("/dashboard"))}>
