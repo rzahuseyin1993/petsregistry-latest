@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import logo from "@/assets/logo.png";
 import officialSeal from "@/assets/official-seal.png";
-import { DiplomaCornerBrackets } from "@/lib/certificateOrnaments";
+import { DiplomaCornerBrackets, OrnatePhotoFrame } from "@/lib/certificateOrnaments";
 import type { CertificateThemeColors } from "@/lib/certificateDesign";
 import type { CertificateType } from "@/lib/certificateTypes";
 
@@ -174,14 +174,18 @@ export function BirthDiplomaContent({
   petData,
   fontFamily,
   colors,
+  petImageUrl,
+  showPetPhoto,
 }: {
   petData: Record<string, string>;
   fontFamily: string;
   colors: CertificateThemeColors;
   petImageUrl?: string;
+  showPetPhoto?: boolean;
 }) {
   const bodyColor = colors.text;
   const fieldSize = "1.55cqw";
+  const withPhoto = !!(showPetPhoto && petImageUrl);
 
   return (
     <>
@@ -203,7 +207,24 @@ export function BirthDiplomaContent({
         PET BIRTH CERTIFICATE
       </div>
 
-      <FormSection top="35%">
+      {withPhoto && (
+        <OrnatePhotoFrame
+          imageUrl={petImageUrl}
+          borderColor={colors.border}
+          accentColor={colors.accent}
+          placeholder="Pet photo"
+          style={{
+            position: "absolute",
+            right: "7%",
+            top: "31%",
+            width: "13cqw",
+            height: "13cqw",
+            zIndex: 4,
+          }}
+        />
+      )}
+
+      <FormSection top="35%" rightInset={withPhoto ? "25%" : undefined}>
         <FormRow>
           <DiplomaFormField label="Pet Name:" value={petData.pet_name} width="40%" fontFamily={fontFamily} color={bodyColor} fontSize={fieldSize} />
           <DiplomaFormField label="Species:" value={petData.species} width="24%" fontFamily={fontFamily} color={bodyColor} fontSize={fieldSize} />
@@ -250,15 +271,19 @@ export function OwnershipDiplomaContent({
   petData,
   fontFamily,
   colors,
+  petImageUrl,
+  showPetPhoto,
 }: {
   petData: Record<string, string>;
   fontFamily: string;
   colors: CertificateThemeColors;
   petImageUrl?: string;
+  showPetPhoto?: boolean;
 }) {
   const bodyColor = colors.text;
   const ownerDisplay = petData.issued_for_name?.trim() || petData.owner_name;
   const fieldSize = "1.4cqw";
+  const withPhoto = !!(showPetPhoto && petImageUrl);
 
   return (
     <>
@@ -281,7 +306,24 @@ export function OwnershipDiplomaContent({
         PET OWNERSHIP CERTIFICATE
       </div>
 
-      <FormSection top="33%">
+      {withPhoto && (
+        <OrnatePhotoFrame
+          imageUrl={petImageUrl}
+          borderColor={colors.border}
+          accentColor={colors.accent}
+          placeholder="Pet photo"
+          style={{
+            position: "absolute",
+            right: "7%",
+            top: "31%",
+            width: "13cqw",
+            height: "13cqw",
+            zIndex: 4,
+          }}
+        />
+      )}
+
+      <FormSection top="33%" rightInset={withPhoto ? "25%" : undefined}>
         <DiplomaFormField label="Pet Owner Name:" value={ownerDisplay} width="100%" fontFamily={fontFamily} color={bodyColor} fontSize={fieldSize} />
         <DiplomaFormField label="Pet Name:" value={petData.pet_name} width="100%" fontFamily={fontFamily} color={bodyColor} fontSize={fieldSize} />
         <FormRow>
@@ -416,9 +458,10 @@ export function renderDiplomaContent(
   fontFamily: string,
   colors: CertificateThemeColors,
   petImageUrl?: string,
+  showPetPhoto?: boolean,
 ) {
   if (type === "birth") {
-    return <BirthDiplomaContent petData={petData} fontFamily={fontFamily} colors={colors} petImageUrl={petImageUrl} />;
+    return <BirthDiplomaContent petData={petData} fontFamily={fontFamily} colors={colors} petImageUrl={petImageUrl} showPetPhoto={showPetPhoto} />;
   }
-  return <OwnershipDiplomaContent petData={petData} fontFamily={fontFamily} colors={colors} petImageUrl={petImageUrl} />;
+  return <OwnershipDiplomaContent petData={petData} fontFamily={fontFamily} colors={colors} petImageUrl={petImageUrl} showPetPhoto={showPetPhoto} />;
 }

@@ -11,6 +11,7 @@ export async function generateCertificatePdf(
   certificateNumber: string | null | undefined,
   origin: string,
   parentPhotos?: { sire?: string; dam?: string },
+  showPetPhoto?: boolean,
 ): Promise<jsPDF> {
   const container = document.createElement("div");
   container.style.width = "1123px";
@@ -22,7 +23,7 @@ export async function generateCertificatePdf(
   document.body.appendChild(container);
 
   const root = createRoot(container);
-  root.render(renderCertificateView(template, petData, petImageUrl, parentPhotos));
+  root.render(renderCertificateView(template, petData, petImageUrl, parentPhotos, showPetPhoto));
 
   await new Promise((r) => setTimeout(r, 600));
   const canvas = await html2canvas(container, { scale: 2, useCORS: true, allowTaint: true });

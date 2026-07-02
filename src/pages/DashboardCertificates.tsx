@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -49,6 +50,8 @@ const DashboardCertificates = () => {
   const [sirePreview, setSirePreview] = useState<string | null>(null);
   const [damPreview, setDamPreview] = useState<string | null>(null);
   const [previewCert, setPreviewCert] = useState<any>(null);
+  const [previewShowPhoto, setPreviewShowPhoto] = useState(false);
+  const [savingPhotoToggle, setSavingPhotoToggle] = useState(false);
   const [payConfirmCert, setPayConfirmCert] = useState<any>(null);
   const [downloading, setDownloading] = useState(false);
   const [printing, setPrinting] = useState(false);
@@ -266,7 +269,10 @@ const DashboardCertificates = () => {
       await queryClient.invalidateQueries({ queryKey: ["my-cert-credits", user?.id] });
       setPayConfirmCert(null);
       const { data: refreshed } = await supabase.from("pet_certificates").select(PET_CERTIFICATE_SELECT).eq("id", cert.id).single();
-      if (refreshed) setPreviewCert(refreshed);
+      if (refreshed) {
+        setPreviewShowPhoto(!!(refreshed as any).show_pet_photo);
+        setPreviewCert(refreshed);
+      }
       toast.success("Certificate issued! Download or print below.");
     } catch (e: any) {
       await supabase.rpc("grant_certificate_credit" as any, {
@@ -290,7 +296,33 @@ const DashboardCertificates = () => {
     return ensureCertificateTemplateFields(fallback || getDefaultTemplateForType(type), type);
   };
 
-  const runCertificateExport = async (cert: any, mode: "download" | "print") => {
+  const openPreview = (cert: any) => {
+    setPreviewShowPhoto(!!cert.show_pet_photo);
+    setPreviewCert(cert);
+  };
+
+  const handleTogglePreviewPhoto = async (checked: boolean) => {
+    if (!previewCert) return;
+    setPreviewShowPhoto(checked);
+    setSavingPhotoToggle(true);
+    const { error } = await supabase
+      .from("pet_certificates")
+      .update({ show_pet_photo: checked })
+      .eq("id", previewCert.id);
+    setSavingPhotoToggle(false);
+    if (error) {
+      setPreviewShowPhoto(!checked);
+      return toast.error(error.message);
+    }
+    setPreviewCert((c: any) => (c ? { ...c, show_pet_photo: checked } : c));
+    await queryClient.invalidateQueries({ queryKey: ["my-certificates", user?.id] });
+  };
+
+  const runCertificateExport = async (
+    cert: any,
+    mode: "download" | "print",
+    showPetPhoto: boolean = !!cert.show_pet_photo,
+  ) => {
     if (!cert.is_paid) return toast.error("Issue the certificate first");
     if (cert.is_paused) return toast.error("Certificate paused by admin");
     const setBusy = mode === "download" ? setDownloading : setPrinting;
@@ -300,7 +332,7 @@ const DashboardCertificates = () => {
       const petData = getPetData(cert);
       const petImageUrl = getCertificatePetImageUrl(cert);
       const parentPhotos = getParentPhotoUrls(cert);
-      const pdf = await generateCertificatePdf(template, petData, petImageUrl, cert.certificate_number || petData.pet_code, window.location.origin, parentPhotos);
+      const pdf = await generateCertificatePdf(template, petData, petImageUrl, cert.certificate_number || petData.pet_code, window.location.origin, parentPhotos, showPetPhoto);
       if (mode === "download") {
         downloadCertificatePdf(pdf, `${petData.pet_name}-${cert.certificate_type}`);
         toast.success("Downloaded!");
@@ -370,7 +402,7 @@ const DashboardCertificates = () => {
                     <div className="flex gap-2 mb-2">{typeBadge(cert.certificate_type)}</div>
                     <div className="border rounded mb-3 overflow-hidden relative" style={{ aspectRatio: "297/210", pointerEvents: "none", containerType: "inline-size" }}>
                       <div style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}>
-                        {renderCertificateView(template, petData, petImageUrl, parentPhotos)}
+                        {renderCertificateView(template, petData, petImageUrl, parentPhotos, cert.show_pet_photo)}
                       </div>
                     </div>
                     <div className="flex items-start justify-between mb-2">
@@ -391,7 +423,7 @@ const DashboardCertificates = () => {
                       </p>
                     )}
                     <div className="flex flex-wrap gap-2">
-                      <Button variant="outline" size="sm" onClick={() => setPreviewCert(cert)}><Eye className="h-3.5 w-3.5 mr-1" /> Preview</Button>
+                      <Button variant="outline" size="sm" onClick={() => openPreview(cert)}><Eye className="h-3.5 w-3.5 mr-1" /> Preview</Button>
                       {!cert.is_paid ? (
                         <>
                           <Button size="sm" className="flex-1" onClick={() => setPayConfirmCert(cert)}>
@@ -418,17 +450,35 @@ const DashboardCertificates = () => {
           <DialogContent className="max-w-4xl">
             <DialogHeader><DialogTitle>Certificate preview</DialogTitle></DialogHeader>
             {previewCert && (
-              <div className="border rounded-lg overflow-hidden relative" style={{ aspectRatio: "297/210", containerType: "inline-size" }}>
-                <div style={{ position: "absolute", inset: 0 }}>
-                  {renderCertificateView(getTemplate(previewCert), getPetData(previewCert), getCertificatePetImageUrl(previewCert), getParentPhotoUrls(previewCert))}
+              <>
+                <div className="border rounded-lg overflow-hidden relative" style={{ aspectRatio: "297/210", containerType: "inline-size" }}>
+                  <div style={{ position: "absolute", inset: 0 }}>
+                    {renderCertificateView(getTemplate(previewCert), getPetData(previewCert), getCertificatePetImageUrl(previewCert), getParentPhotoUrls(previewCert), previewShowPhoto)}
+                  </div>
                 </div>
-              </div>
+                {getCertificatePetImageUrl(previewCert) ? (
+                  <div className="flex items-center justify-between rounded-lg border bg-muted/40 px-4 py-3">
+                    <div>
+                      <Label htmlFor="show-pet-photo" className="text-sm font-medium">Show pet photo on certificate</Label>
+                      <p className="text-xs text-muted-foreground mt-0.5">Adds the pet's photo to the top-right. Saved automatically.</p>
+                    </div>
+                    <Switch
+                      id="show-pet-photo"
+                      checked={previewShowPhoto}
+                      disabled={savingPhotoToggle}
+                      onCheckedChange={handleTogglePreviewPhoto}
+                    />
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Add a photo to this pet to display it on the certificate.</p>
+                )}
+              </>
             )}
             <DialogFooter>
               {previewCert?.is_paid && (
                 <>
-                  <Button onClick={() => runCertificateExport(previewCert, "download")} disabled={downloading}><FileDown className="h-4 w-4 mr-2" /> Download</Button>
-                  <Button variant="secondary" onClick={() => runCertificateExport(previewCert, "print")} disabled={printing}><Printer className="h-4 w-4 mr-2" /> Print</Button>
+                  <Button onClick={() => runCertificateExport(previewCert, "download", previewShowPhoto)} disabled={downloading}><FileDown className="h-4 w-4 mr-2" /> Download</Button>
+                  <Button variant="secondary" onClick={() => runCertificateExport(previewCert, "print", previewShowPhoto)} disabled={printing}><Printer className="h-4 w-4 mr-2" /> Print</Button>
                 </>
               )}
             </DialogFooter>
@@ -526,7 +576,7 @@ const DashboardCertificates = () => {
               <>
                 <div className="border rounded-lg overflow-hidden relative mb-4" style={{ aspectRatio: "297/210", containerType: "inline-size" }}>
                   <div style={{ position: "absolute", inset: 0 }}>
-                    {renderCertificateView(getTemplate(payConfirmCert), getPetData(payConfirmCert), getCertificatePetImageUrl(payConfirmCert), getParentPhotoUrls(payConfirmCert))}
+                    {renderCertificateView(getTemplate(payConfirmCert), getPetData(payConfirmCert), getCertificatePetImageUrl(payConfirmCert), getParentPhotoUrls(payConfirmCert), payConfirmCert.show_pet_photo)}
                   </div>
                 </div>
                 <p className="text-sm text-muted-foreground">

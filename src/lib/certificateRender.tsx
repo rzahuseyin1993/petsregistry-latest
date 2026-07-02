@@ -363,6 +363,7 @@ function renderFieldCertificate(
   petData: Record<string, string>,
   petImageUrl?: string,
   parentPhotos?: { sire?: string; dam?: string },
+  showPetPhoto?: boolean,
 ) {
   const colors: CertificateThemeColors = (template.colors as CertificateThemeColors) || buildThemeColors({
     bgColor: template.colors?.bg || "#FFFFFF",
@@ -392,7 +393,7 @@ function renderFieldCertificate(
         {!template.background_url && (
           <DiplomaCertificateDecor colors={colors} fontFamily={fontFamily} />
         )}
-        {renderDiplomaContent(certVariant, petData, fontFamily, colors, petImageUrl)}
+        {renderDiplomaContent(certVariant, petData, fontFamily, colors, petImageUrl, showPetPhoto)}
       </div>
     );
   }
@@ -629,11 +630,12 @@ export function renderCertificateView(
   petData: Record<string, string>,
   petImageUrl?: string,
   parentPhotos?: { sire?: string; dam?: string },
+  showPetPhoto?: boolean,
 ): ReactNode {
   if (isCanvasCertificateTemplate(template)) {
     return renderCanvasCertificate(template, petData, petImageUrl);
   }
-  return renderFieldCertificate(template, petData, petImageUrl, parentPhotos);
+  return renderFieldCertificate(template, petData, petImageUrl, parentPhotos, showPetPhoto);
 }
 
 /** Upgrade legacy saved templates to latest typed layouts. */
