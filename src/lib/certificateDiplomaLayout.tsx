@@ -237,14 +237,14 @@ export function BirthDiplomaContent({
             position: "absolute",
             right: "7%",
             top: "31%",
-            width: "13cqw",
-            height: "13cqw",
+            width: "16cqw",
+            height: "16cqw",
             zIndex: 4,
           }}
         />
       )}
 
-      <FormSection top="34%" rightInset={withPhoto ? "25%" : undefined} gap="1.4cqw">
+      <FormSection top="34%" rightInset={withPhoto ? "28%" : undefined} gap="1.4cqw">
         <FormRow>
           <DiplomaFormField label="Pet Name:" value={petData.pet_name} width="40%" fontFamily={fontFamily} color={bodyColor} fontSize={fieldSize} />
           <DiplomaFormField label="Species:" value={petData.species} width="24%" fontFamily={fontFamily} color={bodyColor} fontSize={fieldSize} />
@@ -321,14 +321,14 @@ export function OwnershipDiplomaContent({
             position: "absolute",
             right: "7%",
             top: "31%",
-            width: "13cqw",
-            height: "13cqw",
+            width: "16cqw",
+            height: "16cqw",
             zIndex: 4,
           }}
         />
       )}
 
-      <FormSection top="32%" rightInset={withPhoto ? "25%" : undefined} gap="1.35cqw">
+      <FormSection top="32%" rightInset={withPhoto ? "28%" : undefined} gap="1.35cqw">
         <DiplomaFormField label="Pet Owner Name:" value={ownerDisplay} width="100%" fontFamily={fontFamily} color={bodyColor} fontSize={fieldSize} />
         <DiplomaFormField label="Pet Name:" value={petData.pet_name} width="100%" fontFamily={fontFamily} color={bodyColor} fontSize={fieldSize} />
         <FormRow>
