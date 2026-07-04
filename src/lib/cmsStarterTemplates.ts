@@ -247,6 +247,13 @@ const footerTemplate: CmsStarterTemplate = {
     @media (max-width: 900px) {
       .cms-footer__grid {
         grid-template-columns: 1fr;
+        text-align: center;
+      }
+
+      .cms-footer__brand {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
       }
     }
   `,

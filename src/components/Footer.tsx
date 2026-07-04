@@ -42,15 +42,15 @@ const Footer = () => {
     <footer className="border-t border-border bg-card">
       <div className="container py-12">
         <div className="grid gap-8 md:grid-cols-4">
-          <div>
-            <Link to="/" className="flex items-center">
+          <div className="text-center md:text-left">
+            <Link to="/" className="inline-flex items-center justify-center md:justify-start">
               <img src={logo} alt="Pets Registry" className="h-11 w-auto" width={161} height={44} />
             </Link>
             <p className="mt-3 text-sm text-muted-foreground">
               Register your pets, keep them safe, and help reunite lost pets with their owners.
             </p>
           </div>
-          <div>
+          <div className="text-center md:text-left">
             <h3 className="font-display font-semibold text-foreground">Quick Links</h3>
             <ul className="mt-3 space-y-2 text-md text-muted-foreground">
               <li><Link to="/search" className="hover:text-primary transition-colors">Find a Pet</Link></li>
@@ -64,7 +64,7 @@ const Footer = () => {
               )}
             </ul>
           </div>
-          <div>
+          <div className="text-center md:text-left">
             <h3 className="font-display font-semibold text-foreground">Support</h3>
             <ul className="mt-3 space-y-2 text-md text-muted-foreground">
               <li><Link to="/contact" className="hover:text-primary transition-colors">Contact Us</Link></li>
@@ -75,7 +75,7 @@ const Footer = () => {
               <li><Link to="/donate" className="hover:text-primary transition-colors">Donate</Link></li>
             </ul>
           </div>
-          <div>
+          <div className="text-center md:text-left">
             <h3 className="font-display font-semibold text-foreground">Contact</h3>
             <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
               <li>admin@petsregistry.org</li>
@@ -90,7 +90,7 @@ const Footer = () => {
   );
 
   return (
-    <div ref={footerRef}>
+    <div ref={footerRef} className="site-footer">
       <CmsRenderer slug="footer" fallback={defaultFooter} />
     </div>
   );

@@ -19,7 +19,6 @@ import {
   Heart,
   AlertTriangle,
   Building2,
-  Smartphone,
   HandHeart,
   ShieldCheck,
   Tag,
@@ -153,12 +152,6 @@ const Navbar = () => {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-52">
-                  <DropdownMenuItem asChild>
-                    <Link to="/m" className="flex cursor-pointer items-center gap-2">
-                      <Smartphone className="h-4 w-4" />
-                      Mobile View
-                    </Link>
-                  </DropdownMenuItem>
                   {storeEnabled && (
                     <DropdownMenuItem
                       className="flex cursor-pointer items-center gap-2"
@@ -197,11 +190,6 @@ const Navbar = () => {
             </>
           ) : (
             <>
-              <Link to="/m" title="Switch to Mobile View">
-                <Button variant="ghost" size="icon" className="text-muted-foreground" aria-label="Switch to mobile view">
-                  <Smartphone className="h-4 w-4" />
-                </Button>
-              </Link>
               {storeEnabled && totalItems > 0 && <CartDrawer />}
               <Link to="/login">
                 <Button variant="outline" size="sm" className="gap-2 rounded-lg">
@@ -243,14 +231,6 @@ const Navbar = () => {
               <hr className="my-2 border-border" />
               {user ? (
                 <>
-                  <Link
-                    to="/m"
-                    onClick={() => setOpen(false)}
-                    className="flex items-center gap-3 rounded-lg px-4 py-3 text-md font-medium text-foreground hover:bg-muted"
-                  >
-                    <Smartphone className="h-5 w-5 text-muted-foreground" />
-                    Mobile View
-                  </Link>
                   {storeEnabled && (
                     <button
                       type="button"

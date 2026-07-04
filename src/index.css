@@ -158,4 +158,16 @@ img {
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
+
+  @media (max-width: 767px) {
+    .site-footer .cms-footer__grid > div {
+      text-align: center;
+    }
+
+    .site-footer .cms-footer__brand {
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+  }
 }

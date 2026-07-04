@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { PawPrint, LayoutDashboard, PlusCircle, Settings, Store, LogOut, Heart, Activity, AlertTriangle, FileText, Building2, Crown, Mail, ShoppingBag, Award, MapPin, Smartphone } from "lucide-react";
+import { PawPrint, LayoutDashboard, PlusCircle, Settings, Store, LogOut, Heart, Activity, AlertTriangle, FileText, Building2, Crown, Mail, ShoppingBag, Award, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import MembershipBadge from "@/components/MembershipBadge";
 import NotificationBell from "@/components/NotificationBell";
@@ -89,11 +89,6 @@ const DashboardSidebar = () => {
       )}
 
       <div className="border-t border-border p-4">
-        <Button asChild variant="outline" className="mb-2 w-full gap-2 text-md">
-          <Link to="/m" title="Switch to Mobile View">
-            <Smartphone className="h-5 w-5" /> Mobile View
-          </Link>
-        </Button>
         {storeEnabled && (
           <Button asChild variant="outline" className="mb-2 w-full gap-2 text-md">
             <Link to="/store">

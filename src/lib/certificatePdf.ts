@@ -4,6 +4,28 @@ import QRCode from "qrcode";
 import { createRoot } from "react-dom/client";
 import { renderCertificateView } from "@/lib/certificateRender";
 
+/** A4 landscape at ~150 DPI before html2canvas scale multiplier */
+const EXPORT_WIDTH_PX = 1754;
+const EXPORT_HEIGHT_PX = 1240;
+const CANVAS_SCALE = 3;
+
+async function waitForCertificateImages(container: HTMLElement): Promise<void> {
+  const htmlImages = Array.from(container.querySelectorAll("img"));
+  const loads = htmlImages.map(
+    (img) =>
+      img.complete && img.naturalWidth > 0
+        ? Promise.resolve()
+        : new Promise<void>((resolve) => {
+            img.addEventListener("load", () => resolve(), { once: true });
+            img.addEventListener("error", () => resolve(), { once: true });
+          }),
+  );
+  await Promise.all(loads);
+  if (typeof document !== "undefined" && "fonts" in document) {
+    await document.fonts.ready;
+  }
+}
+
 export async function generateCertificatePdf(
   template: any,
   petData: Record<string, string>,
@@ -14,24 +36,36 @@ export async function generateCertificatePdf(
   showPetPhoto?: boolean,
 ): Promise<jsPDF> {
   const container = document.createElement("div");
-  container.style.width = "1123px";
-  container.style.height = "794px";
+  container.style.width = `${EXPORT_WIDTH_PX}px`;
+  container.style.height = `${EXPORT_HEIGHT_PX}px`;
   container.style.position = "fixed";
   container.style.top = "-9999px";
   container.style.left = "-9999px";
   container.style.containerType = "inline-size";
+  container.style.background = "#ffffff";
   document.body.appendChild(container);
 
   const root = createRoot(container);
   root.render(renderCertificateView(template, petData, petImageUrl, parentPhotos, showPetPhoto));
 
-  await new Promise((r) => setTimeout(r, 600));
-  const canvas = await html2canvas(container, { scale: 2, useCORS: true, allowTaint: true });
+  await waitForCertificateImages(container);
+  await new Promise((r) => setTimeout(r, 400));
+
+  const canvas = await html2canvas(container, {
+    scale: CANVAS_SCALE,
+    useCORS: true,
+    allowTaint: true,
+    backgroundColor: "#ffffff",
+    logging: false,
+    imageTimeout: 15000,
+    width: EXPORT_WIDTH_PX,
+    height: EXPORT_HEIGHT_PX,
+  });
   root.unmount();
   document.body.removeChild(container);
 
   const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
-  pdf.addImage(canvas.toDataURL("image/jpeg", 0.95), "JPEG", 0, 0, 297, 210);
+  pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, 297, 210, undefined, "SLOW");
 
   const certNumber = certificateNumber || petData.certificate_number || petData.pet_code;
   if (certNumber && certNumber !== "Pending issue") {

@@ -1,7 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 import logo from "@/assets/logo.png";
-import officialSeal from "@/assets/official-seal.png";
-import { DiplomaCornerBrackets, OrnatePhotoFrame } from "@/lib/certificateOrnaments";
+import { DiplomaCornerBrackets, OrnatePhotoFrame, PetsRegistryOfficialSeal } from "@/lib/certificateOrnaments";
 import type { CertificateThemeColors } from "@/lib/certificateDesign";
 import type { CertificateType } from "@/lib/certificateTypes";
 
@@ -47,23 +46,8 @@ function DiplomaFormField({
   );
 }
 
-function OfficialEmbossedSeal() {
-  return (
-    <img
-      src={officialSeal}
-      alt="Official seal"
-      style={{
-        position: "absolute",
-        right: "6.5%",
-        bottom: "7%",
-        width: "11.5cqw",
-        height: "auto",
-        zIndex: 4,
-        pointerEvents: "none",
-        objectFit: "contain",
-      }}
-    />
-  );
+function OfficialEmbossedSeal({ accent, border }: { accent: string; border: string }) {
+  return <PetsRegistryOfficialSeal accent={accent} border={border} size="16cqw" />;
 }
 
 export function DiplomaCertificateDecor({
@@ -116,6 +100,8 @@ export function DiplomaCertificateDecor({
       <img
         src={logo}
         alt="Pets Registry"
+        crossOrigin="anonymous"
+        decoding="sync"
         style={{
           position: "absolute",
           left: "50%",
@@ -127,10 +113,11 @@ export function DiplomaCertificateDecor({
           objectFit: "contain",
           zIndex: 3,
           pointerEvents: "none",
+          imageRendering: "auto",
         }}
       />
 
-      <OfficialEmbossedSeal />
+      <OfficialEmbossedSeal accent={accent} border={border} />
     </>
   );
 }
@@ -139,10 +126,12 @@ function FormSection({
   top,
   children,
   rightInset,
+  gap = "1.5cqw",
 }: {
   top: string;
   children: ReactNode;
   rightInset?: string;
+  gap?: string;
 }) {
   return (
     <div
@@ -151,10 +140,11 @@ function FormSection({
         left: "8%",
         right: rightInset || "8%",
         top,
+        bottom: "22%",
         zIndex: 3,
         display: "flex",
         flexDirection: "column",
-        gap: "2.2cqw",
+        gap,
       }}
     >
       {children}
@@ -167,6 +157,36 @@ function FormRow({ children, gap = "2.5cqw" }: { children: ReactNode; gap?: stri
     <div style={{ display: "flex", gap, alignItems: "flex-end", width: "100%" }}>
       {children}
     </div>
+  );
+}
+
+/** ~14px at full certificate width (594px); scales down in list thumbnails */
+const CERTIFICATION_FONT = "clamp(5px, 2.36cqw, 14px)";
+
+function DiplomaCertificationLine({
+  children,
+  fontFamily,
+  color,
+}: {
+  children: ReactNode;
+  fontFamily: string;
+  color: string;
+}) {
+  return (
+    <p
+      style={{
+        margin: "0.25cqw 0 0",
+        padding: "0 2%",
+        textAlign: "center",
+        fontSize: CERTIFICATION_FONT,
+        lineHeight: 1.35,
+        color,
+        fontFamily,
+        flexShrink: 0,
+      }}
+    >
+      {children}
+    </p>
   );
 }
 
@@ -224,7 +244,7 @@ export function BirthDiplomaContent({
         />
       )}
 
-      <FormSection top="35%" rightInset={withPhoto ? "25%" : undefined}>
+      <FormSection top="34%" rightInset={withPhoto ? "25%" : undefined} gap="1.4cqw">
         <FormRow>
           <DiplomaFormField label="Pet Name:" value={petData.pet_name} width="40%" fontFamily={fontFamily} color={bodyColor} fontSize={fieldSize} />
           <DiplomaFormField label="Species:" value={petData.species} width="24%" fontFamily={fontFamily} color={bodyColor} fontSize={fieldSize} />
@@ -242,25 +262,10 @@ export function BirthDiplomaContent({
           <DiplomaFormField label="Dam (Mother):" value={petData.dam_name} width="48%" fontFamily={fontFamily} color={bodyColor} fontSize={fieldSize} />
           <DiplomaFormField label="Sire (Father):" value={petData.sire_name} width="48%" fontFamily={fontFamily} color={bodyColor} fontSize={fieldSize} />
         </FormRow>
+        <DiplomaCertificationLine fontFamily={fontFamily} color={bodyColor}>
+          This certifies that the pet described above has been officially registered with PetsRegister.org.
+        </DiplomaCertificationLine>
       </FormSection>
-
-      <div
-        style={{
-          position: "absolute",
-          left: "50%",
-          top: "60%",
-          transform: "translateX(-50%)",
-          width: "84%",
-          textAlign: "center",
-          fontSize: "1.45cqw",
-          lineHeight: 1.55,
-          color: bodyColor,
-          fontFamily,
-          zIndex: 3,
-        }}
-      >
-        This certifies that the pet described above has been officially registered with Pets Registry.
-      </div>
 
       <DiplomaFooter petData={petData} fontFamily={fontFamily} colors={colors} fieldSize={fieldSize} />
     </>
@@ -323,7 +328,7 @@ export function OwnershipDiplomaContent({
         />
       )}
 
-      <FormSection top="33%" rightInset={withPhoto ? "25%" : undefined}>
+      <FormSection top="32%" rightInset={withPhoto ? "25%" : undefined} gap="1.35cqw">
         <DiplomaFormField label="Pet Owner Name:" value={ownerDisplay} width="100%" fontFamily={fontFamily} color={bodyColor} fontSize={fieldSize} />
         <DiplomaFormField label="Pet Name:" value={petData.pet_name} width="100%" fontFamily={fontFamily} color={bodyColor} fontSize={fieldSize} />
         <FormRow>
@@ -338,26 +343,11 @@ export function OwnershipDiplomaContent({
           <DiplomaFormField label="Sex:" value={petData.sex} width="30%" fontFamily={fontFamily} color={bodyColor} fontSize={fieldSize} />
           <DiplomaFormField label="Color/Markings:" value={petData.color} width="66%" fontFamily={fontFamily} color={bodyColor} fontSize={fieldSize} />
         </FormRow>
+        <DiplomaCertificationLine fontFamily={fontFamily} color={bodyColor}>
+          This certifies that <strong>{petData.pet_name || "—"}</strong> is the lawful companion of{" "}
+          <strong>{ownerDisplay || "—"}</strong> and is officially registered with PetsRegister.org.
+        </DiplomaCertificationLine>
       </FormSection>
-
-      <div
-        style={{
-          position: "absolute",
-          left: "50%",
-          top: "61%",
-          transform: "translateX(-50%)",
-          width: "82%",
-          textAlign: "center",
-          fontSize: "1.4cqw",
-          lineHeight: 1.55,
-          color: bodyColor,
-          fontFamily,
-          zIndex: 3,
-        }}
-      >
-        This certifies that <strong>{petData.pet_name || "—"}</strong> is the lawful companion of{" "}
-        <strong>{ownerDisplay || "—"}</strong> and is officially registered with Pets Registry.
-      </div>
 
       <DiplomaFooter petData={petData} fontFamily={fontFamily} colors={colors} fieldSize={fieldSize} />
     </>
@@ -385,42 +375,15 @@ function DiplomaFooter({
         style={{
           position: "absolute",
           left: "8%",
-          right: "22%",
-          top: "77%",
+          top: "80%",
+          width: "38%",
           display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-end",
-          gap: "4cqw",
+          flexDirection: "column",
+          gap: "1.6cqw",
           zIndex: 3,
         }}
       >
-        <DiplomaFormField label="Date" value={petData.date_issued} width="38%" fontFamily={fontFamily} color={bodyColor} fontSize={fieldSize} />
-        <div style={{ flex: 1, fontFamily, fontSize: footerLabelSize, color: bodyColor }}>
-          <div style={{ marginBottom: "0.25cqw" }}>Official Registrar Signature:</div>
-          <div
-            style={{
-              borderBottom: `1px solid ${bodyColor}88`,
-              minHeight: "2.2cqw",
-              fontFamily: sigFont,
-              fontSize: `calc(${fieldSize} * 1.15)`,
-              color: "#1A4B8C",
-              paddingBottom: "0.15cqw",
-            }}
-          >
-            Pets Registry
-          </div>
-        </div>
-      </div>
-
-      <div
-        style={{
-          position: "absolute",
-          left: "8%",
-          top: "85%",
-          width: "52%",
-          zIndex: 3,
-        }}
-      >
+        <DiplomaFormField label="Date" value={petData.date_issued} width="100%" fontFamily={fontFamily} color={bodyColor} fontSize={fieldSize} />
         <DiplomaFormField
           label="Registry ID No.:"
           value={petData.certificate_number}
@@ -429,6 +392,33 @@ function DiplomaFooter({
           color={bodyColor}
           fontSize={fieldSize}
         />
+      </div>
+
+      <div
+        style={{
+          position: "absolute",
+          left: "46%",
+          right: "22%",
+          top: "80%",
+          fontFamily,
+          fontSize: footerLabelSize,
+          color: bodyColor,
+          zIndex: 3,
+        }}
+      >
+        <div style={{ marginBottom: "0.25cqw" }}>Official Registrar Signature:</div>
+        <div
+          style={{
+            borderBottom: `1px solid ${bodyColor}88`,
+            minHeight: "2.2cqw",
+            fontFamily: sigFont,
+            fontSize: `calc(${fieldSize} * 1.15)`,
+            color: "#1A4B8C",
+            paddingBottom: "0.15cqw",
+          }}
+        >
+          Pets Registry
+        </div>
       </div>
 
       <div

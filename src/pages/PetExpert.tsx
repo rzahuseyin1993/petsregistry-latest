@@ -5,11 +5,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
 import CmsRenderer from "@/components/CmsRenderer";
 import WebcamCaptureDialog from "@/components/WebcamCaptureDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 
 type Message = { role: "user" | "assistant"; content: string; imageUrl?: string };
@@ -142,11 +143,12 @@ function fileToBase64(file: File): Promise<string> {
 
 export default function PetExpert() {
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [attachedImage, setAttachedImage] = useState<string | null>(null);
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [chatSessions, setChatSessions] = useState<ChatSessionMeta[]>([]);
@@ -186,6 +188,10 @@ export default function PetExpert() {
   }, [user]);
 
   useEffect(() => { refreshSessions(); }, [refreshSessions]);
+
+  useEffect(() => {
+    setSidebarOpen(!isMobile);
+  }, [isMobile]);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -284,12 +290,20 @@ export default function PetExpert() {
       const data = await loadSession(user.id, sessionId);
       setMessages(data.messages || []);
       setActiveSessionId(data.id);
+      if (isMobile) setSidebarOpen(false);
     } catch {
       toast.error("Failed to load chat");
     }
   };
 
-  const startNewChat = () => { setMessages([]); setActiveSessionId(null); setInput(""); setAttachedImage(null); setAttachedFile(null); };
+  const startNewChat = () => {
+    setMessages([]);
+    setActiveSessionId(null);
+    setInput("");
+    setAttachedImage(null);
+    setAttachedFile(null);
+    if (isMobile) setSidebarOpen(false);
+  };
 
   const handleDeleteSession = async (sessionId: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -305,13 +319,33 @@ export default function PetExpert() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-muted/40">
+    <div className="flex min-h-screen flex-col overflow-x-hidden bg-muted/40">
       <Navbar />
       <CmsRenderer slug="pet-expert" fallback={null} />
-      <main className="flex flex-1 overflow-hidden" style={{ height: "calc(100vh - 64px)" }}>
+      <main className="relative flex flex-1 overflow-hidden" style={{ height: "calc(100dvh - 64px)" }}>
+        {/* Mobile sidebar backdrop */}
+        {user && isMobile && sidebarOpen && (
+          <button
+            type="button"
+            aria-label="Close chat history"
+            className="fixed inset-x-0 bottom-0 top-16 z-40 bg-black/50"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
         {/* Sidebar */}
         {user && (
-          <div className={`flex shrink-0 flex-col overflow-hidden border-r border-primary/15 bg-card transition-all duration-300 ${sidebarOpen ? "w-72" : "w-0"}`}>
+          <div
+            className={cn(
+              "flex shrink-0 flex-col overflow-hidden border-r border-primary/15 bg-card transition-all duration-300",
+              isMobile
+                ? "fixed bottom-0 left-0 top-16 z-50 w-[min(18rem,85vw)] shadow-xl"
+                : sidebarOpen
+                  ? "w-72"
+                  : "w-0",
+              isMobile && (sidebarOpen ? "translate-x-0" : "-translate-x-full"),
+            )}
+          >
             <div className="flex items-center justify-between border-b border-primary/15 bg-primary/10 p-3">
               <span className="flex items-center gap-2 font-display text-sm font-semibold text-foreground">
                 <MessageSquare className="h-4 w-4 text-primary" /> History
@@ -363,32 +397,32 @@ export default function PetExpert() {
         )}
 
         {/* Main Chat */}
-        <div className="flex min-w-0 flex-1 flex-col bg-gradient-to-br from-primary/[0.08] via-background to-accent/10">
-          <div className="flex items-center gap-3 border-b border-primary/15 bg-card/90 px-4 py-3 shadow-sm backdrop-blur-sm">
+        <div className="flex min-w-0 w-full flex-1 flex-col bg-gradient-to-br from-primary/[0.08] via-background to-accent/10">
+          <div className="flex items-center gap-2 border-b border-primary/15 bg-card/90 px-3 py-2.5 shadow-sm backdrop-blur-sm sm:gap-3 sm:px-4 sm:py-3">
             {user && (
-              <Button variant="ghost" size="icon" className="shrink-0 hover:bg-primary/10" onClick={() => setSidebarOpen(!sidebarOpen)}>
-                {sidebarOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeft className="h-4 w-4" />}
+              <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 hover:bg-primary/10" onClick={() => setSidebarOpen(!sidebarOpen)}>
+                {sidebarOpen && !isMobile ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeft className="h-4 w-4" />}
               </Button>
             )}
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
-                <Sparkles className="h-5 w-5" />
+            <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm sm:h-10 sm:w-10">
+                <Sparkles className="h-4 w-4 sm:h-5 sm:w-5" />
               </div>
-              <div>
-                <h1 className="font-display text-lg font-bold text-foreground">AI Pet Expert</h1>
-                <p className="text-xs text-muted-foreground">Type below or attach a photo</p>
+              <div className="min-w-0">
+                <h1 className="truncate font-display text-base font-bold text-foreground sm:text-lg">AI Pet Expert</h1>
+                <p className="truncate text-[11px] text-muted-foreground sm:text-xs">Type below or attach a photo</p>
               </div>
             </div>
           </div>
 
-          <ScrollArea className="flex-1 px-4 py-3" style={{ height: "calc(100vh - 200px)" }}>
+          <ScrollArea className="flex-1 px-3 py-3 sm:px-4">
             {messages.length === 0 ? (
-              <div className="mx-auto flex max-w-2xl flex-col gap-5 pt-6">
-                <div className="flex items-center gap-3 rounded-2xl border border-primary/20 bg-card/90 p-4 shadow-sm">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/15">
-                    <Bot className="h-6 w-6 text-primary" />
+              <div className="mx-auto flex max-w-2xl flex-col gap-4 pt-4 sm:gap-5 sm:pt-6">
+                <div className="flex items-center gap-3 rounded-2xl border border-primary/20 bg-card/90 p-3 shadow-sm sm:p-4">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 sm:h-11 sm:w-11">
+                    <Bot className="h-5 w-5 text-primary sm:h-6 sm:w-6" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="font-display font-semibold text-foreground">What can I help with?</p>
                     <p className="text-sm text-muted-foreground">Health, diet, training — or send a pet photo.</p>
                   </div>
@@ -448,7 +482,7 @@ export default function PetExpert() {
           </ScrollArea>
 
           {/* Input Area */}
-          <div className="border-t border-primary/20 bg-card/95 p-4 shadow-[0_-8px_24px_rgba(0,0,0,0.06)] backdrop-blur-sm">
+          <div className="border-t border-primary/20 bg-card/95 p-3 shadow-[0_-8px_24px_rgba(0,0,0,0.06)] backdrop-blur-sm sm:p-4">
             {attachedImage && (
               <div className="mx-auto mb-2 flex max-w-3xl items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 p-2">
                 <img src={attachedImage} alt="Attached" className="h-14 w-14 rounded object-cover" />
@@ -458,19 +492,19 @@ export default function PetExpert() {
                 </Button>
               </div>
             )}
-            <div className="mx-auto flex w-full max-w-3xl items-end gap-2">
+            <div className="mx-auto flex w-full max-w-3xl items-end gap-1.5 sm:gap-2">
               {messages.length > 0 && (
-                <Button variant="ghost" size="icon" onClick={startNewChat} className="shrink-0 text-muted-foreground hover:bg-primary/10" title="New chat">
+                <Button variant="ghost" size="icon" onClick={startNewChat} className="h-10 w-10 shrink-0 text-muted-foreground hover:bg-primary/10" title="New chat">
                   <Plus className="h-4 w-4" />
                 </Button>
               )}
               <input type="file" ref={fileInputRef} accept="image/*" className="hidden" onChange={handleImageAttach} />
               <input type="file" ref={cameraInputRef} accept="image/*" capture="environment" className="hidden" onChange={handleImageAttach} />
-              <Button variant="outline" size="icon" className="shrink-0 border-primary/30 hover:bg-primary/10" title={isMobileDevice ? "Take a photo" : "Webcam"}
+              <Button variant="outline" size="icon" className="h-10 w-10 shrink-0 border-primary/30 hover:bg-primary/10" title={isMobileDevice ? "Take a photo" : "Webcam"}
                 onClick={handleCameraClick} disabled={isLoading}>
                 <Camera className="h-4 w-4 text-primary" />
               </Button>
-              <Button variant="outline" size="icon" className="shrink-0 border-primary/30 hover:bg-primary/10" title="Upload photo"
+              <Button variant="outline" size="icon" className="h-10 w-10 shrink-0 border-primary/30 hover:bg-primary/10" title="Upload photo"
                 onClick={() => fileInputRef.current?.click()} disabled={isLoading}>
                 <ImagePlus className="h-4 w-4 text-primary" />
               </Button>
@@ -480,14 +514,14 @@ export default function PetExpert() {
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 rows={1}
-                className="min-h-[44px] max-h-[120px] flex-1 resize-none rounded-xl border-primary/25 bg-background shadow-inner focus-visible:ring-primary/40"
+                className="min-h-[40px] max-h-[120px] min-w-0 flex-1 resize-none rounded-xl border-primary/25 bg-background text-base shadow-inner focus-visible:ring-primary/40 sm:min-h-[44px]"
                 disabled={isLoading}
               />
-              <Button onClick={() => send(input)} disabled={(!input.trim() && !attachedImage) || isLoading} size="icon" className="h-11 w-11 shrink-0 rounded-xl shadow-sm">
+              <Button onClick={() => send(input)} disabled={(!input.trim() && !attachedImage) || isLoading} size="icon" className="h-10 w-10 shrink-0 rounded-xl shadow-sm sm:h-11 sm:w-11">
                 <Send className="h-4 w-4" />
               </Button>
             </div>
-            <p className="mx-auto mt-2 max-w-3xl text-center text-[10px] text-muted-foreground">
+            <p className="mx-auto mt-2 max-w-3xl px-1 text-center text-[10px] leading-relaxed text-muted-foreground">
               AI advice only — not a substitute for a vet · Photos auto-delete within 24h
             </p>
           </div>
