@@ -15,6 +15,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Award, Plus, Eye, FileDown, PawPrint, Trash2, ShieldCheck, Printer, Baby, FileText, Users } from "lucide-react";
 import CertificateCreditsCard from "@/components/CertificateCreditsCard";
+import CertificateSampleShowcase from "@/components/CertificateSampleShowcase";
 import CertificatePurchaseHistory from "@/components/CertificatePurchaseHistory";
 import PetBirthFields, { birthFormToPetPayload, emptyBirthForm, petToBirthForm } from "@/components/PetBirthFields";
 import { buildCertificatePetData, PET_CERTIFICATE_SELECT } from "@/lib/certificateData";
@@ -142,6 +143,16 @@ const DashboardCertificates = () => {
     pets.filter((p: any) => !petsWithType(type).has(p.id));
 
   const canCreateAny = availablePetsForType("ownership").length > 0 || availablePetsForType("birth").length > 0;
+
+  const ownershipCredits = getCreditsForType(credits, "ownership");
+  const birthCredits = getCreditsForType(credits, "birth");
+  const unpaidDrafts = certificates.filter((c: any) => !c.is_paid);
+  const draftCanIssue = (cert: any) => {
+    const type: CertificateType = cert.certificate_type === "birth" ? "birth" : "ownership";
+    return getCreditsForType(credits, type) > 0;
+  };
+  const issuableDrafts = unpaidDrafts.filter(draftCanIssue);
+  const allPetsFullyCertificated = pets.length > 0 && !canCreateAny;
 
   const resetWizard = () => {
     setWizardStep(1);
@@ -358,27 +369,63 @@ const DashboardCertificates = () => {
     <div className="flex min-h-screen bg-background">
       <DashboardSidebar />
       <main className="flex-1 overflow-auto p-6">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Award className="h-6 w-6 text-primary" /> Pet Certificates
-            </h1>
-            <p className="text-muted-foreground text-sm mt-1">
-              Official ownership &amp; birth certificates — $15 each · verify at petsregistry.org/verify
+        <div className="mb-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-bold flex items-center gap-2">
+                <Award className="h-6 w-6 text-primary" /> Pet Certificates
+              </h1>
+              <p className="text-muted-foreground text-sm mt-1">
+                Official ownership &amp; birth certificates — $15 each · verify at petsregistry.org/verify
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" asChild className="gap-2">
+                <Link to="/dashboard/register-litter"><Baby className="h-4 w-4" /> Register litter</Link>
+              </Button>
+              <Button onClick={openCreateDialog} disabled={allPetsFullyCertificated} className="gap-2">
+                <Plus className="h-4 w-4" /> New certificate
+              </Button>
+            </div>
+          </div>
+          {allPetsFullyCertificated && (
+            <p className="text-sm text-amber-700 dark:text-amber-400 mt-3 max-w-2xl">
+              Each pet can have one ownership and one birth certificate. All of your pets already have both types.
+              {(ownershipCredits > 0 || birthCredits > 0) && (
+                <> You still have credits — <Link to="/dashboard/register-pet" className="underline font-medium">register another pet</Link> or use <Link to="/dashboard/register-litter" className="underline font-medium">Register litter</Link> to use them.</>
+              )}
             </p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" asChild className="gap-2">
-              <Link to="/dashboard/register-litter"><Baby className="h-4 w-4" /> Register litter</Link>
-            </Button>
-            <Button onClick={openCreateDialog} disabled={!canCreateAny && pets.length > 0} className="gap-2">
-              <Plus className="h-4 w-4" /> New certificate
-            </Button>
-          </div>
+          )}
+          {!allPetsFullyCertificated && issuableDrafts.length > 0 && (
+            <p className="text-sm text-muted-foreground mt-3 max-w-2xl">
+              You have {issuableDrafts.length} draft certificate{issuableDrafts.length > 1 ? "s" : ""} ready to issue with your credits.
+              Use the <strong>Issue</strong> button on the draft below — you don&apos;t need to create a new one for the same pet.
+            </p>
+          )}
         </div>
 
+        <CertificateSampleShowcase />
         <div className="mb-6"><CertificateCreditsCard /></div>
         <CertificatePurchaseHistory />
+
+        {issuableDrafts.length > 0 && (
+          <Card className="mb-6 border-primary/30 bg-primary/5">
+            <CardContent className="py-4 flex flex-col sm:flex-row sm:items-center gap-3">
+              <ShieldCheck className="h-5 w-5 text-primary shrink-0" />
+              <div className="flex-1 text-sm">
+                <p className="font-medium">Credits ready — issue your draft certificate{issuableDrafts.length > 1 ? "s" : ""}</p>
+                <p className="text-muted-foreground mt-0.5">
+                  Buying a credit lets you finalize an existing draft. Click <strong>Issue</strong> on the draft card to use your credit and get the official certificate number.
+                </p>
+              </div>
+              {issuableDrafts.length === 1 && (
+                <Button size="sm" onClick={() => setPayConfirmCert(issuableDrafts[0])}>
+                  Issue {issuableDrafts[0].pets?.name ? `for ${issuableDrafts[0].pets.name}` : "now"}
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {isLoading ? (
           <div className="flex justify-center py-12"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div>
@@ -447,7 +494,7 @@ const DashboardCertificates = () => {
 
         {/* Preview */}
         <Dialog open={!!previewCert} onOpenChange={() => setPreviewCert(null)}>
-          <DialogContent className="max-w-4xl">
+          <DialogContent className="max-w-[min(calc(100vw-2rem),920px)]">
             <DialogHeader><DialogTitle>Certificate preview</DialogTitle></DialogHeader>
             {previewCert && (
               <>

@@ -206,6 +206,9 @@ export function BirthDiplomaContent({
   const bodyColor = colors.text;
   const fieldSize = "1.55cqw";
   const withPhoto = !!(showPetPhoto && petImageUrl);
+  const hasDam = valOk(petData.dam_name);
+  const hasSire = valOk(petData.sire_name);
+  const showParentage = hasDam || hasSire;
 
   return (
     <>
@@ -258,13 +261,33 @@ export function BirthDiplomaContent({
           <DiplomaFormField label="Sex:" value={petData.sex} width="28%" fontFamily={fontFamily} color={bodyColor} fontSize={fieldSize} />
           <DiplomaFormField label="Weight at Birth:" value={petData.birth_weight} width="68%" fontFamily={fontFamily} color={bodyColor} fontSize={fieldSize} />
         </FormRow>
-        <FormRow>
-          <DiplomaFormField label="Dam (Mother):" value={petData.dam_name} width="48%" fontFamily={fontFamily} color={bodyColor} fontSize={fieldSize} />
-          <DiplomaFormField label="Sire (Father):" value={petData.sire_name} width="48%" fontFamily={fontFamily} color={bodyColor} fontSize={fieldSize} />
-        </FormRow>
         <DiplomaCertificationLine fontFamily={fontFamily} color={bodyColor}>
-          This certifies that the pet described above has been officially registered with PetsRegister.org.
+          This certifies the birth of <strong>{petData.pet_name || "—"}</strong> as recorded above, officially registered with PetsRegister.org.
         </DiplomaCertificationLine>
+        {showParentage && (
+          <FormRow gap="2cqw">
+            {hasDam && (
+              <DiplomaFormField
+                label="Dam (Mother):"
+                value={petData.dam_name}
+                width={hasSire ? "48%" : "100%"}
+                fontFamily={fontFamily}
+                color={bodyColor}
+                fontSize={fieldSize}
+              />
+            )}
+            {hasSire && (
+              <DiplomaFormField
+                label="Sire (Father):"
+                value={petData.sire_name}
+                width={hasDam ? "48%" : "100%"}
+                fontFamily={fontFamily}
+                color={bodyColor}
+                fontSize={fieldSize}
+              />
+            )}
+          </FormRow>
+        )}
       </FormSection>
 
       <DiplomaFooter petData={petData} fontFamily={fontFamily} colors={colors} fieldSize={fieldSize} />
@@ -344,8 +367,8 @@ export function OwnershipDiplomaContent({
           <DiplomaFormField label="Color/Markings:" value={petData.color} width="66%" fontFamily={fontFamily} color={bodyColor} fontSize={fieldSize} />
         </FormRow>
         <DiplomaCertificationLine fontFamily={fontFamily} color={bodyColor}>
-          This certifies that <strong>{petData.pet_name || "—"}</strong> is the lawful companion of{" "}
-          <strong>{ownerDisplay || "—"}</strong> and is officially registered with PetsRegister.org.
+          This certifies that <strong>{ownerDisplay || "—"}</strong> is the proud owner of{" "}
+          <strong>{petData.pet_name || "—"}</strong>, officially registered with PetsRegister.org.
         </DiplomaCertificationLine>
       </FormSection>
 
