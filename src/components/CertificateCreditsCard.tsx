@@ -21,6 +21,7 @@ import {
   CREDIT_PRODUCT_LABELS,
   CREDIT_PRODUCT_PRICE_KEYS,
   DEFAULT_CERTIFICATE_PRICES,
+  getUniversalCredits,
   type CreditProductType,
 } from "@/lib/certificateTypes";
 
@@ -183,27 +184,20 @@ const CertificateCreditsCard = () => {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-lg border bg-card p-3 text-center">
-              <p className="text-xs text-muted-foreground mb-1">Ownership</p>
-              <Badge variant="secondary" className="text-lg font-bold px-3">
-                {credits?.ownership_credits ?? credits?.credits ?? 0}
-              </Badge>
-            </div>
-            <div className="rounded-lg border bg-card p-3 text-center">
-              <p className="text-xs text-muted-foreground mb-1">Birth</p>
-              <Badge variant="secondary" className="text-lg font-bold px-3">
-                {credits?.birth_credits ?? 0}
-              </Badge>
-            </div>
+          <div className="rounded-lg border bg-card p-4 text-center">
+            <p className="text-xs text-muted-foreground mb-1">Certificate credits</p>
+            <Badge variant="secondary" className="text-2xl font-bold px-4 py-1">
+              {getUniversalCredits(credits)}
+            </Badge>
+            <p className="text-xs text-muted-foreground mt-2">Each credit issues one ownership or birth certificate</p>
           </div>
           <p className="text-sm text-muted-foreground">
-            Ownership = proof you own the pet. Birth = date of birth &amp; parentage.
+            One credit = one official certificate — your choice of ownership or birth.
             {hasMembership && !credits?.free_credit_claimed && (
-              <span className="block text-primary font-medium mt-1">Claiming your free ownership credit…</span>
+              <span className="block text-primary font-medium mt-1">Claiming your free certificate credit…</span>
             )}
             {hasMembership && credits?.free_credit_claimed && (
-              <span className="block text-green-600 font-medium mt-1">✓ Member free ownership credit claimed</span>
+              <span className="block text-green-600 font-medium mt-1">✓ Member free certificate credit claimed</span>
             )}
           </p>
           <Button onClick={() => setBuyOpen(true)} className="w-full gap-2" size="sm">

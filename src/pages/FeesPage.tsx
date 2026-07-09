@@ -53,12 +53,12 @@ const FeesPage = () => {
       key: "certificate",
       icon: FileText,
       name: "Pet Certificates",
-      description: "Official ownership ($15) and birth ($15) certificates — verifiable worldwide. Members receive 1 free ownership credit.",
+      description: "Official ownership ($15) and birth ($15) certificates — verifiable worldwide. One credit works for either type. Members receive 1 free credit.",
       cta: { label: "Buy Credits", to: "/dashboard/certificates" },
       tiers: [
         { label: "Ownership", price: fmt("service_price_certificate_ownership", "15"), suffix: "/cert" },
         { label: "Birth", price: fmt("service_price_certificate_birth", "15"), suffix: "/cert" },
-        { label: "Both (bundle)", price: fmt("service_price_certificate_bundle", "30"), suffix: "/pet" },
+        { label: "Both (2 credits)", price: fmt("service_price_certificate_bundle", "30"), suffix: "/bundle" },
       ],
       benefits: [
         "Ownership certificate — proof of registered owner",

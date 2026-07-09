@@ -22,20 +22,19 @@ type CreditProductType =
   | "reseller_mixed_pack_10";
 
 function productQuantities(product: CreditProductType, qty: number) {
-  switch (product) {
-    case "birth":
-      return { ownership: 0, birth: qty };
-    case "bundle":
-      return { ownership: qty, birth: qty };
-    case "ownership_pack_10":
-      return { ownership: 10 * qty, birth: 0 };
-    case "birth_pack_10":
-      return { ownership: 0, birth: 10 * qty };
-    case "reseller_mixed_pack_10":
-      return { ownership: 5 * qty, birth: 5 * qty };
-    default:
-      return { ownership: qty, birth: 0 };
-  }
+  const universal = (() => {
+    switch (product) {
+      case "bundle":
+        return qty * 2;
+      case "ownership_pack_10":
+      case "birth_pack_10":
+      case "reseller_mixed_pack_10":
+        return 10 * qty;
+      default:
+        return qty;
+    }
+  })();
+  return { ownership: universal, birth: 0 };
 }
 
 function priceKeyForProduct(product: CreditProductType): string {
@@ -64,12 +63,12 @@ function defaultPrice(product: CreditProductType): number {
 
 function productLabel(product: CreditProductType): string {
   const labels: Record<CreditProductType, string> = {
-    ownership: "Ownership Certificate Credit",
-    birth: "Birth Certificate Credit",
-    bundle: "Ownership + Birth Bundle",
-    ownership_pack_10: "Ownership Pack (10)",
-    birth_pack_10: "Birth Pack (10)",
-    reseller_mixed_pack_10: "Reseller Mixed Pack (5+5)",
+    ownership: "Certificate Credit",
+    birth: "Certificate Credit",
+    bundle: "2 Certificate Credits",
+    ownership_pack_10: "Certificate Pack (10)",
+    birth_pack_10: "Certificate Pack (10)",
+    reseller_mixed_pack_10: "Reseller Pack (10)",
   };
   return labels[product] || "Certificate Credit";
 }
