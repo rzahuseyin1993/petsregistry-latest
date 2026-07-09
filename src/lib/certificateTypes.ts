@@ -19,12 +19,12 @@ export const CERTIFICATE_TYPE_DESCRIPTIONS: Record<CertificateType, string> = {
 };
 
 export const CREDIT_PRODUCT_LABELS: Record<CreditProductType, string> = {
-  ownership: "Ownership Credit",
-  birth: "Birth Credit",
-  bundle: "Ownership + Birth Bundle",
-  ownership_pack_10: "Ownership Pack (10 credits)",
-  birth_pack_10: "Birth Pack (10 credits)",
-  reseller_mixed_pack_10: "Reseller Mixed Pack (5+5)",
+  ownership: "Certificate Credit",
+  birth: "Certificate Credit",
+  bundle: "2 Certificate Credits",
+  ownership_pack_10: "Certificate Pack (10 credits)",
+  birth_pack_10: "Certificate Pack (10 credits)",
+  reseller_mixed_pack_10: "Reseller Pack (10 credits)",
 };
 
 export const CREDIT_PRODUCT_PRICE_KEYS: Record<CreditProductType, string> = {
@@ -45,28 +45,40 @@ export const DEFAULT_CERTIFICATE_PRICES: Record<CreditProductType, number> = {
   reseller_mixed_pack_10: 120,
 };
 
-export function creditProductQuantity(product: CreditProductType, qty = 1): { ownership: number; birth: number } {
+/** Universal credits granted per product purchase (usable for ownership or birth). */
+export function creditProductQuantity(product: CreditProductType, qty = 1): number {
+  const packs = Math.max(1, qty);
   switch (product) {
-    case "birth":
-      return { ownership: 0, birth: qty };
     case "bundle":
-      return { ownership: qty, birth: qty };
+      return packs * 2;
     case "ownership_pack_10":
-      return { ownership: 10 * qty, birth: 0 };
     case "birth_pack_10":
-      return { ownership: 0, birth: 10 * qty };
     case "reseller_mixed_pack_10":
-      return { ownership: 5 * qty, birth: 5 * qty };
+      return 10 * packs;
     default:
-      return { ownership: qty, birth: 0 };
+      return packs;
   }
 }
 
-export function getCreditsForType(
-  credits: { ownership_credits?: number; birth_credits?: number; credits?: number } | null | undefined,
-  type: CertificateType,
+export type CertificateCreditsRow = {
+  credits?: number | null;
+  ownership_credits?: number | null;
+  birth_credits?: number | null;
+};
+
+/** Total universal credits (works for ownership or birth certificates). */
+export function getUniversalCredits(
+  credits: CertificateCreditsRow | null | undefined,
 ): number {
   if (!credits) return 0;
-  if (type === "birth") return credits.birth_credits ?? 0;
-  return credits.ownership_credits ?? credits.credits ?? 0;
+  if (credits.credits != null && credits.credits > 0) return credits.credits;
+  return (credits.ownership_credits ?? 0) + (credits.birth_credits ?? 0);
+}
+
+/** @deprecated Use getUniversalCredits — credits are no longer typed per certificate. */
+export function getCreditsForType(
+  credits: CertificateCreditsRow | null | undefined,
+  _type?: CertificateType,
+): number {
+  return getUniversalCredits(credits);
 }

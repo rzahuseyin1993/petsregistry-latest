@@ -30,7 +30,7 @@ import { downloadCertificatePdf, generateCertificatePdf, printCertificatePdf } f
 import {
   CERTIFICATE_TYPE_LABELS,
   type CertificateType,
-  getCreditsForType,
+  getUniversalCredits,
 } from "@/lib/certificateTypes";
 import { resizeImage, uploadRaw } from "@/lib/imageUpload";
 
@@ -144,13 +144,9 @@ const DashboardCertificates = () => {
 
   const canCreateAny = availablePetsForType("ownership").length > 0 || availablePetsForType("birth").length > 0;
 
-  const ownershipCredits = getCreditsForType(credits, "ownership");
-  const birthCredits = getCreditsForType(credits, "birth");
+  const universalCredits = getUniversalCredits(credits);
   const unpaidDrafts = certificates.filter((c: any) => !c.is_paid);
-  const draftCanIssue = (cert: any) => {
-    const type: CertificateType = cert.certificate_type === "birth" ? "birth" : "ownership";
-    return getCreditsForType(credits, type) > 0;
-  };
+  const draftCanIssue = () => universalCredits > 0;
   const issuableDrafts = unpaidDrafts.filter(draftCanIssue);
   const allPetsFullyCertificated = pets.length > 0 && !canCreateAny;
 
@@ -257,14 +253,9 @@ const DashboardCertificates = () => {
 
   const handlePay = async (cert: any) => {
     const type: CertificateType = cert.certificate_type === "birth" ? "birth" : "ownership";
-    const { data: hasCredit, error: rpcErr } = await supabase.rpc("consume_certificate_credit" as any, {
-      _user_id: user!.id,
-      _credit_type: type,
-    });
-    if (rpcErr) return toast.error(rpcErr.message);
-    if (!hasCredit) {
+    if (getUniversalCredits(credits) <= 0) {
       setPayConfirmCert(null);
-      toast.error(`No ${type} credits available. Buy credits first.`, { duration: 5000 });
+      toast.error("No certificate credits available. Buy credits first.", { duration: 5000 });
       return;
     }
 
@@ -286,13 +277,7 @@ const DashboardCertificates = () => {
       }
       toast.success("Certificate issued! Download or print below.");
     } catch (e: any) {
-      await supabase.rpc("grant_certificate_credit" as any, {
-        _user_id: user!.id,
-        _amount: 1,
-        _is_purchase: false,
-        _credit_type: type,
-      });
-      toast.error(e.message);
+      toast.error(e.message || "Could not issue certificate");
     }
   };
 
@@ -391,8 +376,8 @@ const DashboardCertificates = () => {
           {allPetsFullyCertificated && (
             <p className="text-sm text-amber-700 dark:text-amber-400 mt-3 max-w-2xl">
               Each pet can have one ownership and one birth certificate. All of your pets already have both types.
-              {(ownershipCredits > 0 || birthCredits > 0) && (
-                <> You still have credits — <Link to="/dashboard/register-pet" className="underline font-medium">register another pet</Link> or use <Link to="/dashboard/register-litter" className="underline font-medium">Register litter</Link> to use them.</>
+              {(universalCredits > 0) && (
+                <> You still have {universalCredits} credit{universalCredits !== 1 ? "s" : ""} — <Link to="/dashboard/register-pet" className="underline font-medium">register another pet</Link> or use <Link to="/dashboard/register-litter" className="underline font-medium">Register litter</Link> to use them.</>
               )}
             </p>
           )}
@@ -549,7 +534,7 @@ const DashboardCertificates = () => {
                     {t === "ownership" ? <FileText className="h-8 w-8 text-amber-600 mb-2" /> : <Baby className="h-8 w-8 text-orange-500 mb-2" />}
                     <p className="font-bold">{CERTIFICATE_TYPE_LABELS[t]}</p>
                     <p className="text-sm text-muted-foreground mt-1">{t === "ownership" ? "Proof you own this pet" : "Date of birth & parentage"}</p>
-                    <p className="text-sm font-semibold mt-2">$15 · {getCreditsForType(credits, t)} credit(s) available</p>
+                    <p className="text-sm font-semibold mt-2">$15 · {universalCredits} credit(s) available</p>
                   </button>
                 ))}
               </div>
@@ -627,8 +612,8 @@ const DashboardCertificates = () => {
                   </div>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Uses 1 <strong>{payConfirmCert.certificate_type === "birth" ? "birth" : "ownership"}</strong> credit.
-                  You have <strong>{getCreditsForType(credits, payConfirmCert.certificate_type === "birth" ? "birth" : "ownership")}</strong> available.
+                  Uses 1 certificate credit (ownership or birth).
+                  You have <strong>{universalCredits}</strong> available.
                 </p>
               </>
             )}
