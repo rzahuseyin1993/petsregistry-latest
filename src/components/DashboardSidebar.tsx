@@ -52,7 +52,7 @@ const DashboardSidebar = () => {
             <PawPrint className="h-6 w-6 text-primary" />
             <span className="font-display text-lg font-bold">PetsRegistry</span>
           </Link>
-          <NotificationBell />
+          <NotificationBell mode="sheet" />
         </div>
         {membership && (
           <div className="mt-2">

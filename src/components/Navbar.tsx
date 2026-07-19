@@ -14,6 +14,7 @@ import {
   ShoppingCart,
   User,
   LogIn,
+  LogOut,
   UserPlus,
   Sparkles,
   Heart,
@@ -35,8 +36,7 @@ import { useCart } from "@/contexts/CartContext";
 import CmsRenderer from "@/components/CmsRenderer";
 import { useIsMobileRoute } from "@/hooks/useIsMobileRoute";
 import { useStoreEnabled } from "@/hooks/useStoreEnabled";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { useNotifications } from "@/hooks/useNotifications";
 
 function getUserAbbreviation(fullName: string | null | undefined, email: string | undefined): string {
   const name = fullName?.trim();
@@ -73,7 +73,7 @@ const Navbar = () => {
   const [open, setOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
-  const { user, profile, membership } = useAuth();
+  const { user, profile, membership, signOut } = useAuth();
   const userAbbreviation = getUserAbbreviation(profile?.full_name, user?.email);
   const { totalItems } = useCart();
   const isMobileRoute = useIsMobileRoute();
@@ -81,22 +81,7 @@ const Navbar = () => {
 
   const visibleNavLinks = navLinks.filter((link) => link.to !== "/store" || storeEnabled);
 
-  const { data: notifications = [] } = useQuery({
-    queryKey: ["notifications", user?.id],
-    enabled: !!user,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("notifications")
-        .select("is_read")
-        .eq("user_id", user!.id)
-        .order("created_at", { ascending: false })
-        .limit(20);
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const unreadCount = notifications.filter((n) => !n.is_read).length;
+  const { unreadCount } = useNotifications();
 
   if (isMobileRoute) return null;
 
@@ -185,6 +170,14 @@ const Navbar = () => {
                       Dashboard
                     </Link>
                   </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="flex cursor-pointer items-center gap-2 text-destructive focus:text-destructive"
+                    onClick={() => { signOut(); }}
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Sign out
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </>
@@ -270,6 +263,13 @@ const Navbar = () => {
                       <User className="h-4 w-4" /> Dashboard
                     </Button>
                   </Link>
+                  <Button
+                    variant="ghost"
+                    className="w-full gap-2 text-muted-foreground hover:text-destructive"
+                    onClick={() => { setOpen(false); signOut(); }}
+                  >
+                    <LogOut className="h-4 w-4" /> Sign out
+                  </Button>
                 </>
               ) : (
                 <>

@@ -429,8 +429,8 @@ const DashboardCertificates = () => {
               const petData = getPetData(cert);
               const parentPhotos = getParentPhotoUrls(cert);
               return (
-                <Card key={cert.id} className={cert.is_paused ? "opacity-60" : ""}>
-                  <CardContent className="p-4">
+                <Card key={cert.id} className={`flex h-full flex-col ${cert.is_paused ? "opacity-60" : ""}`}>
+                  <CardContent className="flex flex-1 flex-col p-4">
                     <div className="flex gap-2 mb-2">{typeBadge(cert.certificate_type)}</div>
                     <div className="border rounded mb-3 overflow-hidden relative" style={{ aspectRatio: "297/210", pointerEvents: "none", containerType: "inline-size" }}>
                       <div style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}>
@@ -454,7 +454,7 @@ const DashboardCertificates = () => {
                         <Users className="h-3 w-3" /> For buyer: {cert.issued_for_name}
                       </p>
                     )}
-                    <div className="flex flex-wrap gap-2">
+                    <div className="mt-auto flex flex-wrap gap-2 pt-3">
                       <Button variant="outline" size="sm" onClick={() => openPreview(cert)}><Eye className="h-3.5 w-3.5 mr-1" /> Preview</Button>
                       {!cert.is_paid ? (
                         <>

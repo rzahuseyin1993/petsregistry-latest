@@ -210,7 +210,7 @@ const MembershipPage = () => {
               const features = Array.isArray(plan.features) ? plan.features : [];
               const cardProvider = getCardProvider(activeGateways);
               return (
-                <Card key={plan.id} className={`relative overflow-hidden ${plan.plan_type === "partner" ? "border-accent ring-1 ring-accent/30" : ""}`}>
+                <Card key={plan.id} className={`relative flex h-full flex-col overflow-hidden ${plan.plan_type === "partner" ? "border-accent ring-1 ring-accent/30" : ""}`}>
                   {plan.plan_type === "partner" && (
                     <div className="absolute right-0 top-0 rounded-bl-xl bg-accent px-3 py-1 text-xs font-semibold text-accent-foreground">
                       <Star className="mr-1 inline h-3 w-3" />Best for Business
@@ -225,7 +225,7 @@ const MembershipPage = () => {
                       </div>
                     </div>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="flex flex-1 flex-col">
                     <p className="text-3xl font-bold text-foreground">
                       ${getPrice(plan).toFixed(2)}
                       {billingInterval !== "one_time" && (
@@ -243,7 +243,7 @@ const MembershipPage = () => {
                         </li>
                       ))}
                     </ul>
-                    <div className="mt-6">
+                    <div className="mt-auto pt-6">
                       {subscribed ? (
                         <Badge className="w-full justify-center bg-green-100 py-2 text-green-800">Active Membership</Badge>
                       ) : !user ? (
