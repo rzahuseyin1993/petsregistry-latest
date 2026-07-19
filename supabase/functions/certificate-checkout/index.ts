@@ -6,7 +6,7 @@ import {
   getPayPalAccessToken,
   resolvePayerEmail,
 } from "./paypal.ts";
-import { createAirwallexCheckout, getAirwallexConfig } from "./airwallex.ts";
+import { createAirwallexCheckout, getAirwallexAccessToken, getAirwallexConfig } from "./airwallex.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -83,12 +83,58 @@ serve(async (req) => {
     );
 
     const {
-      user_id,
       quantity = 1,
       provider = "airwallex",
       credit_type = "ownership",
+      test_only = false,
     } = await req.json();
-    if (!user_id) throw new Error("user_id is required");
+
+    // Derive the user from the JWT — never trust a client-supplied user id for payments
+    const token = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+    const { data: authData, error: authErr } = await supabase.auth.getUser(token);
+    if (authErr || !authData?.user) {
+      return new Response(JSON.stringify({ error: "You must be signed in to buy certificate credits" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const user_id = authData.user.id;
+
+    // Dry credential check for the admin "Test Connection" button.
+    // Authenticates with the gateway but creates NO order and NO checkout session.
+    if (test_only) {
+      const { data: testSettings } = await supabase
+        .from("payment_settings")
+        .select("*")
+        .eq("provider", provider)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (!testSettings?.secret_key) {
+        throw new Error(`${provider} is not configured or not active. Save and activate it in Payment Settings first.`);
+      }
+
+      if (provider === "airwallex") {
+        const awConfig = await getAirwallexConfig(supabase);
+        await getAirwallexAccessToken(testSettings.publishable_key, testSettings.secret_key, awConfig.env, awConfig.loginAs);
+      } else if (provider === "paypal") {
+        await getPayPalAccessToken(testSettings.publishable_key, testSettings.secret_key);
+      } else if (provider === "stripe") {
+        const res = await fetch("https://api.stripe.com/v1/balance", {
+          headers: { Authorization: `Bearer ${testSettings.secret_key}` },
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body?.error?.message || "Stripe credentials are invalid.");
+        }
+      } else {
+        throw new Error("Unsupported provider");
+      }
+
+      return new Response(JSON.stringify({ ok: true, test: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const product = String(credit_type) as CreditProductType;
     const qty = Math.max(1, Math.min(20, parseInt(String(quantity), 10) || 1));

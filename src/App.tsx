@@ -234,7 +234,7 @@ function AppWithProviders() {
                 <Route path="moderation" element={<AdminPageWrapper resource="permissions"><AdminModeration /></AdminPageWrapper>} />
                 <Route path="certificates" element={<AdminPageWrapper resource="certificates"><AdminCertificates /></AdminPageWrapper>} />
                 <Route path="map-settings" element={<AdminPageWrapper resource="settings"><AdminMapSettings /></AdminPageWrapper>} />
-                <Route path="seo" element={<AdminPageWrapper resource="settings"><AdminSeo /></AdminPageWrapper>} />
+                <Route path="seo" element={<AdminPageWrapper resource="seo"><AdminSeo /></AdminPageWrapper>} />
                 <Route path="blog" element={<AdminPageWrapper resource="blog"><AdminBlog /></AdminPageWrapper>} />
               </Route>
               <Route path="/pet/:id" element={<PetProfile />} />

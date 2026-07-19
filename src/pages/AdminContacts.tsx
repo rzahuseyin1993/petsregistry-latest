@@ -128,6 +128,10 @@ const AdminContacts = () => {
       supabase.from("pet_adoptions").select("adopter_id, owner_id, status"),
       supabase.from("message_templates" as any).select("*").order("updated_at", { ascending: false }),
     ]);
+    const firstLoadError = [subRes, profRes, listRes, sentRes, memRes, adoptRes, tplRes].find((r) => r.error)?.error;
+    if (firstLoadError) {
+      toast.error(`Failed to load inbox data: ${firstLoadError.message}`);
+    }
     if (subRes.data) setSubmissions(subRes.data as ContactSubmission[]);
     if (profRes.data) setProfiles(profRes.data);
     if (listRes.data) setListings(listRes.data);
@@ -166,7 +170,31 @@ const AdminContacts = () => {
       is_read: true,
     }).eq("id", selectedSubmission.id);
     if (error) { toast.error("Failed to save reply"); return; }
-    toast.success("Reply saved");
+
+    // Also email the reply to the person who submitted the contact form
+    let emailSent = false;
+    if (selectedSubmission.email) {
+      const escapeHtml = (s: string) =>
+        s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+      const bodyHtml = replyIsHtml
+        ? replyText.trim()
+        : `<div style="white-space:pre-wrap">${escapeHtml(replyText.trim())}</div>`;
+      const { error: mailErr } = await supabase.functions.invoke("send-smtp-email", {
+        body: {
+          to: selectedSubmission.email,
+          subject: `Re: ${selectedSubmission.subject || "Your message to PetsRegistry"}`,
+          html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px">
+            <p>Hi ${escapeHtml(selectedSubmission.name || "there")},</p>
+            <p>Thank you for contacting us. Here is our reply:</p>
+            <div style="background:#f9fafb;border-radius:8px;padding:16px;margin:16px 0">${bodyHtml}</div>
+            <p style="color:#6b7280;font-size:13px;margin-top:24px">— PetsRegistry Support</p>
+          </div>`,
+        },
+      });
+      emailSent = !mailErr;
+    }
+
+    toast.success(emailSent ? "Reply saved & emailed to the sender" : "Reply saved (email could not be sent)");
     setReplyOpen(false);
     fetchAll();
   };

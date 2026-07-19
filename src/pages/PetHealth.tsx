@@ -23,7 +23,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { format, differenceInDays, subDays } from "date-fns";
 import {
   Heart, Plus, Weight, Ruler, Thermometer, Syringe, Bell,
@@ -79,6 +79,11 @@ const PetHealth = () => {
       return data;
     },
   });
+
+  // Auto-select when the user has exactly one pet
+  useEffect(() => {
+    if (!selectedPetId && pets.length === 1) setSelectedPetId(pets[0].id);
+  }, [pets, selectedPetId]);
 
   const { data: healthRecords = [] } = useQuery({
     queryKey: ["health-records", selectedPetId],
@@ -221,7 +226,9 @@ const PetHealth = () => {
   const handleDownloadCalendar = (vaccine: any, reminderDaysBefore: number = 3) => {
     if (!vaccine.next_due_date || !selectedPet) return;
     const dueDate = new Date(vaccine.next_due_date);
-    const reminderDate = subDays(dueDate, reminderDaysBefore);
+    // Don't create the reminder in the past when the due date is less than N days away
+    let reminderDate = subDays(dueDate, reminderDaysBefore);
+    if (reminderDate < new Date()) reminderDate = new Date();
     const dtStart = format(reminderDate, "yyyyMMdd");
     const dtEnd = format(reminderDate, "yyyyMMdd");
     const dueDtStr = format(dueDate, "PPP");
@@ -257,28 +264,32 @@ const PetHealth = () => {
   const handleSendInboxReminder = async (vaccine: any, reminderDaysBefore: number = 3) => {
     if (!vaccine.next_due_date || !user || !selectedPet) return;
     const dueDtStr = format(new Date(vaccine.next_due_date), "PPP");
-    try {
-      // Send bell notification
-      await supabase.rpc("insert_system_notification", {
-        _user_id: user.id,
-        _title: `💉 Vaccination Reminder: ${vaccine.vaccine_name}`,
-        _message: `Your pet ${selectedPet.name}'s ${vaccine.vaccine_name} vaccination is due on ${dueDtStr}. Please schedule an appointment.`,
-        _type: "health",
-        _link: "/dashboard/health",
-      });
+    // Send bell notification
+    const { error: notifError } = await supabase.rpc("insert_system_notification", {
+      _user_id: user.id,
+      _title: `💉 Vaccination Reminder: ${vaccine.vaccine_name}`,
+      _message: `Your pet ${selectedPet.name}'s ${vaccine.vaccine_name} vaccination is due on ${dueDtStr}. Please schedule an appointment.`,
+      _type: "health",
+      _link: "/dashboard/health",
+    });
 
-      // Also send to member inbox
-      await supabase.from("admin_messages").insert({
-        sender_id: user.id,
-        recipient_id: user.id,
-        subject: `💉 Vaccination Reminder: ${vaccine.vaccine_name}`,
-        message: `<p>Hi there,</p><p>This is a reminder that <strong>${selectedPet.name}</strong>'s <strong>${vaccine.vaccine_name}</strong> vaccination is due on <strong>${dueDtStr}</strong>.</p><p>Please schedule an appointment with your vet.${vaccine.vet_name ? ` Previous vet: <strong>${vaccine.vet_name}</strong>.` : ""}</p><p>— PetsRegistry</p>`,
-        is_html: true,
-      });
+    // Also send to member inbox
+    const { error: inboxError } = await supabase.from("admin_messages").insert({
+      sender_id: user.id,
+      recipient_id: user.id,
+      subject: `💉 Vaccination Reminder: ${vaccine.vaccine_name}`,
+      message: `<p>Hi there,</p><p>This is a reminder that <strong>${selectedPet.name}</strong>'s <strong>${vaccine.vaccine_name}</strong> vaccination is due on <strong>${dueDtStr}</strong>.</p><p>Please schedule an appointment with your vet.${vaccine.vet_name ? ` Previous vet: <strong>${vaccine.vet_name}</strong>.` : ""}</p><p>— PetsRegistry</p>`,
+      is_html: true,
+    });
 
-      toast.success("Reminder sent to your notifications & inbox!");
-    } catch {
+    if (notifError && inboxError) {
       toast.error("Failed to send reminder");
+    } else if (inboxError) {
+      toast.success("Reminder sent to your notifications (inbox delivery failed)");
+    } else if (notifError) {
+      toast.success("Reminder sent to your inbox (bell notification failed)");
+    } else {
+      toast.success("Reminder sent to your notifications & inbox!");
     }
   };
 

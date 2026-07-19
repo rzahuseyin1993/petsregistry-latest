@@ -66,7 +66,12 @@ const AdminAdoptions = () => {
     const { error } = await supabase.from("pet_adoptions").update({
       status: "completed", owner_confirmed: true, adopter_confirmed: true, updated_at: new Date().toISOString(),
     }).eq("id", listing.id);
-    if (error) { toast.error("Failed to update status"); return; }
+    if (error) {
+      // Revert the ownership change so we don't leave a half-completed transfer
+      await supabase.from("pets").update({ owner_id: listing.owner_id }).eq("id", listing.pet_id);
+      toast.error("Failed to update the adoption listing — transfer was rolled back. Please try again.");
+      return;
+    }
     // Send notifications to both parties
     await supabase.rpc("insert_system_notification", {
       _user_id: listing.owner_id,

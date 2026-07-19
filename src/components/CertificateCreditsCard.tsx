@@ -119,10 +119,14 @@ const CertificateCreditsCard = () => {
     setClaiming(true);
     (async () => {
       try {
-        const { data } = await supabase.rpc("claim_free_certificate_credit" as any, { _user_id: user.id });
+        const { data, error } = await supabase.rpc("claim_free_certificate_credit" as any, { _user_id: user.id });
+        if (error) {
+          console.error("Free credit claim failed:", error);
+          return;
+        }
         if (data) {
           queryClient.invalidateQueries({ queryKey: ["my-cert-credits", user.id] });
-          toast.success("Member free ownership credit claimed!");
+          toast.success("Member free certificate credit claimed!");
         }
       } finally {
         setClaiming(false);
@@ -141,6 +145,8 @@ const CertificateCreditsCard = () => {
       if (data?.error) throw new Error(data.error);
       if (data?.checkout || data?.url) {
         await completeCheckout(data);
+      } else {
+        throw new Error("The payment provider did not return a checkout link. Please try again or contact support.");
       }
     } catch (e: any) {
       toast.error(e.message || "Checkout failed");

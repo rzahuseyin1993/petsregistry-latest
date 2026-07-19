@@ -23,13 +23,23 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { planId, userId, billingInterval = "yearly", provider = "airwallex" } = await req.json();
+    const { planId, billingInterval = "yearly", provider = "airwallex" } = await req.json();
 
-    if (!planId || !userId) {
-      return new Response(JSON.stringify({ error: "Missing planId or userId" }), {
+    if (!planId) {
+      return new Response(JSON.stringify({ error: "Missing planId" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // Derive the user from the JWT — never trust a client-supplied user id for payments
+    const token = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+    const { data: authData, error: authErr } = await supabase.auth.getUser(token);
+    if (authErr || !authData?.user) {
+      return new Response(JSON.stringify({ error: "You must be signed in to subscribe" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const userId = authData.user.id;
 
     // Get the plan
     const { data: plan, error: planErr } = await supabase
@@ -118,8 +128,8 @@ serve(async (req) => {
         loginAs: awConfig.loginAs,
         amount: price,
         merchantOrderId: `membership_${planId}_${userId}_${Date.now()}`,
-        returnUrl: `${origin}/membership?success=true&provider=airwallex&plan=${planId}`,
-        cancelUrl: `${origin}/membership?canceled=true`,
+        returnUrl: `${origin}/dashboard/membership?success=true&provider=airwallex&plan=${planId}`,
+        cancelUrl: `${origin}/dashboard/membership?canceled=true`,
         descriptor: `PetsRegistry ${plan.name}`,
         metadata: {
           type: "membership",
@@ -151,8 +161,8 @@ serve(async (req) => {
 
       const params = new URLSearchParams({
         "mode": isOneTime ? "payment" : "subscription",
-        "success_url": `${origin}/membership?success=true&plan=${planId}`,
-        "cancel_url": `${origin}/membership?canceled=true`,
+        "success_url": `${origin}/dashboard/membership?success=true&plan=${planId}`,
+        "cancel_url": `${origin}/dashboard/membership?canceled=true`,
         "line_items[0][price_data][currency]": "usd",
         "line_items[0][price_data][unit_amount]": String(Math.round(price * 100)),
         "line_items[0][price_data][product_data][name]": `${plan.name} (${billingInterval === "monthly" ? "Monthly" : billingInterval === "yearly" ? "Yearly" : "One-Time"})`,
@@ -206,8 +216,8 @@ serve(async (req) => {
       const payerEmail = await resolvePayerEmail(supabase, userId, profile?.email);
 
       const orderBody = buildPayPalOrderBody({
-        returnUrl: `${origin}/membership?success=true&provider=paypal&plan=${planId}`,
-        cancelUrl: `${origin}/membership?canceled=true`,
+        returnUrl: `${origin}/dashboard/membership?success=true&provider=paypal&plan=${planId}`,
+        cancelUrl: `${origin}/dashboard/membership?canceled=true`,
         payerEmail,
         purchase_units: [{
           reference_id: `membership_${planId}_${userId}`,

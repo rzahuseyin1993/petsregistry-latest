@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useLocation } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import DashboardSidebar from "@/components/DashboardSidebar";
@@ -24,20 +24,49 @@ const DashboardMembership = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [billingInterval, setBillingInterval] = useState<BillingInterval>("yearly");
 
-  const { data: myMemberships = [], isLoading: loadingMemberships } = useQuery({
+  const { data: myMemberships = [], isLoading: loadingMemberships, isError: membershipsError } = useQuery({
     queryKey: ["my-all-memberships"],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("memberships")
         .select("*, membership_plans(name, slug, plan_type, features, price, badge_icon_url)")
         .eq("user_id", user!.id)
         .order("created_at", { ascending: false });
+      if (error) throw error;
       return data || [];
     },
     enabled: !!user,
   });
+
+  // Handle return from the payment gateway (?success=true / ?canceled=true)
+  useEffect(() => {
+    const success = searchParams.get("success");
+    const canceled = searchParams.get("canceled");
+    if (!success && !canceled) return;
+    if (success === "true") {
+      toast({
+        title: "Payment received!",
+        description: "Your membership will activate within a minute. This page refreshes automatically.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["my-all-memberships"] });
+      queryClient.invalidateQueries({ queryKey: ["sidebar-membership"] });
+      // The webhook may lag behind the redirect — poll a few times (self-terminating)
+      let attempts = 0;
+      const timer = setInterval(() => {
+        attempts++;
+        queryClient.invalidateQueries({ queryKey: ["my-all-memberships"] });
+        queryClient.invalidateQueries({ queryKey: ["sidebar-membership"] });
+        if (attempts >= 5) clearInterval(timer);
+      }, 4000);
+    } else if (canceled === "true") {
+      toast({ title: "Payment cancelled", description: "You were not charged.", variant: "destructive" });
+    }
+    setSearchParams({}, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const { data: plans = [] } = useQuery({
     queryKey: ["membership-plans"],
@@ -79,9 +108,11 @@ const DashboardMembership = () => {
   });
 
   const effectiveBilling = allowedBilling.includes(billingInterval) ? billingInterval : allowedBilling[0] || "yearly";
-  if (effectiveBilling !== billingInterval) {
-    setBillingInterval(effectiveBilling as BillingInterval);
-  }
+  useEffect(() => {
+    if (effectiveBilling !== billingInterval) {
+      setBillingInterval(effectiveBilling as BillingInterval);
+    }
+  }, [effectiveBilling, billingInterval]);
 
   const { data: activeGateways = [] } = useQuery({
     queryKey: ["active-payment-gateways"],
@@ -115,6 +146,8 @@ const DashboardMembership = () => {
         queryClient.invalidateQueries({ queryKey: ["my-all-memberships"] });
         queryClient.invalidateQueries({ queryKey: ["sidebar-membership"] });
         toast({ title: "Membership activated!", description: `You are now a ${plan.name}` });
+      } else {
+        throw new Error("The payment provider did not return a checkout link. Please try again or contact support.");
       }
     },
     onMutate: ({ planId, provider }) => setPendingCheckout(`${planId}-${provider}`),
@@ -171,6 +204,15 @@ const DashboardMembership = () => {
       <main className="flex-1 overflow-y-auto p-6 lg:p-10">
         <h1 className="font-display text-2xl font-bold text-foreground">My Membership</h1>
         <p className="mt-1 text-sm text-muted-foreground">Manage your membership plans and benefits</p>
+
+        {loadingMemberships && (
+          <div className="mt-6 flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading your memberships…
+          </div>
+        )}
+        {membershipsError && (
+          <p className="mt-6 text-sm text-destructive">Could not load your memberships. Please refresh the page.</p>
+        )}
 
         {/* Active Memberships */}
         {activeMemberships.length > 0 && (
@@ -336,7 +378,9 @@ const DashboardMembership = () => {
                         {new Date(m.starts_at).toLocaleDateString()} — {new Date(m.expires_at).toLocaleDateString()}
                       </p>
                     </div>
-                    <Badge variant="outline" className="text-muted-foreground">Expired</Badge>
+                    <Badge variant="outline" className="text-muted-foreground capitalize">
+                      {m.status !== "active" ? m.status : "Expired"}
+                    </Badge>
                   </CardContent>
                 </Card>
               ))}

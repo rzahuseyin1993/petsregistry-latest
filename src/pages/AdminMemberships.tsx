@@ -78,6 +78,7 @@ const AdminMemberships = () => {
       setEditPlan(null);
       toast({ title: "Plan updated" });
     },
+    onError: (e: any) => toast({ title: "Failed to update plan", description: e.message, variant: "destructive" }),
   });
 
   const togglePlanMutation = useMutation({
@@ -86,6 +87,7 @@ const AdminMemberships = () => {
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-membership-plans"] }),
+    onError: (e: any) => toast({ title: "Failed to toggle plan", description: e.message, variant: "destructive" }),
   });
 
   const updateMembershipStatusMutation = useMutation({
@@ -97,6 +99,7 @@ const AdminMemberships = () => {
       queryClient.invalidateQueries({ queryKey: ["admin-memberships"] });
       toast({ title: "Membership status updated" });
     },
+    onError: (e: any) => toast({ title: "Failed to update status", description: e.message, variant: "destructive" }),
   });
 
   const extendMembershipMutation = useMutation({
@@ -115,6 +118,7 @@ const AdminMemberships = () => {
       queryClient.invalidateQueries({ queryKey: ["admin-memberships"] });
       toast({ title: "Membership extended" });
     },
+    onError: (e: any) => toast({ title: "Failed to extend membership", description: e.message, variant: "destructive" }),
   });
 
   const grantMembershipMutation = useMutation({

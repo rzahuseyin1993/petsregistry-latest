@@ -14,6 +14,7 @@ import { Baby, Plus, Trash2, ArrowLeft } from "lucide-react";
 import PetBirthFields, { birthFormToPetPayload, emptyBirthForm, validateBirthForm } from "@/components/PetBirthFields";
 import { resizeImage, uploadRaw } from "@/lib/imageUpload";
 import { todayStr, validateDateNotFuture, validateImageFile } from "@/lib/validation";
+import { useMobilePath } from "@/hooks/useIsMobileRoute";
 
 type PuppyRow = {
   name: string;
@@ -27,6 +28,7 @@ type PuppyRow = {
 const LitterRegistration = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const mp = useMobilePath();
   const [loading, setLoading] = useState(false);
   const [litterDate, setLitterDate] = useState("");
   const [birthLocation, setBirthLocation] = useState("");
@@ -87,6 +89,9 @@ const LitterRegistration = () => {
     }
 
     setLoading(true);
+    // Track everything created so we can roll back on mid-loop failure
+    let litterId: string | null = null;
+    const createdPetIds: string[] = [];
     try {
       const { data: litter, error: litterErr } = await supabase.from("pet_litters" as any).insert({
         user_id: user.id,
@@ -99,8 +104,9 @@ const LitterRegistration = () => {
         breeder_name: breederName || birthForm.breederName || null,
         puppy_count: validPuppies.length,
         notes: notes || null,
-      }).select("id").single();
-      if (litterErr) throw litterErr;
+      }).select("id").single() as { data: { id: string } | null; error: any };
+      if (litterErr || !litter) throw litterErr || new Error("Failed to create litter");
+      litterId = litter.id;
 
       const sharedBirth = birthFormToPetPayload({
         ...birthForm,
@@ -109,19 +115,26 @@ const LitterRegistration = () => {
         breederName: breederName || birthForm.breederName,
       });
 
+      // Puppies inherit the species of the dam (or sire) when a registered parent is selected
+      const parentPet = myPets.find((p: any) => p.id === birthForm.damPetId)
+        || myPets.find((p: any) => p.id === birthForm.sirePetId);
+      const litterSpecies = (parentPet as any)?.species || "Dog";
+      const puppyNotes = [notes.trim(), `Litter ${litter.id}`].filter(Boolean).join(" · ");
+
       for (let i = 0; i < validPuppies.length; i++) {
         const pup = validPuppies[i];
         const { data: pet, error: petErr } = await supabase.from("pets").insert({
           owner_id: user.id,
           name: pup.name.trim(),
-          species: "Dog",
+          species: litterSpecies,
           color: pup.color || null,
           ...sharedBirth,
           sex: pup.sex || sharedBirth.sex,
           birth_weight: pup.birthWeight || sharedBirth.birth_weight,
-          notes: notes ? `Litter ${litter.id}` : null,
+          notes: puppyNotes || null,
         }).select("id").single();
         if (petErr) throw petErr;
+        createdPetIds.push(pet.id);
 
         if (pup.imageFile) {
           const resized = await resizeImage(pup.imageFile);
@@ -132,13 +145,21 @@ const LitterRegistration = () => {
             contentType: "image/webp",
             upsert: true,
           });
-          await supabase.from("pet_images").insert({ pet_id: pet.id, image_url: publicUrl, sort_order: 0 });
+          const { error: imgErr } = await supabase.from("pet_images").insert({ pet_id: pet.id, image_url: publicUrl, sort_order: 0 });
+          if (imgErr) throw imgErr;
         }
       }
 
       toast.success(`Registered ${validPuppies.length} puppy(ies)! Create birth certificates from your dashboard.`);
-      navigate("/dashboard/certificates");
+      navigate(mp("/dashboard/certificates"));
     } catch (err: any) {
+      // Roll back partial writes so the litter isn't left half-registered
+      if (createdPetIds.length > 0) {
+        await supabase.from("pets").delete().in("id", createdPetIds).eq("owner_id", user.id);
+      }
+      if (litterId) {
+        await supabase.from("pet_litters" as any).delete().eq("id", litterId);
+      }
       toast.error(err.message || "Failed to register litter");
     } finally {
       setLoading(false);

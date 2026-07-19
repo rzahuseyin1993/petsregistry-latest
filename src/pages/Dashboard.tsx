@@ -18,7 +18,7 @@ const Dashboard = () => {
   const queryClient = useQueryClient();
   const [reportLostPet, setReportLostPet] = useState<{ id: string; name: string } | null>(null);
 
-  const { data: pets = [], isLoading } = useQuery({
+  const { data: pets = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["my-pets", user?.id],
     enabled: !!user,
     queryFn: async () => {
@@ -40,26 +40,46 @@ const Dashboard = () => {
         return;
       }
     }
-    const { error } = await supabase.from("pets").update({ status: newStatus }).eq("id", petId);
+    const { error } = await supabase
+      .from("pets")
+      .update({ status: newStatus })
+      .eq("id", petId)
+      .eq("owner_id", user!.id);
     if (error) {
       toast.error("Failed to update status");
-    } else {
-      toast.success(`Pet marked as ${newStatus}!`);
-      queryClient.invalidateQueries({ queryKey: ["my-pets"] });
+      return;
     }
+    // Keep lost reports in sync: pet is no longer lost, so close any active report
+    if (newStatus === "found" || newStatus === "registered") {
+      const { error: reportError } = await supabase
+        .from("lost_reports")
+        .update({ status: newStatus === "found" ? "found" : "closed", updated_at: new Date().toISOString() })
+        .eq("pet_id", petId)
+        .eq("status", "active");
+      if (reportError) {
+        toast.error("Pet status updated, but the lost report could not be closed. Please update it on the Lost Reports page.");
+      }
+    }
+    toast.success(`Pet marked as ${newStatus}!`);
+    queryClient.invalidateQueries({ queryKey: ["my-pets"] });
+    queryClient.invalidateQueries({ queryKey: ["my-lost-reports"] });
   };
 
   const handleDownloadFlyer = async (pet: any) => {
-    const firstImage = pet.pet_images?.sort((a: any, b: any) => a.sort_order - b.sort_order)[0];
-    await generateLostFlyer({
-      petName: pet.name,
-      species: pet.species,
-      breed: pet.breed || "",
-      color: pet.color || undefined,
-      petId: pet.id,
-      imageUrl: firstImage?.image_url,
-    });
-    toast.success("Flyer downloaded!");
+    try {
+      const firstImage = pet.pet_images?.sort((a: any, b: any) => a.sort_order - b.sort_order)[0];
+      await generateLostFlyer({
+        petName: pet.name,
+        species: pet.species,
+        breed: pet.breed || "",
+        color: pet.color || undefined,
+        petId: pet.id,
+        imageUrl: firstImage?.image_url,
+      });
+      toast.success("Flyer downloaded!");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to generate flyer");
+    }
   };
 
   return (
@@ -82,6 +102,11 @@ const Dashboard = () => {
         {isLoading ? (
           <div className="mt-12 flex justify-center">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          </div>
+        ) : isError ? (
+          <div className="mt-16 text-center">
+            <p className="text-lg text-muted-foreground">Could not load your pets. Please check your connection.</p>
+            <Button variant="outline" className="mt-4" onClick={() => refetch()}>Try again</Button>
           </div>
         ) : pets.length === 0 ? (
           <div className="mt-16 text-center">

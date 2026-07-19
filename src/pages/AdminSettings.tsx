@@ -49,12 +49,13 @@ const AdminSettings = () => {
       for (const [key, value] of Object.entries(values)) {
         const { error } = await supabase
           .from("site_settings")
-          .update({ value, updated_at: new Date().toISOString() })
-          .eq("key", key);
+          .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: "key" });
         if (error) throw error;
       }
       toast.success("Settings saved successfully!");
       queryClient.invalidateQueries({ queryKey: ["site-settings"] });
+      // The public footer/contact page cache the contact email under this key
+      queryClient.invalidateQueries({ queryKey: ["site-email"] });
     } catch (err) {
       toast.error("Failed to save settings");
     } finally {
@@ -166,7 +167,7 @@ const AdminSettings = () => {
       description: "Configure email addresses used across the platform",
       icon: Mail,
       fields: [
-        { key: "site_email", label: "Site Email", placeholder: "admin@petsregistry.org", description: "Main contact email displayed on the site" },
+        { key: "site_email", label: "Site Email", placeholder: "support@petsregistry.org", description: "Main contact email displayed on the site (footer & contact page)" },
         { key: "notification_email", label: "Notification Sender Email", placeholder: "notifications@petsregistry.org", description: "From address for system notifications" },
         { key: "support_email", label: "Support Email", placeholder: "support@petsregistry.org", description: "Receives contact form submissions and support requests" },
       ],

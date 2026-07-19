@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { exportToCsv } from "@/lib/exportCsv";
 import { useAuth } from "@/contexts/AuthContext";
+import { CREDIT_PRODUCT_LABELS } from "@/lib/certificateTypes";
 
 const orderStatusStyles: Record<string, string> = {
   completed: "bg-success/10 text-success border-success/20",
@@ -67,6 +68,7 @@ const AdminOrders = () => {
         orderKind: "certificate" as const,
         quantity: o.quantity,
         credits_granted: o.credits_granted,
+        credit_type: o.credit_type,
       }));
 
       return [...storeOrders, ...certOrders].sort(
@@ -80,6 +82,7 @@ const AdminOrders = () => {
       const { error } = await supabase.from("orders").update({ status }).eq("id", orderId);
       if (error) throw error;
       // Send notification to member inbox
+      let notified = false;
       if (user) {
         const statusMessages: Record<string, string> = {
           pending: "Your order is now pending review.",
@@ -88,18 +91,20 @@ const AdminOrders = () => {
           completed: "Your order has been completed. Thank you for your purchase!",
           cancelled: "Your order has been cancelled. If you have questions, please contact us.",
         };
-        await supabase.from("admin_messages").insert({
+        const { error: msgError } = await supabase.from("admin_messages").insert({
           sender_id: user.id,
           recipient_id: userId,
           subject: `Order #${orderShortId} — Status Update: ${status.charAt(0).toUpperCase() + status.slice(1)}`,
           message: `<p>Hello,</p><p>${statusMessages[status] || `Your order status has been updated to <strong>${status}</strong>.`}</p><p>Order ID: <strong>#${orderShortId}</strong></p><p>New Status: <strong>${status.charAt(0).toUpperCase() + status.slice(1)}</strong></p><p>If you have any questions about your order, please don't hesitate to contact us.</p><p>Best regards,<br/>Pet Palace Team</p>`,
           is_html: true,
         });
+        notified = !msgError;
       }
+      return notified;
     },
-    onSuccess: () => {
+    onSuccess: (notified) => {
       queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
-      toast.success("Order status updated & member notified");
+      toast.success(notified ? "Order status updated & member notified" : "Order status updated (member notification failed)");
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -113,7 +118,8 @@ const AdminOrders = () => {
   };
 
   const handleViewOrder = async (order: any) => {
-    const items = await fetchOrderItems(order.id);
+    // Certificate credit orders have no order_items — their details live on the order row itself
+    const items = order.orderKind === "certificate" ? [] : await fetchOrderItems(order.id);
     setSelectedOrder({ ...order, items });
   };
 
@@ -229,6 +235,17 @@ const AdminOrders = () => {
                               <DetailRow label="Payment ID" value={selectedOrder.payment_id} mono />
                               <DetailRow label="Status" value={selectedOrder.status} />
                               <DetailRow label="Date" value={new Date(selectedOrder.created_at).toLocaleString()} />
+
+                              {selectedOrder.orderKind === "certificate" && (
+                                <div className="pt-4">
+                                  <p className="text-xs font-medium text-muted-foreground mb-2">Certificate Credits</p>
+                                  <div className="rounded-lg border border-border p-3 space-y-2">
+                                    <DetailRow label="Product" value={CREDIT_PRODUCT_LABELS[selectedOrder.credit_type as keyof typeof CREDIT_PRODUCT_LABELS] || selectedOrder.credit_type || "Certificate Credit"} />
+                                    <DetailRow label="Quantity" value={String(selectedOrder.quantity ?? "—")} />
+                                    <DetailRow label="Credits Granted" value={selectedOrder.credits_granted != null ? String(selectedOrder.credits_granted) : "Pending payment"} />
+                                  </div>
+                                </div>
+                              )}
 
                               {selectedOrder.items && selectedOrder.items.length > 0 && (
                                 <div className="pt-4">

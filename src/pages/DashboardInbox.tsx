@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Mail, Eye, Paperclip, Trash2, CheckCheck } from "lucide-react";
 import { toast } from "sonner";
 import DOMPurify from "dompurify";
+import { useQueryClient } from "@tanstack/react-query";
 
 type Attachment = {
   name: string;
@@ -32,6 +33,8 @@ type AdminMessage = {
 
 const DashboardInbox = () => {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const refreshUnreadBadge = () => queryClient.invalidateQueries({ queryKey: ["inbox-unread-count"] });
   const [messages, setMessages] = useState<AdminMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewOpen, setViewOpen] = useState(false);
@@ -56,8 +59,10 @@ const DashboardInbox = () => {
 
   const markRead = async (msg: AdminMessage) => {
     if (msg.is_read) return;
-    await supabase.from("admin_messages").update({ is_read: true }).eq("id", msg.id);
+    const { error } = await supabase.from("admin_messages").update({ is_read: true }).eq("id", msg.id);
+    if (error) { toast.error("Could not mark message as read"); return; }
     setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, is_read: true } : m));
+    refreshUnreadBadge();
   };
 
   const openMessage = (msg: AdminMessage) => {
@@ -69,18 +74,27 @@ const DashboardInbox = () => {
   const markAllRead = async () => {
     const unread = messages.filter(m => !m.is_read);
     if (unread.length === 0) return;
-    for (const msg of unread) {
-      await supabase.from("admin_messages").update({ is_read: true }).eq("id", msg.id);
-    }
+    const { error } = await supabase
+      .from("admin_messages")
+      .update({ is_read: true })
+      .eq("recipient_id", user!.id)
+      .eq("is_read", false);
+    if (error) { toast.error("Could not mark all messages as read"); return; }
     setMessages(prev => prev.map(m => ({ ...m, is_read: true })));
+    refreshUnreadBadge();
     toast.success("All messages marked as read");
   };
 
   const deleteMessage = async (msgId: string) => {
-    // Members can't delete due to RLS — but they can mark as read
-    // For now just remove from local state
-    toast.info("Message hidden from inbox");
+    const { error } = await supabase
+      .from("admin_messages")
+      .delete()
+      .eq("id", msgId)
+      .eq("recipient_id", user!.id);
+    if (error) { toast.error("Could not delete message"); return; }
     setMessages(prev => prev.filter(m => m.id !== msgId));
+    refreshUnreadBadge();
+    toast.success("Message deleted");
   };
 
   const unreadCount = messages.filter(m => !m.is_read).length;

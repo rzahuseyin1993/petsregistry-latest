@@ -16,7 +16,7 @@ import CountrySelect from "@/components/CountrySelect";
 import { firstError, validatePhone, validateRequired, validateOptionalLength } from "@/lib/validation";
 
 const DashboardSettings = () => {
-  const { user, profile, membership } = useAuth();
+  const { user, profile, membership, refreshProfile } = useAuth();
   const queryClient = useQueryClient();
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
@@ -66,12 +66,18 @@ const DashboardSettings = () => {
     if (error) toast.error("Failed to update profile");
     else {
       toast.success("Profile updated!");
+      // Refresh the cached profile so the rest of the app sees the new values immediately
+      await refreshProfile();
       queryClient.invalidateQueries({ queryKey: ["my-pets"] });
     }
   };
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!currentPassword) {
+      toast.error("Please enter your current password");
+      return;
+    }
     if (newPassword !== confirmPassword) {
       toast.error("New passwords do not match");
       return;

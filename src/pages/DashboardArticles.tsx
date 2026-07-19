@@ -134,7 +134,9 @@ const DashboardArticles = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["my-articles"] });
-      toast.success(editing ? "Article updated" : "Article submitted! It will appear after admin approval.");
+      toast.success(editing
+        ? "Article updated and resubmitted for review — it will reappear publicly after admin approval."
+        : "Article submitted! It will appear after admin approval.");
       closeDialog();
     },
     onError: (err: any) => toast.error(err.message),

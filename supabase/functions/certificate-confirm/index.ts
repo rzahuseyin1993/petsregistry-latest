@@ -5,6 +5,7 @@ import {
   getAirwallexApiBase,
   getAirwallexConfig,
 } from "../certificate-checkout/airwallex.ts";
+import { getPayPalAccessToken } from "../certificate-checkout/paypal.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -107,6 +108,56 @@ serve(async (req) => {
         );
         const intent = await res.json().catch(() => ({}));
         if (res.ok && (intent.status === "SUCCEEDED" || intent.status === "CAPTURE_REQUESTED")) {
+          shouldFulfill = true;
+        }
+      }
+    }
+
+    if (order.payment_method === "paypal" && order.payment_id) {
+      const { data: settings } = await supabase
+        .from("payment_settings")
+        .select("publishable_key, secret_key")
+        .eq("provider", "paypal")
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (settings?.publishable_key && settings?.secret_key) {
+        const { base, accessToken } = await getPayPalAccessToken(settings.publishable_key, settings.secret_key);
+        const orderRes = await fetch(`${base}/v2/checkout/orders/${order.payment_id}`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const ppOrder = await orderRes.json().catch(() => ({}));
+
+        if (orderRes.ok && ppOrder.status === "COMPLETED") {
+          shouldFulfill = true;
+        } else if (orderRes.ok && ppOrder.status === "APPROVED") {
+          // Buyer approved but funds not captured yet — capture now
+          const capRes = await fetch(`${base}/v2/checkout/orders/${order.payment_id}/capture`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+          });
+          const capture = await capRes.json().catch(() => ({}));
+          if (capRes.ok && capture.status === "COMPLETED") {
+            shouldFulfill = true;
+          }
+        }
+      }
+    }
+
+    if (order.payment_method === "stripe" && order.payment_id) {
+      const { data: settings } = await supabase
+        .from("payment_settings")
+        .select("secret_key")
+        .eq("provider", "stripe")
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (settings?.secret_key) {
+        const res = await fetch(`https://api.stripe.com/v1/checkout/sessions/${order.payment_id}`, {
+          headers: { Authorization: `Bearer ${settings.secret_key}` },
+        });
+        const session = await res.json().catch(() => ({}));
+        if (res.ok && session.payment_status === "paid") {
           shouldFulfill = true;
         }
       }

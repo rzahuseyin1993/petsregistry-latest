@@ -53,13 +53,35 @@ const DashboardLostReports = () => {
     },
   });
 
-  const availablePets = myPets.filter((p) => p.status !== "lost");
+  const petsWithActiveReport = new Set(
+    reports.filter((r: any) => r.status === "active").map((r: any) => r.pet_id),
+  );
+  const availablePets = myPets.filter((p) => p.status !== "lost" && !petsWithActiveReport.has(p.id));
 
-  const handleDelete = async (id: string) => {
+  // Keep pets.status in sync with the report status so the pet doesn't stay
+  // publicly marked as "lost" after its report is closed (and vice versa).
+  const syncPetStatus = async (petId: string, reportStatus: string) => {
+    const petStatus = reportStatus === "active" ? "lost" : reportStatus === "found" ? "found" : "registered";
+    const { error } = await supabase
+      .from("pets")
+      .update({ status: petStatus })
+      .eq("id", petId)
+      .eq("owner_id", user!.id);
+    if (error) toast.error("Report saved, but the pet's status could not be updated.");
+    queryClient.invalidateQueries({ queryKey: ["my-pets"] });
+    queryClient.invalidateQueries({ queryKey: ["my-pets-for-lost"] });
+  };
+
+  const handleDelete = async (report: any) => {
     if (!confirm("Are you sure you want to delete this report?")) return;
-    const { error } = await supabase.from("lost_reports").delete().eq("id", id);
-    if (error) toast.error("Failed to delete");
-    else { toast.success("Report deleted"); queryClient.invalidateQueries({ queryKey: ["my-lost-reports"] }); }
+    const { error } = await supabase.from("lost_reports").delete().eq("id", report.id);
+    if (error) { toast.error(error.message || "Failed to delete"); return; }
+    // If this was the active report, the pet is no longer "lost"
+    if (report.status === "active" && report.pet_id) {
+      await syncPetStatus(report.pet_id, "closed");
+    }
+    toast.success("Report deleted");
+    queryClient.invalidateQueries({ queryKey: ["my-lost-reports"] });
   };
 
   const handleSave = async () => {
@@ -77,8 +99,12 @@ const DashboardLostReports = () => {
       contact_phone: editReport.contact_phone,
       reward: editReport.reward,
       status: editReport.status,
+      updated_at: new Date().toISOString(),
     }).eq("id", editReport.id);
     if (error) { toast.error("Failed to save"); return; }
+    if (editReport.pet_id) {
+      await syncPetStatus(editReport.pet_id, editReport.status);
+    }
     toast.success("Report updated");
     setEditReport(null);
     queryClient.invalidateQueries({ queryKey: ["my-lost-reports"] });
@@ -176,7 +202,7 @@ const DashboardLostReports = () => {
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
                         <Button size="sm" variant="ghost" onClick={() => setEditReport({ ...report })}><Pencil className="h-4 w-4" /></Button>
-                        <Button size="sm" variant="ghost" onClick={() => handleDelete(report.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                        <Button size="sm" variant="ghost" onClick={() => handleDelete(report)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                       </div>
                     </TableCell>
                   </TableRow>

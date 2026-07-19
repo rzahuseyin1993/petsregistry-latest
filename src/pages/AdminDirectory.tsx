@@ -84,6 +84,7 @@ const AdminDirectory = () => {
       queryClient.invalidateQueries({ queryKey: ["admin-business-listings"] });
       toast({ title: "Listing updated" });
     },
+    onError: (e: any) => toast({ title: "Update failed", description: e.message, variant: "destructive" }),
   });
 
   const deleteMutation = useMutation({
@@ -95,6 +96,7 @@ const AdminDirectory = () => {
       queryClient.invalidateQueries({ queryKey: ["admin-business-listings"] });
       toast({ title: "Listing deleted" });
     },
+    onError: (e: any) => toast({ title: "Delete failed", description: e.message, variant: "destructive" }),
   });
 
   const handleEditOpen = (listing: any) => {

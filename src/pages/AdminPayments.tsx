@@ -131,14 +131,14 @@ const AdminPayments = () => {
     try {
       const baseUrl = import.meta.env.VITE_SUPABASE_URL;
       const { data: { session } } = await supabase.auth.getSession();
-      // Use certificate-checkout with a tiny test payload — it validates keys before contacting the gateway
+      // Dry credential check — authenticates with the gateway but creates no order or checkout
       const res = await fetch(`${baseUrl}/functions/v1/certificate-checkout`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
-        body: JSON.stringify({ user_id: session?.user?.id, quantity: 1, provider }),
+        body: JSON.stringify({ user_id: session?.user?.id, provider, test_only: true }),
       });
       const result = await res.json();
-      if (res.ok && (result.url || result.checkout)) {
+      if (res.ok && result.ok) {
         toast.success(`✓ ${provider === "airwallex" ? "Airwallex" : provider === "stripe" ? "Stripe" : "PayPal"} connection works!`);
       } else {
         toast.error(result.error || `${provider} test failed`);
@@ -288,17 +288,19 @@ const AdminPayments = () => {
       for (const u of upserts) {
         const { data: existing } = await supabase.from("site_settings").select("id").eq("key", u.key).maybeSingle();
         if (existing) {
-          await supabase.from("site_settings").update({ value: u.value }).eq("key", u.key);
+          const { error } = await supabase.from("site_settings").update({ value: u.value }).eq("key", u.key);
+          if (error) throw error;
         } else {
-          await supabase.from("site_settings").insert(u);
+          const { error } = await supabase.from("site_settings").insert(u);
+          if (error) throw error;
         }
       }
 
       queryClient.invalidateQueries({ queryKey: ["all-payment-settings"] });
       queryClient.invalidateQueries({ queryKey: ["billing-settings"] });
       toast.success("Service pricing saved!");
-    } catch {
-      toast.error("Failed to save service pricing");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save service pricing");
     } finally {
       setSavingServices(false);
     }

@@ -111,13 +111,17 @@ const DashboardDirectory = () => {
   // Auto-sync is_paid on listings when membership is active
   useEffect(() => {
     if (!isPaid || !user || listings.length === 0) return;
-    const unpaidListings = listings.filter((l: any) => !l.is_paid);
-    unpaidListings.forEach(async (l: any) => {
-      await supabase.from("business_listings").update({ is_paid: true }).eq("id", l.id);
-    });
-    if (unpaidListings.length > 0) {
-      queryClient.invalidateQueries({ queryKey: ["my-business-listings"] });
-    }
+    const unpaidIds = listings.filter((l: any) => !l.is_paid).map((l: any) => l.id);
+    if (unpaidIds.length === 0) return;
+    // Single batched update, invalidate only after it actually finishes
+    supabase
+      .from("business_listings")
+      .update({ is_paid: true })
+      .in("id", unpaidIds)
+      .eq("owner_id", user.id)
+      .then(({ error }) => {
+        if (!error) queryClient.invalidateQueries({ queryKey: ["my-business-listings"] });
+      });
   }, [isPaid, listings, user]);
 
   const saveMutation = useMutation({
@@ -156,6 +160,7 @@ const DashboardDirectory = () => {
       queryClient.invalidateQueries({ queryKey: ["my-business-listings"] });
       toast({ title: "Listing deleted" });
     },
+    onError: (e: any) => toast({ title: "Failed to delete listing", description: e.message, variant: "destructive" }),
   });
 
   const handleEdit = (listing: any) => {
@@ -194,7 +199,8 @@ const DashboardDirectory = () => {
   };
 
   const removeLogo = async (listingId: string) => {
-    await supabase.from("business_listings").update({ logo_url: null }).eq("id", listingId);
+    const { error } = await supabase.from("business_listings").update({ logo_url: null }).eq("id", listingId);
+    if (error) { toast({ title: "Failed to remove logo", description: error.message, variant: "destructive" }); return; }
     queryClient.invalidateQueries({ queryKey: ["my-business-listings"] });
     toast({ title: "Logo removed" });
   };
@@ -219,7 +225,8 @@ const DashboardDirectory = () => {
   };
 
   const deleteImage = async (imageId: string) => {
-    await supabase.from("business_listing_images").delete().eq("id", imageId);
+    const { error } = await supabase.from("business_listing_images").delete().eq("id", imageId);
+    if (error) { toast({ title: "Failed to remove image", description: error.message, variant: "destructive" }); return; }
     queryClient.invalidateQueries({ queryKey: ["my-listing-images"] });
     toast({ title: "Image removed" });
   };

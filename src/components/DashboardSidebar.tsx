@@ -1,17 +1,20 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { PawPrint, LayoutDashboard, PlusCircle, Settings, Store, LogOut, Heart, Activity, AlertTriangle, FileText, Building2, Crown, Mail, ShoppingBag, Award, MapPin } from "lucide-react";
+import { PawPrint, LayoutDashboard, PlusCircle, Settings, Store, LogOut, Heart, Activity, AlertTriangle, FileText, Building2, Crown, Mail, ShoppingBag, Award, MapPin, Baby } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import MembershipBadge from "@/components/MembershipBadge";
 import NotificationBell from "@/components/NotificationBell";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStoreEnabled } from "@/hooks/useStoreEnabled";
 import { useIsMobileRoute } from "@/hooks/useIsMobileRoute";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 
 const sidebarLinks = [
   { to: "/dashboard", label: "My Pets", icon: LayoutDashboard },
   { to: "/dashboard/inbox", label: "Inbox", icon: Mail },
   { to: "/dashboard/orders", label: "My Orders", icon: ShoppingBag },
   { to: "/dashboard/register-pet", label: "Register Pet", icon: PlusCircle },
+  { to: "/dashboard/register-litter", label: "Register Litter", icon: Baby },
   { to: "/dashboard/health", label: "Pet Health", icon: Activity },
   { to: "/dashboard/adoption", label: "Adoption", icon: Heart },
   { to: "/dashboard/lost-reports", label: "Lost Reports", icon: AlertTriangle },
@@ -29,9 +32,23 @@ const MEMBERSHIP_UPGRADE_PATH = "/dashboard/membership#upgrade-plans";
 const DashboardSidebar = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { signOut, membership, canUpgradeMembership } = useAuth();
+  const { user, signOut, membership, canUpgradeMembership } = useAuth();
   const { storeEnabled } = useStoreEnabled();
   const isMobileRoute = useIsMobileRoute();
+
+  const { data: unreadInbox = 0 } = useQuery({
+    queryKey: ["inbox-unread-count", user?.id],
+    enabled: !!user && !isMobileRoute,
+    refetchInterval: 60_000,
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("admin_messages")
+        .select("id", { count: "exact", head: true })
+        .eq("recipient_id", user!.id)
+        .eq("is_read", false);
+      return count || 0;
+    },
+  });
 
   if (isMobileRoute) return null;
 
@@ -63,13 +80,23 @@ const DashboardSidebar = () => {
       <nav className="flex-1 space-y-1 overflow-y-auto p-4">
         {sidebarLinks.map((link) => {
           const Icon = link.icon;
-          const isActive = location.pathname === link.to;
+          const isActive =
+            location.pathname === link.to ||
+            (link.to !== "/dashboard" && location.pathname.startsWith(`${link.to}/`)) ||
+            // Pet edit pages belong under "My Pets"
+            (link.to === "/dashboard" && location.pathname.startsWith("/dashboard/pets/"));
           return (
             <Link key={link.to} to={link.to}
               className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-md font-medium transition-colors ${
                 isActive ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}>
-              <Icon className="h-5 w-5" />{link.label}
+              <Icon className="h-5 w-5" />
+              <span className="flex-1">{link.label}</span>
+              {link.to === "/dashboard/inbox" && unreadInbox > 0 && (
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-xs font-semibold text-destructive-foreground">
+                  {unreadInbox > 99 ? "99+" : unreadInbox}
+                </span>
+              )}
             </Link>
           );
         })}

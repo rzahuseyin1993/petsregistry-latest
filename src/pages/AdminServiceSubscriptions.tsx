@@ -111,23 +111,28 @@ const AdminServiceSubscriptions = () => {
   });
 
   const handleToggleStatus = async (record: any) => {
-    const newStatus = record.status === "active" ? "expired" : "active";
     try {
       if (record.type === "flyer") {
+        const newStatus = record.status === "active" ? "expired" : "active";
         const { error } = await supabase.from("flyer_subscriptions" as any).update({ status: newStatus }).eq("id", record.id);
         if (error) throw error;
         queryClient.invalidateQueries({ queryKey: ["admin-flyer-subs"] });
+        toast.success(`Status changed to ${newStatus}`);
       } else if (record.type === "membership") {
+        const newStatus = record.status === "active" ? "expired" : "active";
         const { error } = await supabase.from("memberships").update({ status: newStatus }).eq("id", record.id);
         if (error) throw error;
         queryClient.invalidateQueries({ queryKey: ["admin-memberships-subs"] });
+        toast.success(`Status changed to ${newStatus}`);
       } else if (record.type === "certificate") {
-        const newPaid = record.status === "active" ? false : true;
+        // Paid certificates use "issued"/"draft" (not "active"/"expired")
+        const currentlyOn = record.status === "issued";
+        const newPaid = !currentlyOn;
         const { error } = await supabase.from("pet_certificates").update({ is_paid: newPaid, status: newPaid ? "issued" : "draft" }).eq("id", record.id);
         if (error) throw error;
         queryClient.invalidateQueries({ queryKey: ["admin-cert-subs"] });
+        toast.success(newPaid ? "Certificate re-activated (issued)" : "Certificate revoked (back to unpaid draft)");
       }
-      toast.success(`Status changed to ${newStatus}`);
     } catch (err: any) {
       toast.error(err.message || "Failed to update");
     }

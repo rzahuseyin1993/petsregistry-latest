@@ -22,10 +22,11 @@ interface AuthContextType {
   hasTopMembership: boolean;
   loading: boolean;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
-  session: null, user: null, profile: null, isAdmin: false, isStaff: false, rolesLoading: true, membership: null, canUpgradeMembership: false, hasTopMembership: false, loading: true, signOut: async () => {},
+  session: null, user: null, profile: null, isAdmin: false, isStaff: false, rolesLoading: true, membership: null, canUpgradeMembership: false, hasTopMembership: false, loading: true, signOut: async () => {}, refreshProfile: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -146,6 +147,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [userId, roleChecksAvailable, membershipChecksAvailable]);
 
+  const refreshProfile = async () => {
+    if (!userId) return;
+    const { data } = await supabase
+      .from("profiles")
+      .select("full_name, email, phone, show_name, show_phone, address, city, country")
+      .eq("user_id", userId)
+      .single();
+    if (data) setProfile(data as any);
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
     setSession(null);
@@ -160,7 +171,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, profile, isAdmin, isStaff, rolesLoading, membership, canUpgradeMembership: canUpgrade, hasTopMembership: isTopMember, loading, signOut }}>
+    <AuthContext.Provider value={{ session, user, profile, isAdmin, isStaff, rolesLoading, membership, canUpgradeMembership: canUpgrade, hasTopMembership: isTopMember, loading, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

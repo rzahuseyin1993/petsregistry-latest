@@ -89,8 +89,22 @@ const ReportLostDialog = ({ open, onOpenChange, petId, petName, onReported }: Re
     }
     setLoading(true);
     try {
+      // Prevent duplicate active reports for the same pet
+      const { data: existing } = await supabase
+        .from("lost_reports")
+        .select("id")
+        .eq("pet_id", petId)
+        .eq("status", "active")
+        .limit(1)
+        .maybeSingle();
+      if (existing) {
+        toast.error(`${petName} already has an active lost report. You can edit it on the Lost Reports page.`);
+        onOpenChange(false);
+        return;
+      }
+
       // Create lost report
-      const { error: reportError } = await supabase.from("lost_reports").insert({
+      const { data: report, error: reportError } = await supabase.from("lost_reports").insert({
         pet_id: petId,
         reporter_id: user.id,
         last_seen_lat: form.last_seen_lat,
@@ -101,33 +115,48 @@ const ReportLostDialog = ({ open, onOpenChange, petId, petName, onReported }: Re
         description: form.description || null,
         reward: form.reward || null,
         contact_phone: form.contact_phone || null,
-      });
+      }).select("id").single();
       if (reportError) throw reportError;
 
-      // Update pet status to lost
+      // Update pet status to lost; roll back the report if this fails
       const { error: petError } = await supabase.from("pets").update({ status: "lost" }).eq("id", petId);
-      if (petError) throw petError;
-
-      // Create notifications for all registered users (nearby alert)
-      const { data: allProfiles } = await supabase
-        .from("profiles")
-        .select("user_id")
-        .neq("user_id", user.id);
-
-      if (allProfiles && allProfiles.length > 0) {
-        for (const p of allProfiles) {
-          await supabase.rpc("insert_system_notification", {
-            _user_id: p.user_id,
-            _title: "🚨 Lost Pet Alert",
-            _message: `${petName} has been reported lost${form.last_seen_address ? ` near ${form.last_seen_address}` : ""}. Please keep an eye out!`,
-            _type: "lost_pet",
-            _link: `/pet/${petId}`,
-            _metadata: { pet_id: petId, lat: form.last_seen_lat, lng: form.last_seen_lng },
-          });
-        }
+      if (petError) {
+        if (report?.id) await supabase.from("lost_reports").delete().eq("id", report.id);
+        throw petError;
       }
 
-      toast.success("Lost report created! All members have been notified.");
+      // Notify all registered users (best effort — the report itself already succeeded)
+      let notifyFailed = false;
+      try {
+        const { data: allProfiles } = await supabase
+          .from("profiles")
+          .select("user_id")
+          .neq("user_id", user.id);
+
+        const CHUNK = 25;
+        for (let i = 0; i < (allProfiles?.length || 0); i += CHUNK) {
+          const chunk = allProfiles!.slice(i, i + CHUNK);
+          const results = await Promise.allSettled(chunk.map((p) =>
+            supabase.rpc("insert_system_notification", {
+              _user_id: p.user_id,
+              _title: "🚨 Lost Pet Alert",
+              _message: `${petName} has been reported lost${form.last_seen_address ? ` near ${form.last_seen_address}` : ""}. Please keep an eye out!`,
+              _type: "lost_pet",
+              _link: `/pet/${petId}`,
+              _metadata: { pet_id: petId, lat: form.last_seen_lat, lng: form.last_seen_lng },
+            }),
+          ));
+          if (results.some((r) => r.status === "rejected" || (r.status === "fulfilled" && (r.value as any)?.error))) {
+            notifyFailed = true;
+          }
+        }
+      } catch {
+        notifyFailed = true;
+      }
+
+      toast.success(notifyFailed
+        ? "Lost report created! Some member alerts could not be sent."
+        : "Lost report created! All members have been notified.");
       onReported();
       onOpenChange(false);
     } catch (err: any) {

@@ -17,7 +17,7 @@ const statusStyles: Record<string, string> = {
 const DashboardOrders = () => {
   const { user } = useAuth();
 
-  const { data: orders = [], isLoading } = useQuery({
+  const { data: orders = [], isLoading, isError } = useQuery({
     queryKey: ["my-orders", user?.id],
     queryFn: async () => {
       const [storeRes, certRes] = await Promise.all([
@@ -76,6 +76,12 @@ const DashboardOrders = () => {
           <div className="flex justify-center py-12">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
           </div>
+        ) : isError ? (
+          <Card>
+            <CardContent className="py-12 text-center text-muted-foreground">
+              Could not load your orders. Please refresh the page.
+            </CardContent>
+          </Card>
         ) : orders.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-16 text-muted-foreground">

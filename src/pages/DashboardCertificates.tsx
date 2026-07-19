@@ -94,6 +94,13 @@ const DashboardCertificates = () => {
   });
 
   useEffect(() => {
+    // Cancelled checkout — tell the user clearly and clean the URL
+    if (searchParams.get("canceled") === "true") {
+      toast.error("Payment cancelled — you were not charged.");
+      setSearchParams({}, { replace: true });
+      return;
+    }
+
     const creditsAdded = searchParams.get("credits_added");
     const orderId = searchParams.get("order_id");
     if (!creditsAdded || !orderId || !user || paymentConfirmRef.current) return;
@@ -106,8 +113,11 @@ const DashboardCertificates = () => {
       const { data, error } = await supabase.functions.invoke("certificate-confirm", { body: { order_id: orderId } });
       if (cancelled) return;
       if (error) {
-        toast.error("Could not confirm payment yet. Please refresh in a moment.");
-        setSearchParams({}, { replace: true });
+        // Transient error (network/5xx) — retry, and keep the order_id in the URL
+        // so a page refresh can pick up the confirmation again
+        attempts += 1;
+        if (attempts < 6) { setTimeout(runConfirm, 2500); return; }
+        toast.error("Could not confirm payment yet. Please refresh this page in a moment.");
         return;
       }
       if (data?.credits_granted || data?.status === "paid") {
@@ -120,6 +130,9 @@ const DashboardCertificates = () => {
       attempts += 1;
       if (attempts < 6) setTimeout(runConfirm, 2500);
       else {
+        // Give the webhook a chance to land later — refresh credits when it does
+        queryClient.invalidateQueries({ queryKey: ["my-cert-credits", user.id] });
+        queryClient.invalidateQueries({ queryKey: ["cert-credit-orders", user.id] });
         toast.info("Payment received. Credits may take a moment — refresh if they don't appear.");
         setSearchParams({}, { replace: true });
       }

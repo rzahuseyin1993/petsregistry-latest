@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import Navbar from "@/components/Navbar";
@@ -25,7 +26,23 @@ type BillingInterval = "monthly" | "yearly" | "one_time";
 const MembershipPage = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [billingInterval, setBillingInterval] = useState<BillingInterval>("yearly");
+
+  // Handle return from the payment gateway (legacy return URLs point here)
+  useEffect(() => {
+    const success = searchParams.get("success");
+    const canceled = searchParams.get("canceled");
+    if (!success && !canceled) return;
+    if (success === "true") {
+      toast({ title: "Payment received!", description: "Your membership will activate within a minute." });
+      queryClient.invalidateQueries({ queryKey: ["my-memberships"] });
+    } else if (canceled === "true") {
+      toast({ title: "Payment cancelled", description: "You were not charged.", variant: "destructive" });
+    }
+    setSearchParams({}, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const { data: discountPercent } = useQuery({
     queryKey: ["yearly-discount"],
@@ -115,6 +132,8 @@ const MembershipPage = () => {
       } else if (data?.success) {
         queryClient.invalidateQueries({ queryKey: ["my-memberships"] });
         toast({ title: "Membership activated!", description: `You are now a ${plan.name}` });
+      } else {
+        throw new Error("The payment provider did not return a checkout link. Please try again or contact support.");
       }
     },
     onMutate: ({ planId, provider }) => setPendingCheckout(`${planId}-${provider}`),
@@ -161,9 +180,11 @@ const MembershipPage = () => {
 
   // Set default billing to first allowed type
   const effectiveBilling = allowedBilling.includes(billingInterval) ? billingInterval : allowedBilling[0] || "yearly";
-  if (effectiveBilling !== billingInterval) {
-    setBillingInterval(effectiveBilling as BillingInterval);
-  }
+  useEffect(() => {
+    if (effectiveBilling !== billingInterval) {
+      setBillingInterval(effectiveBilling as BillingInterval);
+    }
+  }, [effectiveBilling, billingInterval]);
 
   return (
     <div className="min-h-screen bg-background">

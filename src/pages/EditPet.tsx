@@ -203,26 +203,36 @@ const EditPet = () => {
         .eq("owner_id", user.id);
       if (updErr) throw updErr;
 
-      // Upload any new images
+      // Upload any new images — surface failures instead of silently dropping photos
       const startIndex = existingImages.length;
+      let failedUploads = 0;
       for (let i = 0; i < newImageFiles.length; i++) {
-        const file = newImageFiles[i];
-        const resized = await resizeImage(file);
-        const publicUrl = await uploadRaw({
-          bucket: "pet-photos",
-          path: `${user.id}/${id}/extra-${Date.now()}-${i}.webp`,
-          body: resized,
-          contentType: "image/webp",
-          upsert: true,
-        });
-        await supabase.from("pet_images").insert({
-          pet_id: id,
-          image_url: publicUrl,
-          sort_order: startIndex + i,
-        });
+        try {
+          const file = newImageFiles[i];
+          const resized = await resizeImage(file);
+          const publicUrl = await uploadRaw({
+            bucket: "pet-photos",
+            path: `${user.id}/${id}/extra-${Date.now()}-${i}.webp`,
+            body: resized,
+            contentType: "image/webp",
+            upsert: true,
+          });
+          const { error: imgErr } = await supabase.from("pet_images").insert({
+            pet_id: id,
+            image_url: publicUrl,
+            sort_order: startIndex + i,
+          });
+          if (imgErr) throw imgErr;
+        } catch {
+          failedUploads++;
+        }
       }
 
-      toast.success("Pet updated successfully!");
+      if (failedUploads > 0) {
+        toast.warning(`Pet details saved, but ${failedUploads} new photo(s) could not be uploaded. Please try adding them again.`);
+      } else {
+        toast.success("Pet updated successfully!");
+      }
       queryClient.invalidateQueries({ queryKey: ["my-pets"] });
       queryClient.invalidateQueries({ queryKey: ["pet-profile", id] });
       navigate(mp("/dashboard"));

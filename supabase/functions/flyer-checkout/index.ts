@@ -17,13 +17,18 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { user_id, billing_interval = "yearly" } = await req.json();
-    if (!user_id) {
-      return new Response(JSON.stringify({ error: "Missing user_id" }), {
-        status: 400,
+    const { billing_interval = "yearly" } = await req.json();
+
+    // Derive the user from the JWT — never trust a client-supplied user id for payments
+    const token = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+    const { data: authData, error: authErr } = await supabase.auth.getUser(token);
+    if (authErr || !authData?.user) {
+      return new Response(JSON.stringify({ error: "You must be signed in to purchase flyer access" }), {
+        status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const user_id = authData.user.id;
 
     const { data: existing } = await supabase
       .from("flyer_subscriptions")

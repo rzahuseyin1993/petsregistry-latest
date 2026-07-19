@@ -202,10 +202,36 @@ interface CustomTemplate {
 const LostFlyerBuilder = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const reportId = searchParams.get("report");
   const canvasRef = useRef<HTMLDivElement>(null);
   const petPhotoInputRef = useRef<HTMLInputElement>(null);
+
+  // Handle return from the payment gateway (?success=true / ?canceled=true)
+  useEffect(() => {
+    const success = searchParams.get("success");
+    const canceled = searchParams.get("canceled");
+    if (!success && !canceled) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete("success");
+    next.delete("canceled");
+    next.delete("provider");
+    setSearchParams(next, { replace: true });
+    if (success === "true") {
+      toast.success("Payment received! Unlocking flyer downloads…");
+      queryClient.invalidateQueries({ queryKey: ["flyer-purchase", user?.id] });
+      // The webhook may lag behind the redirect — poll a few times (self-terminating)
+      let attempts = 0;
+      const timer = setInterval(() => {
+        attempts++;
+        queryClient.invalidateQueries({ queryKey: ["flyer-purchase", user?.id] });
+        if (attempts >= 5) clearInterval(timer);
+      }, 4000);
+    } else if (canceled === "true") {
+      toast.error("Payment cancelled — you were not charged.");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   // Template selection
   const [selectedTemplate, setSelectedTemplate] = useState<FlyerTemplate>(flyerTemplates[0]);
@@ -267,12 +293,13 @@ const LostFlyerBuilder = () => {
         .maybeSingle();
       if (membership) return true;
 
-      // Otherwise check direct flyer subscription
+      // Otherwise check direct flyer subscription (must not be expired)
       const { data } = await supabase
         .from("flyer_subscriptions" as any)
-        .select("id")
+        .select("id, expires_at")
         .eq("user_id", user!.id)
         .eq("status", "active")
+        .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
         .maybeSingle();
       return !!data;
     },
@@ -321,13 +348,16 @@ const LostFlyerBuilder = () => {
 
   const { data: report } = useQuery({
     queryKey: ["flyer-report", reportId],
-    enabled: !!reportId,
+    enabled: !!reportId && !!user,
     queryFn: async () => {
+      // Only load the user's own reports — prevents pre-filling someone else's
+      // contact details by guessing a report id in the URL
       const { data, error } = await supabase
         .from("lost_reports")
         .select("*, pets(id, name, species, breed, color, pet_code, pet_images(image_url, sort_order))")
         .eq("id", reportId!)
-        .single();
+        .eq("reporter_id", user!.id)
+        .maybeSingle();
       if (error) throw error;
       return data;
     },
@@ -693,6 +723,7 @@ const LostFlyerBuilder = () => {
   };
 
   const handleAiDownloadPdf = async () => {
+    if (!hasPurchased) { toast.error("Please purchase access to download flyers."); return; }
     if (!aiGeneratedHtml) return;
     try {
       toast.info("Generating PDF...");

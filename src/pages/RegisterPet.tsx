@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Upload, PawPrint, Camera } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
@@ -23,11 +23,20 @@ import { firstError, validateImageFile, validateOptionalLength, validateRequired
 const speciesOptions = ["Dog", "Cat", "Bird", "Fish", "Rabbit", "Hamster", "Reptile", "Bear", "Other"];
 
 const RegisterPet = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const navigate = useNavigate();
   const mp = useMobilePath();
   const [showName, setShowName] = useState(true);
   const [showPhone, setShowPhone] = useState(true);
+
+  // Initialise privacy toggles from the user's saved profile so submitting the
+  // form doesn't silently overwrite settings chosen on the Settings page.
+  useEffect(() => {
+    if (profile) {
+      setShowName(profile.show_name);
+      setShowPhone(profile.show_phone);
+    }
+  }, [profile]);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [webcamOpen, setWebcamOpen] = useState(false);
@@ -70,7 +79,11 @@ const RegisterPet = () => {
 
   const removeImage = (index: number) => {
     setImageFiles((prev) => prev.filter((_, i) => i !== index));
-    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
+    setImagePreviews((prev) => {
+      const removed = prev[index];
+      if (removed?.startsWith("blob:")) URL.revokeObjectURL(removed);
+      return prev.filter((_, i) => i !== index);
+    });
   };
 
   const handleWebcamCapture = (file: File, dataUrl: string) => {
@@ -134,23 +147,29 @@ const RegisterPet = () => {
         .single();
       if (petError) throw petError;
 
-      // Upload images
-      for (let i = 0; i < imageFiles.length; i++) {
-        const file = imageFiles[i];
-        const resized = await resizeImage(file);
-        const publicUrl = await uploadRaw({
-          bucket: "pet-photos",
-          path: `${user.id}/${pet.id}/${i}.webp`,
-          body: resized,
-          contentType: "image/webp",
-          upsert: true,
-        });
+      // Upload images — photos are required, so roll the pet back if they fail
+      try {
+        for (let i = 0; i < imageFiles.length; i++) {
+          const file = imageFiles[i];
+          const resized = await resizeImage(file);
+          const publicUrl = await uploadRaw({
+            bucket: "pet-photos",
+            path: `${user.id}/${pet.id}/${i}.webp`,
+            body: resized,
+            contentType: "image/webp",
+            upsert: true,
+          });
 
-        await supabase.from("pet_images").insert({
-          pet_id: pet.id,
-          image_url: publicUrl,
-          sort_order: i,
-        });
+          const { error: imgError } = await supabase.from("pet_images").insert({
+            pet_id: pet.id,
+            image_url: publicUrl,
+            sort_order: i,
+          });
+          if (imgError) throw imgError;
+        }
+      } catch (uploadErr: any) {
+        await supabase.from("pets").delete().eq("id", pet.id).eq("owner_id", user.id);
+        throw new Error(uploadErr?.message ? `Photo upload failed: ${uploadErr.message}` : "Photo upload failed. Please try again.");
       }
 
       toast.success("Pet registered successfully!");

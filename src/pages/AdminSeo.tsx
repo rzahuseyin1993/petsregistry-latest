@@ -50,9 +50,11 @@ const AdminSeo = () => {
         const val = values[key] || "";
         const existing = settings.find((s: any) => s.key === key);
         if (existing) {
-          await supabase.from("site_settings").update({ value: val, updated_at: new Date().toISOString() }).eq("key", key);
+          const { error } = await supabase.from("site_settings").update({ value: val, updated_at: new Date().toISOString() }).eq("key", key);
+          if (error) throw error;
         } else if (val) {
-          await supabase.from("site_settings").insert({ key, value: val, description: `SEO: ${key}` });
+          const { error } = await supabase.from("site_settings").insert({ key, value: val, description: `SEO: ${key}` });
+          if (error) throw error;
         }
       }
       queryClient.invalidateQueries({ queryKey: ["seo-settings"] });

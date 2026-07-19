@@ -23,6 +23,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { uploadImage } from "@/lib/imageUpload";
 import { certificateTemplates, type CertificateTemplate } from "@/lib/certificateTemplates";
 import AdminCertificateCreditsManager from "@/components/AdminCertificateCreditsManager";
+import { useAuth } from "@/contexts/AuthContext";
 
 /* ─── Canvas Element Types (matching flyer editor) ─── */
 interface CanvasElement {
@@ -173,6 +174,9 @@ const AdminCertificates = () => {
   const [search, setSearch] = useState("");
   const [viewCert, setViewCert] = useState<any>(null);
   const [activeTab, setActiveTab] = useState("certificates");
+  // Credit granting/adjusting RPCs are restricted to admins at the database level,
+  // so hide the tab from moderators instead of showing a broken UI.
+  const { isAdmin } = useAuth();
 
   // Full canvas editor state (matching flyer editor)
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -675,13 +679,15 @@ const AdminCertificates = () => {
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="mb-4">
             <TabsTrigger value="certificates">Member Certificates</TabsTrigger>
-            <TabsTrigger value="credits">Member Credits</TabsTrigger>
+            {isAdmin && <TabsTrigger value="credits">Member Credits</TabsTrigger>}
             <TabsTrigger value="templates">Template Designer</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="credits">
-            <AdminCertificateCreditsManager />
-          </TabsContent>
+          {isAdmin && (
+            <TabsContent value="credits">
+              <AdminCertificateCreditsManager />
+            </TabsContent>
+          )}
 
           {/* ─── Certificates Tab ─── */}
           <TabsContent value="certificates">

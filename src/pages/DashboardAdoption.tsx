@@ -137,13 +137,27 @@ const DashboardAdoption = () => {
     );
     if (feeError) { toast.error(feeError); return; }
     const petName = pets.find((p: any) => p.id === selectedPetId)?.name || "Pet";
+
+    // Prevent duplicate open listings for the same pet
+    const { data: existing } = await supabase
+      .from("pet_adoptions")
+      .select("id")
+      .eq("pet_id", selectedPetId)
+      .neq("status", "completed")
+      .limit(1)
+      .maybeSingle();
+    if (existing) {
+      toast.error(`${petName} already has an open adoption listing.`);
+      return;
+    }
+
     const { data, error } = await supabase.from("pet_adoptions").insert({
       pet_id: selectedPetId,
       owner_id: user.id,
       adoption_fee: fee ? Number(fee) : 0,
       description: description || null,
     }).select("id").single();
-    if (error) { toast.error("Failed to create listing"); return; }
+    if (error) { toast.error(error.message || "Failed to create listing"); return; }
     await logTransferHistory(data.id, user.id, "listing_created", `${petName} listed for adoption`);
     toast.success("Pet listed for adoption!");
     setDialogOpen(false);
@@ -167,6 +181,17 @@ const DashboardAdoption = () => {
     } catch (e) { console.error("Email send error:", e); }
   };
 
+  // Re-read the listing after confirming so the "both confirmed" decision uses
+  // fresh data, not a possibly-stale client snapshot
+  const fetchBothConfirmed = async (listingId: string): Promise<boolean> => {
+    const { data } = await supabase
+      .from("pet_adoptions")
+      .select("owner_confirmed, adopter_confirmed")
+      .eq("id", listingId)
+      .maybeSingle();
+    return !!(data?.owner_confirmed && data?.adopter_confirmed);
+  };
+
   const handleOwnerConfirm = async (listing: any) => {
     const { error } = await supabase
       .from("pet_adoptions")
@@ -176,10 +201,11 @@ const DashboardAdoption = () => {
     await logTransferHistory(listing.id, user!.id, "owner_confirmed", "Owner confirmed the transfer");
     await sendAdoptionNotification(listing.adopter_id, "Owner Confirmed Transfer", `The owner has confirmed the transfer of ${listing.pets?.name || "the pet"}. Please confirm on your end to complete.`);
     // If both confirmed, the DB trigger completes the transfer — send emails
-    if (listing.adopter_confirmed) {
+    const bothConfirmed = await fetchBothConfirmed(listing.id);
+    if (bothConfirmed) {
       await sendTransferEmails(listing);
     }
-    toast.success("You've confirmed the transfer." + (listing.adopter_confirmed ? " Transfer complete!" : " Waiting for adopter to confirm."));
+    toast.success("You've confirmed the transfer." + (bothConfirmed ? " Transfer complete!" : " Waiting for adopter to confirm."));
     invalidateAll();
   };
 
@@ -192,10 +218,11 @@ const DashboardAdoption = () => {
     await logTransferHistory(req.id, user!.id, "adopter_confirmed", "Adopter confirmed the transfer");
     await sendAdoptionNotification(req.owner_id, "Adopter Confirmed Transfer", `The adopter has confirmed the transfer of ${req.pets?.name || "the pet"}.`);
     // If both confirmed, the DB trigger completes the transfer — send emails
-    if (req.owner_confirmed) {
+    const bothConfirmed = await fetchBothConfirmed(req.id);
+    if (bothConfirmed) {
       await sendTransferEmails(req);
     }
-    toast.success("Transfer confirmed!" + (req.owner_confirmed ? " The pet is now yours." : " Waiting for owner to confirm."));
+    toast.success("Transfer confirmed!" + (bothConfirmed ? " The pet is now yours." : " Waiting for owner to confirm."));
     invalidateAll();
   };
 
@@ -227,9 +254,9 @@ const DashboardAdoption = () => {
 
   const handleDeleteListing = async (id: string) => {
     if (!confirm("Are you sure you want to delete this listing?")) return;
-    await logTransferHistory(id, user!.id, "listing_deleted", "Adoption listing was deleted");
+    // Note: history rows cascade-delete with the listing, so no point logging here
     const { error } = await supabase.from("pet_adoptions").delete().eq("id", id);
-    if (error) toast.error("Failed to delete listing");
+    if (error) toast.error(error.message || "Failed to delete listing");
     else { toast.success("Listing deleted"); invalidateAll(); }
   };
 
