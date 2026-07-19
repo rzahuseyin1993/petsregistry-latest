@@ -6,10 +6,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCmsPage } from "@/hooks/useCmsPage";
 import { useStoreEnabled } from "@/hooks/useStoreEnabled";
 import { useIsMobileRoute } from "@/hooks/useIsMobileRoute";
+import { useSiteEmail } from "@/hooks/useSiteEmail";
+import { Mail } from "lucide-react";
 
 const Footer = () => {
   const { user } = useAuth();
   const { storeEnabled } = useStoreEnabled();
+  const siteEmail = useSiteEmail();
   const footerRef = useRef<HTMLDivElement>(null);
   const isMobileRoute = useIsMobileRoute();
   const { hasCmsContent, isLoading, html } = useCmsPage("footer");
@@ -78,7 +81,20 @@ const Footer = () => {
           <div className="text-center md:text-left">
             <h3 className="font-display font-semibold text-foreground">Contact</h3>
             <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
-              <li>admin@petsregistry.org</li>
+              <li>
+                <a
+                  href={`mailto:${siteEmail}`}
+                  className="inline-flex items-center justify-center gap-2 hover:text-primary transition-colors md:justify-start"
+                >
+                  <Mail className="h-4 w-4" />
+                  {siteEmail}
+                </a>
+              </li>
+              <li>
+                <Link to="/contact" className="hover:text-primary transition-colors">
+                  Send us a message
+                </Link>
+              </li>
             </ul>
           </div>
         </div>

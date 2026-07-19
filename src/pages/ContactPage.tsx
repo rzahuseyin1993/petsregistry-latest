@@ -12,8 +12,10 @@ import { firstError, validateEmail, validateOptionalLength, validateRequired } f
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import CmsRenderer from "@/components/CmsRenderer";
+import { useSiteEmail } from "@/hooks/useSiteEmail";
 
 const ContactPage = () => {
+  const siteEmail = useSiteEmail();
   const [form, setForm] = useState({ name: "", email: "", subject: "", message: "", source: "" });
   const [loading, setLoading] = useState(false);
   const [sourceOptions, setSourceOptions] = useState<string[]>([]);
@@ -89,7 +91,9 @@ const ContactPage = () => {
                   </div>
                   <div>
                     <h3 className="font-semibold text-foreground">Email</h3>
-                    <p className="text-muted-foreground">admin@petsregister.org</p>
+                    <a href={`mailto:${siteEmail}`} className="text-muted-foreground hover:text-primary transition-colors">
+                      {siteEmail}
+                    </a>
                   </div>
                 </div>
                 <div className="flex items-start gap-4">
