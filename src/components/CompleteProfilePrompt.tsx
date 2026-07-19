@@ -8,6 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { UserCog } from "lucide-react";
+import { firstError, validatePhone, validateRequired } from "@/lib/validation";
 
 /**
  * Shown automatically the first time a user (typically Google OAuth signups)
@@ -41,14 +42,21 @@ const CompleteProfilePrompt = () => {
 
   const handleSave = async () => {
     if (!user) return;
-    if (!fullName || !phone || !address || !city || !country) {
-      toast.error("Please fill in every field to continue.");
+    const validationError = firstError(
+      validateRequired(fullName, "Full name", { min: 2, max: 100 }),
+      validatePhone(phone, { required: true }),
+      validateRequired(address, "Address", { min: 3, max: 200 }),
+      validateRequired(city, "City", { min: 2, max: 100 }),
+      validateRequired(country, "Country"),
+    );
+    if (validationError) {
+      toast.error(validationError);
       return;
     }
     setSaving(true);
     const { error } = await supabase
       .from("profiles")
-      .update({ full_name: fullName, phone, address, city, country })
+      .update({ full_name: fullName.trim(), phone: phone.trim(), address: address.trim(), city: city.trim(), country })
       .eq("user_id", user.id);
     setSaving(false);
     if (error) {

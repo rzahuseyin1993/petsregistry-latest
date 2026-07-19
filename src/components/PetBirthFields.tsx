@@ -4,6 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { firstError, todayStr, validateDateNotFuture, validateOptionalLength } from "@/lib/validation";
 
 export type PetBirthFormValues = {
   dateOfBirth: string;
@@ -60,7 +61,7 @@ export default function PetBirthFields({
     <div className={`grid gap-4 ${compact ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 md:grid-cols-2"}`}>
       <div>
         <Label>Date of birth *</Label>
-        <Input type="date" value={values.dateOfBirth} onChange={(e) => onChange({ dateOfBirth: e.target.value })} />
+        <Input type="date" max={todayStr()} value={values.dateOfBirth} onChange={(e) => onChange({ dateOfBirth: e.target.value })} />
       </div>
       <div>
         <Label>Sex</Label>
@@ -166,6 +167,23 @@ export default function PetBirthFields({
       </CardHeader>
       <CardContent>{content}</CardContent>
     </Card>
+  );
+}
+
+/** Validates birth/breeding fields. Returns an error message or null. */
+export function validateBirthForm(values: PetBirthFormValues, opts?: { requireDateOfBirth?: boolean }): string | null {
+  return firstError(
+    validateDateNotFuture(values.dateOfBirth, "Date of birth", { required: opts?.requireDateOfBirth }),
+    validateOptionalLength(values.birthLocation, "Place of birth", 200),
+    validateOptionalLength(values.birthWeight, "Weight at birth", 50),
+    validateOptionalLength(values.birthHeight, "Height at birth", 50),
+    validateOptionalLength(values.eyeColor, "Eye color", 50),
+    validateOptionalLength(values.breederName, "Breeder / kennel name", 150),
+    validateOptionalLength(values.sireName, "Sire name", 150),
+    validateOptionalLength(values.damName, "Dam name", 150),
+    values.sirePetId && values.damPetId && values.sirePetId === values.damPetId
+      ? "Sire and dam cannot be the same pet."
+      : null,
   );
 }
 

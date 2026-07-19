@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { Lock } from "lucide-react";
 import CountrySelect from "@/components/CountrySelect";
+import { firstError, validatePhone, validateRequired, validateOptionalLength } from "@/lib/validation";
 
 const DashboardSettings = () => {
   const { user, profile, membership } = useAuth();
@@ -49,8 +50,18 @@ const DashboardSettings = () => {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    const validationError = firstError(
+      validateRequired(fullName, "Full name", { min: 2, max: 100 }),
+      validatePhone(phone),
+      validateOptionalLength(address, "Address", 200),
+      validateOptionalLength(city, "City", 100),
+    );
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
     setSaving(true);
-    const { error } = await supabase.from("profiles").update({ full_name: fullName, phone, address, city, country, show_name: showName, show_phone: showPhone } as any).eq("user_id", user.id);
+    const { error } = await supabase.from("profiles").update({ full_name: fullName.trim(), phone: phone.trim(), address: address.trim(), city: city.trim(), country, show_name: showName, show_phone: showPhone } as any).eq("user_id", user.id);
     setSaving(false);
     if (error) toast.error("Failed to update profile");
     else {
@@ -67,6 +78,14 @@ const DashboardSettings = () => {
     }
     if (newPassword.length < 6) {
       toast.error("Password must be at least 6 characters");
+      return;
+    }
+    if (newPassword.length > 72) {
+      toast.error("Password must be at most 72 characters");
+      return;
+    }
+    if (newPassword === currentPassword) {
+      toast.error("New password must be different from the current password");
       return;
     }
     setChangingPassword(true);

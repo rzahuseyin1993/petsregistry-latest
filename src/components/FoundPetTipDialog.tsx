@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { uploadImage } from "@/lib/imageUpload";
 import type { LostReportTipContext } from "@/lib/lostReportDisplay";
+import { firstError, validateEmail, validateImageFile, validateOptionalLength, validatePhone, validateRequired } from "@/lib/validation";
 
 interface Props {
   petId: string;
@@ -48,8 +49,9 @@ const FoundPetTipDialog = ({ petId, petName, lostReport, trigger }: Props) => {
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please choose an image file");
+    const fileError = validateImageFile(file, { maxMb: 10, label: "Photo" });
+    if (fileError) {
+      toast.error(fileError);
       return;
     }
     setPhotoFile(file);
@@ -63,8 +65,15 @@ const FoundPetTipDialog = ({ petId, petName, lostReport, trigger }: Props) => {
   };
 
   const submit = async () => {
-    if (!name.trim() || !email.trim()) {
-      toast.error("Please share your name and email so the owner can reach you");
+    const validationError = firstError(
+      validateRequired(name, "Your name", { min: 2, max: 100 }),
+      validateEmail(email, { required: true }),
+      validatePhone(phone),
+      validateOptionalLength(whereFound, "Where you found the pet", 300),
+      validateOptionalLength(details, "Details", 2000),
+    );
+    if (validationError) {
+      toast.error(validationError);
       return;
     }
     if (parseInt(captcha, 10) !== a + b) {

@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { EMAIL_REGEX, PHONE_REGEX } from "@/lib/validation";
 
 const ScanLandingPage = () => {
   const { petId } = useParams<{ petId: string }>();
@@ -68,6 +69,12 @@ const ScanLandingPage = () => {
   const handleSendContact = async () => {
     if (!petId || !msg.trim()) { toast.error("Please write a message"); return; }
     if (!senderName.trim() || !senderContact.trim()) { toast.error("Name and contact required"); return; }
+    if (senderName.trim().length > 100) { toast.error("Name must be at most 100 characters"); return; }
+    const contact = senderContact.trim();
+    if (!EMAIL_REGEX.test(contact) && !PHONE_REGEX.test(contact)) {
+      toast.error("Please enter a valid phone number or email address so the owner can reach you");
+      return;
+    }
     setSending(true);
     try {
       const { data: petRow } = await supabase.from("pets").select("owner_id, name").eq("id", petId).maybeSingle();

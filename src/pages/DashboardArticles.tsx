@@ -217,8 +217,13 @@ const DashboardArticles = () => {
 
   const handleSave = () => {
     if (!form.title.trim()) return toast.error("Title is required");
+    if (form.title.trim().length > 200) return toast.error("Title must be at most 200 characters");
     if (!form.slug.trim()) return toast.error("Slug is required");
+    if (form.slug.trim().length > 100) return toast.error("Slug must be at most 100 characters");
+    if (!form.content || !form.content.replace(/<[^>]*>/g, "").trim()) return toast.error("Article content is required");
+    if (form.excerpt && form.excerpt.length > 500) return toast.error("Excerpt must be at most 500 characters");
     const customTags = tagsInput.split(",").map((t) => t.trim()).filter(Boolean);
+    if (customTags.some((t) => t.length > 50)) return toast.error("Each tag must be at most 50 characters");
     const allTags = Array.from(new Set([...form.tags, ...customTags]));
     saveMutation.mutate({ ...form, tags: allTags, id: editing?.id });
   };

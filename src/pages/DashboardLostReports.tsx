@@ -13,6 +13,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
+import { firstError, validateOptionalLength, validatePhone } from "@/lib/validation";
 import { Pencil, Trash2, AlertTriangle, Plus } from "lucide-react";
 import ReportLostDialog from "@/components/ReportLostDialog";
 
@@ -63,6 +64,13 @@ const DashboardLostReports = () => {
 
   const handleSave = async () => {
     if (!editReport) return;
+    const validationError = firstError(
+      validateOptionalLength(editReport.description || "", "Description", 2000),
+      validateOptionalLength(editReport.last_seen_address || "", "Last seen address", 300),
+      validatePhone(editReport.contact_phone || ""),
+      validateOptionalLength(editReport.reward || "", "Reward", 50),
+    );
+    if (validationError) { toast.error(validationError); return; }
     const { error } = await supabase.from("lost_reports").update({
       description: editReport.description,
       last_seen_address: editReport.last_seen_address,

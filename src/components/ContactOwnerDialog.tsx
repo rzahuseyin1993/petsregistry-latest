@@ -8,6 +8,7 @@ import { MessageCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { firstError, validateEmail, validatePhone, validateRequired } from "@/lib/validation";
 
 interface ContactOwnerDialogProps {
   ownerId: string;
@@ -46,12 +47,14 @@ const ContactOwnerDialog = ({ ownerId, petName, adoptionId, children }: ContactO
   };
 
   const handleSendMessage = async () => {
-    if (!name.trim() || !email.trim()) {
-      toast.error("Please enter your name and email so the owner can reply");
-      return;
-    }
-    if (!message.trim()) {
-      toast.error("Please write a message");
+    const validationError = firstError(
+      validateRequired(name, "Your name", { min: 2, max: 100 }),
+      validateEmail(email, { required: true }),
+      validatePhone(phone),
+      validateRequired(message, "Message", { min: 5, max: 1000 }),
+    );
+    if (validationError) {
+      toast.error(validationError);
       return;
     }
 

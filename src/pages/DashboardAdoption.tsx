@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { firstError, validateNumberRange, validateOptionalLength } from "@/lib/validation";
 import { useState } from "react";
 import { Heart, Plus, CheckCircle, XCircle, Clock, ArrowRightLeft, Trash2, Pencil, ShieldCheck, UserCheck, History } from "lucide-react";
 
@@ -128,7 +129,13 @@ const DashboardAdoption = () => {
   };
 
   const handleCreateListing = async () => {
-    if (!selectedPetId || !user) return;
+    if (!user) return;
+    if (!selectedPetId) { toast.error("Please select a pet to list for adoption"); return; }
+    const feeError = firstError(
+      validateNumberRange(fee, "Adoption fee", { min: 0, max: 100000 }),
+      validateOptionalLength(description, "Description", 2000),
+    );
+    if (feeError) { toast.error(feeError); return; }
     const petName = pets.find((p: any) => p.id === selectedPetId)?.name || "Pet";
     const { data, error } = await supabase.from("pet_adoptions").insert({
       pet_id: selectedPetId,
@@ -228,6 +235,11 @@ const DashboardAdoption = () => {
 
   const handleEditSave = async () => {
     if (!editListing) return;
+    const editError = firstError(
+      validateNumberRange(String(editListing.adoption_fee ?? ""), "Adoption fee", { min: 0, max: 100000 }),
+      validateOptionalLength(editListing.description || "", "Description", 2000),
+    );
+    if (editError) { toast.error(editError); return; }
     // Only allow editing description and fee — not status (prevents old owner from reverting completed adoptions)
     const { error } = await supabase.from("pet_adoptions").update({
       description: editListing.description,

@@ -11,8 +11,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Baby, Plus, Trash2, ArrowLeft } from "lucide-react";
-import PetBirthFields, { birthFormToPetPayload, emptyBirthForm } from "@/components/PetBirthFields";
+import PetBirthFields, { birthFormToPetPayload, emptyBirthForm, validateBirthForm } from "@/components/PetBirthFields";
 import { resizeImage, uploadRaw } from "@/lib/imageUpload";
+import { todayStr, validateDateNotFuture, validateImageFile } from "@/lib/validation";
 
 type PuppyRow = {
   name: string;
@@ -67,10 +68,23 @@ const LitterRegistration = () => {
     e.preventDefault();
     if (!user) return;
     if (!litterDate) return toast.error("Litter date is required");
+    const dateError = validateDateNotFuture(litterDate, "Litter date", { required: true });
+    if (dateError) return toast.error(dateError);
     if (!birthForm.sirePetId && !birthForm.sireName) return toast.error("Sire (father) is required");
     if (!birthForm.damPetId && !birthForm.damName) return toast.error("Dam (mother) is required");
+    const birthError = validateBirthForm(birthForm);
+    if (birthError) return toast.error(birthError);
     const validPuppies = puppies.filter((p) => p.name.trim());
     if (validPuppies.length === 0) return toast.error("Add at least one puppy name");
+    const names = validPuppies.map((p) => p.name.trim().toLowerCase());
+    if (new Set(names).size !== names.length) return toast.error("Each puppy must have a unique name");
+    for (const pup of validPuppies) {
+      if (pup.name.trim().length > 100) return toast.error("Puppy names must be at most 100 characters");
+      if (pup.imageFile) {
+        const imgError = validateImageFile(pup.imageFile, { maxMb: 10, label: `Photo for "${pup.name.trim()}"` });
+        if (imgError) return toast.error(imgError);
+      }
+    }
 
     setLoading(true);
     try {
@@ -151,7 +165,7 @@ const LitterRegistration = () => {
             <CardContent className="grid gap-4 md:grid-cols-2">
               <div>
                 <Label>Litter / birth date *</Label>
-                <Input type="date" value={litterDate} onChange={(e) => setLitterDate(e.target.value)} required />
+                <Input type="date" max={todayStr()} value={litterDate} onChange={(e) => setLitterDate(e.target.value)} required />
               </div>
               <div>
                 <Label>Birth location</Label>

@@ -10,6 +10,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -21,12 +31,22 @@ import {
   CalendarPlus, Inbox, Download
 } from "lucide-react";
 
+// Plausible ranges for pet vitals — values outside these are almost certainly typos.
+const HEALTH_LIMITS = {
+  weightKg: { min: 0.01, max: 500 },
+  heightCm: { min: 0.1, max: 300 },
+  temperatureC: { min: 20, max: 45 },
+};
+
+const todayStr = () => format(new Date(), "yyyy-MM-dd");
+
 const PetHealth = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [selectedPetId, setSelectedPetId] = useState<string>("");
   const [healthDialogOpen, setHealthDialogOpen] = useState(false);
   const [vaccineDialogOpen, setVaccineDialogOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<{ kind: "health" | "vaccine"; id: string; label: string } | null>(null);
 
   // Health record form
   const [healthForm, setHealthForm] = useState({
@@ -88,8 +108,39 @@ const PetHealth = () => {
     },
   });
 
+  const validateHealthForm = (): string | null => {
+    if (!healthForm.record_date) return "Please choose a date.";
+    if (healthForm.record_date > todayStr()) return "Record date cannot be in the future.";
+
+    const weight = healthForm.weight_kg ? Number(healthForm.weight_kg) : null;
+    const height = healthForm.height_cm ? Number(healthForm.height_cm) : null;
+    const temp = healthForm.temperature ? Number(healthForm.temperature) : null;
+
+    if (weight === null && height === null && temp === null && !healthForm.notes.trim()) {
+      return "Please fill in at least one measurement or a note.";
+    }
+    if (weight !== null) {
+      if (Number.isNaN(weight) || weight <= 0) return "Weight must be a positive number.";
+      if (weight < HEALTH_LIMITS.weightKg.min || weight > HEALTH_LIMITS.weightKg.max)
+        return `Weight must be between ${HEALTH_LIMITS.weightKg.min} and ${HEALTH_LIMITS.weightKg.max} kg.`;
+    }
+    if (height !== null) {
+      if (Number.isNaN(height) || height <= 0) return "Height must be a positive number.";
+      if (height < HEALTH_LIMITS.heightCm.min || height > HEALTH_LIMITS.heightCm.max)
+        return `Height must be between ${HEALTH_LIMITS.heightCm.min} and ${HEALTH_LIMITS.heightCm.max} cm.`;
+    }
+    if (temp !== null) {
+      if (Number.isNaN(temp)) return "Temperature must be a number.";
+      if (temp < HEALTH_LIMITS.temperatureC.min || temp > HEALTH_LIMITS.temperatureC.max)
+        return `Temperature must be between ${HEALTH_LIMITS.temperatureC.min} and ${HEALTH_LIMITS.temperatureC.max} °C.`;
+    }
+    return null;
+  };
+
   const handleAddHealthRecord = async () => {
     if (!selectedPetId) return;
+    const validationError = validateHealthForm();
+    if (validationError) { toast.error(validationError); return; }
     const { error } = await supabase.from("pet_health_records").insert({
       pet_id: selectedPetId,
       record_date: healthForm.record_date,
@@ -116,11 +167,23 @@ const PetHealth = () => {
     }
   };
 
+  const validateVaccineForm = (): string | null => {
+    if (!vaccineForm.vaccine_name.trim() || vaccineForm.vaccine_name.trim().length < 2)
+      return "Please enter the vaccine name (at least 2 characters).";
+    if (!vaccineForm.date_given) return "Please choose the date the vaccine was given.";
+    if (vaccineForm.date_given > todayStr()) return "Date given cannot be in the future.";
+    if (vaccineForm.next_due_date && vaccineForm.next_due_date <= vaccineForm.date_given)
+      return "Next due date must be after the date given.";
+    return null;
+  };
+
   const handleAddVaccination = async () => {
-    if (!selectedPetId || !vaccineForm.vaccine_name) return;
+    if (!selectedPetId) return;
+    const validationError = validateVaccineForm();
+    if (validationError) { toast.error(validationError); return; }
     const { error } = await supabase.from("pet_vaccinations").insert({
       pet_id: selectedPetId,
-      vaccine_name: vaccineForm.vaccine_name,
+      vaccine_name: vaccineForm.vaccine_name.trim(),
       date_given: vaccineForm.date_given,
       next_due_date: vaccineForm.next_due_date || null,
       vet_name: vaccineForm.vet_name || null,
@@ -144,16 +207,14 @@ const PetHealth = () => {
     }
   };
 
-  const handleDeleteHealth = async (id: string) => {
-    const { error } = await supabase.from("pet_health_records").delete().eq("id", id);
+  const handleConfirmedDelete = async () => {
+    if (!confirmDelete) return;
+    const table = confirmDelete.kind === "health" ? "pet_health_records" : "pet_vaccinations";
+    const queryKey = confirmDelete.kind === "health" ? ["health-records", selectedPetId] : ["vaccinations", selectedPetId];
+    const { error } = await supabase.from(table).delete().eq("id", confirmDelete.id);
     if (error) toast.error("Failed to delete");
-    else { toast.success("Deleted"); queryClient.invalidateQueries({ queryKey: ["health-records", selectedPetId] }); }
-  };
-
-  const handleDeleteVaccine = async (id: string) => {
-    const { error } = await supabase.from("pet_vaccinations").delete().eq("id", id);
-    if (error) toast.error("Failed to delete");
-    else { toast.success("Deleted"); queryClient.invalidateQueries({ queryKey: ["vaccinations", selectedPetId] }); }
+    else { toast.success("Deleted"); queryClient.invalidateQueries({ queryKey }); }
+    setConfirmDelete(null);
   };
 
   // Generate .ics calendar file for a vaccination reminder
@@ -368,20 +429,23 @@ const PetHealth = () => {
                       <div className="space-y-4 pt-2">
                         <div>
                           <Label>Date</Label>
-                          <Input type="date" value={healthForm.record_date} onChange={e => setHealthForm({...healthForm, record_date: e.target.value})} />
+                          <Input type="date" max={todayStr()} value={healthForm.record_date} onChange={e => setHealthForm({...healthForm, record_date: e.target.value})} />
                         </div>
                         <div className="grid grid-cols-3 gap-3">
                           <div>
                             <Label>Weight (kg)</Label>
-                            <Input type="number" step="0.1" placeholder="e.g. 5.2" value={healthForm.weight_kg} onChange={e => setHealthForm({...healthForm, weight_kg: e.target.value})} />
+                            <Input type="number" step="0.1" min={HEALTH_LIMITS.weightKg.min} max={HEALTH_LIMITS.weightKg.max} placeholder="e.g. 5.2" value={healthForm.weight_kg} onChange={e => setHealthForm({...healthForm, weight_kg: e.target.value})} />
+                            <p className="mt-1 text-[11px] text-muted-foreground">Up to {HEALTH_LIMITS.weightKg.max} kg</p>
                           </div>
                           <div>
                             <Label>Height (cm)</Label>
-                            <Input type="number" step="0.1" placeholder="e.g. 35" value={healthForm.height_cm} onChange={e => setHealthForm({...healthForm, height_cm: e.target.value})} />
+                            <Input type="number" step="0.1" min={HEALTH_LIMITS.heightCm.min} max={HEALTH_LIMITS.heightCm.max} placeholder="e.g. 35" value={healthForm.height_cm} onChange={e => setHealthForm({...healthForm, height_cm: e.target.value})} />
+                            <p className="mt-1 text-[11px] text-muted-foreground">Up to {HEALTH_LIMITS.heightCm.max} cm</p>
                           </div>
                           <div>
                             <Label>Temp (°C)</Label>
-                            <Input type="number" step="0.1" placeholder="e.g. 38.5" value={healthForm.temperature} onChange={e => setHealthForm({...healthForm, temperature: e.target.value})} />
+                            <Input type="number" step="0.1" min={HEALTH_LIMITS.temperatureC.min} max={HEALTH_LIMITS.temperatureC.max} placeholder="e.g. 38.5" value={healthForm.temperature} onChange={e => setHealthForm({...healthForm, temperature: e.target.value})} />
+                            <p className="mt-1 text-[11px] text-muted-foreground">{HEALTH_LIMITS.temperatureC.min}–{HEALTH_LIMITS.temperatureC.max} °C</p>
                           </div>
                         </div>
                         <div>
@@ -420,7 +484,7 @@ const PetHealth = () => {
                               {record.notes && <p className="mt-1 text-xs text-muted-foreground">{record.notes}</p>}
                             </div>
                           </div>
-                          <Button variant="ghost" size="icon" onClick={() => handleDeleteHealth(record.id)}>
+                          <Button variant="ghost" size="icon" onClick={() => setConfirmDelete({ kind: "health", id: record.id, label: `health record from ${format(new Date(record.record_date), "PPP")}` })}>
                             <Trash2 className="h-4 w-4 text-muted-foreground" />
                           </Button>
                         </CardContent>
@@ -450,11 +514,11 @@ const PetHealth = () => {
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <Label>Date Given</Label>
-                            <Input type="date" value={vaccineForm.date_given} onChange={e => setVaccineForm({...vaccineForm, date_given: e.target.value})} />
+                            <Input type="date" max={todayStr()} value={vaccineForm.date_given} onChange={e => setVaccineForm({...vaccineForm, date_given: e.target.value})} />
                           </div>
                           <div>
                             <Label>Next Due Date</Label>
-                            <Input type="date" value={vaccineForm.next_due_date} onChange={e => setVaccineForm({...vaccineForm, next_due_date: e.target.value})} />
+                            <Input type="date" min={vaccineForm.date_given || undefined} value={vaccineForm.next_due_date} onChange={e => setVaccineForm({...vaccineForm, next_due_date: e.target.value})} />
                           </div>
                         </div>
                         <div>
@@ -538,7 +602,7 @@ const PetHealth = () => {
                                 </PopoverContent>
                               </Popover>
                             )}
-                            <Button variant="ghost" size="icon" onClick={() => handleDeleteVaccine(v.id)}>
+                            <Button variant="ghost" size="icon" onClick={() => setConfirmDelete({ kind: "vaccine", id: v.id, label: `vaccination "${v.vaccine_name}"` })}>
                               <Trash2 className="h-4 w-4 text-muted-foreground" />
                             </Button>
                           </div>
@@ -552,6 +616,26 @@ const PetHealth = () => {
             </Tabs>
           </>
         )}
+
+        <AlertDialog open={!!confirmDelete} onOpenChange={(open) => { if (!open) setConfirmDelete(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete this record?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {confirmDelete ? `The ${confirmDelete.label} will be permanently deleted. This action cannot be undone.` : ""}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={handleConfirmedDelete}
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </main>
     </div>
   );

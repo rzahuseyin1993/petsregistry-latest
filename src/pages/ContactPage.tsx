@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Mail, MapPin, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { firstError, validateEmail, validateOptionalLength, validateRequired } from "@/lib/validation";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import CmsRenderer from "@/components/CmsRenderer";
@@ -33,8 +34,14 @@ const ContactPage = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim() || !form.email.trim() || !form.message.trim()) {
-      toast.error("Please fill in all required fields");
+    const validationError = firstError(
+      validateRequired(form.name, "Name", { min: 2, max: 100 }),
+      validateEmail(form.email, { required: true }),
+      validateOptionalLength(form.subject, "Subject", 200),
+      validateRequired(form.message, "Message", { min: 5, max: 5000 }),
+    );
+    if (validationError) {
+      toast.error(validationError);
       return;
     }
     setLoading(true);

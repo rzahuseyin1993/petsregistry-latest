@@ -17,6 +17,7 @@ import { extractPhotoGps, reverseGeocode, formatCoords } from "@/lib/geo";
 import WebcamCaptureDialog from "@/components/WebcamCaptureDialog";
 import { useVisitorGeo } from "@/contexts/VisitorGeoContext";
 import { getCountryLabel } from "@/lib/geoCountry";
+import { validateDateNotFuture, validateEmail, validateImageFile, validateOptionalLength, validatePhone } from "@/lib/validation";
 
 const ReportLostPage = () => {
   const { user } = useAuth();
@@ -93,6 +94,8 @@ const ReportLostPage = () => {
   const handlePhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const fileError = validateImageFile(file, { maxMb: 10, label: "Pet photo" });
+    if (fileError) { toast.error(fileError); return; }
     setPhotoFile(file);
     setPhotoPreview(URL.createObjectURL(file));
     // Auto-extract GPS from photo if no location captured yet
@@ -128,8 +131,21 @@ const ReportLostPage = () => {
     // The reporter often doesn't know the pet's name/breed/species — those are optional.
     if (!photoFile) return "A photo is required so people can recognise the pet";
     if (!form.contact_name.trim()) return "Your name is required so we can reach you";
-    if (!form.contact_email.trim() || !/\S+@\S+\.\S+/.test(form.contact_email)) return "A valid email is required";
-    return null;
+    const emailError = validateEmail(form.contact_email, { required: true });
+    if (emailError) return emailError;
+    const phoneError = validatePhone(form.contact_phone);
+    if (phoneError) return phoneError;
+    const dateError = validateDateNotFuture(form.last_seen_date, isFound ? "Date spotted" : "Date last seen");
+    if (dateError) return dateError;
+    return (
+      validateOptionalLength(form.pet_name, "Pet name", 100) ||
+      validateOptionalLength(form.species, "Species", 50) ||
+      validateOptionalLength(form.breed, "Breed", 100) ||
+      validateOptionalLength(form.reward, "Reward", 50) ||
+      validateOptionalLength(form.description, "Description", 2000) ||
+      validateOptionalLength(form.last_seen_address, "Location", 300) ||
+      validateOptionalLength(form.contact_name, "Your name", 100)
+    );
   };
 
   const handleStartSubmit = () => {
@@ -152,6 +168,7 @@ const ReportLostPage = () => {
           photoUrl = await uploadImage(photoFile, "pet-photos", "guest-lost");
         } catch (e) {
           console.warn("Photo upload failed", e);
+          throw new Error("Photo upload failed. Please try again with a different photo.");
         }
       }
 
@@ -232,8 +249,13 @@ const ReportLostPage = () => {
   };
 
   const handleSignupAndSubmit = async () => {
-    if (!signupForm.email || !signupForm.password || signupForm.password.length < 6) {
-      toast.error("Email and password (min 6 chars) required");
+    const signupEmailError = validateEmail(signupForm.email, { required: true });
+    if (signupEmailError) {
+      toast.error(signupEmailError);
+      return;
+    }
+    if (!signupForm.password || signupForm.password.length < 6) {
+      toast.error("Password must be at least 6 characters");
       return;
     }
     setSubmitting(true);

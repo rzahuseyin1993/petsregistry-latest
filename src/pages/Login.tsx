@@ -11,6 +11,7 @@ import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { useIsMobileRoute, useMobilePath } from "@/hooks/useIsMobileRoute";
 import GoogleSignInButton from "@/components/GoogleSignInButton";
+import { EMAIL_REGEX } from "@/lib/validation";
 
 const generateCaptcha = () => {
   const a = Math.floor(Math.random() * 10) + 1;
@@ -36,14 +37,18 @@ const Login = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (parseInt(captchaInput) !== captcha.answer) {
+    if (!EMAIL_REGEX.test(email.trim())) {
+      toast.error("Please enter a valid email address.");
+      return;
+    }
+    if (Number(captchaInput.trim()) !== captcha.answer) {
       toast.error("Incorrect CAPTCHA answer. Please try again.");
       refreshCaptcha();
       return;
     }
 
     setLoading(true);
-    const { data: authData, error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data: authData, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
     if (error) {
       setLoading(false);
       toast.error(error.message);

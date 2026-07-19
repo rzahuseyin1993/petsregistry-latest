@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
+import { validateEmail } from "@/lib/validation";
 import { Heart, Coffee, Trophy, Star, Sparkles, HandHeart, Loader2, CreditCard } from "lucide-react";
 import { motion } from "framer-motion";
 import { completeCheckout } from "@/lib/airwallexCheckout";
@@ -101,6 +102,25 @@ const DonatePage = () => {
 
   const handleDonateClick = () => {
     if (finalAmount <= 0) return;
+    if (!Number.isFinite(finalAmount) || finalAmount > 100000) {
+      toast({ title: "Invalid amount", description: "Donation amount must be between 1 and 100,000.", variant: "destructive" });
+      return;
+    }
+    if (!user) {
+      const emailError = validateEmail(donorEmail);
+      if (emailError) {
+        toast({ title: "Invalid email", description: emailError, variant: "destructive" });
+        return;
+      }
+      if (donorName.trim().length > 100) {
+        toast({ title: "Invalid name", description: "Name must be at most 100 characters.", variant: "destructive" });
+        return;
+      }
+    }
+    if (message.length > 1000) {
+      toast({ title: "Message too long", description: "Message must be at most 1000 characters.", variant: "destructive" });
+      return;
+    }
     if (gateways.length === 0) {
       toast({ title: "Payments unavailable", description: "No payment gateway is configured.", variant: "destructive" });
       return;

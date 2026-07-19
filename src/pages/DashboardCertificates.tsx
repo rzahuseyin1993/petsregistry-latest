@@ -17,7 +17,8 @@ import { Award, Plus, Eye, FileDown, PawPrint, Trash2, ShieldCheck, Printer, Bab
 import CertificateCreditsCard from "@/components/CertificateCreditsCard";
 import CertificateSampleShowcase from "@/components/CertificateSampleShowcase";
 import CertificatePurchaseHistory from "@/components/CertificatePurchaseHistory";
-import PetBirthFields, { birthFormToPetPayload, emptyBirthForm, petToBirthForm } from "@/components/PetBirthFields";
+import PetBirthFields, { birthFormToPetPayload, emptyBirthForm, petToBirthForm, validateBirthForm } from "@/components/PetBirthFields";
+import { validateEmail } from "@/lib/validation";
 import { buildCertificatePetData, PET_CERTIFICATE_SELECT } from "@/lib/certificateData";
 import {
   ensureCertificateTemplateFields,
@@ -212,6 +213,13 @@ const DashboardCertificates = () => {
   const handleCreate = async () => {
     if (!selectedPetId) return toast.error("Please select a pet");
     if (certType === "birth" && !birthForm.dateOfBirth) return toast.error("Date of birth is required for birth certificates");
+    if (certType === "birth") {
+      const birthError = validateBirthForm(birthForm, { requireDateOfBirth: true });
+      if (birthError) return toast.error(birthError);
+    }
+    if (issuedForName.trim().length > 150) return toast.error("Owner name must be at most 150 characters");
+    const emailError = validateEmail(issuedForEmail);
+    if (emailError) return toast.error(emailError);
 
     setCreating(true);
     try {

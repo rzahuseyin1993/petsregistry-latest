@@ -16,8 +16,9 @@ import { resizeImage, uploadRaw } from "@/lib/imageUpload";
 import { useNavigate } from "react-router-dom";
 import { useMobilePath } from "@/hooks/useIsMobileRoute";
 import WebcamCaptureDialog from "@/components/WebcamCaptureDialog";
-import PetBirthFields, { birthFormToPetPayload, emptyBirthForm } from "@/components/PetBirthFields";
+import PetBirthFields, { birthFormToPetPayload, emptyBirthForm, validateBirthForm } from "@/components/PetBirthFields";
 import { useQuery } from "@tanstack/react-query";
+import { firstError, validateImageFile, validateOptionalLength, validateRequired } from "@/lib/validation";
 
 const speciesOptions = ["Dog", "Cat", "Bird", "Fish", "Rabbit", "Hamster", "Reptile", "Bear", "Other"];
 
@@ -59,6 +60,10 @@ const RegisterPet = () => {
       return;
     }
     const newFiles = Array.from(files);
+    for (const f of newFiles) {
+      const fileError = validateImageFile(f, { maxMb: 10, label: `"${f.name}"` });
+      if (fileError) { toast.error(fileError); return; }
+    }
     setImageFiles((prev) => [...prev, ...newFiles]);
     setImagePreviews((prev) => [...prev, ...newFiles.map((f) => URL.createObjectURL(f))]);
   };
@@ -88,6 +93,22 @@ const RegisterPet = () => {
       toast.error("Please select a species");
       return;
     }
+    const validationError = firstError(
+      validateRequired(petName, "Pet name", { min: 1, max: 100 }),
+      validateOptionalLength(breed, "Breed", 100),
+      validateOptionalLength(age, "Age", 50),
+      validateOptionalLength(color, "Color", 100),
+      validateOptionalLength(weight, "Weight", 50),
+      validateOptionalLength(notes, "Notes", 2000),
+      microchipNumber && !/^[A-Za-z0-9\-]{5,20}$/.test(microchipNumber.trim())
+        ? "Microchip number must be 5-20 letters, digits, or dashes."
+        : null,
+      showBirthDetails ? validateBirthForm(birthForm) : null,
+    );
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
 
     setLoading(true);
     try {
@@ -99,14 +120,14 @@ const RegisterPet = () => {
         .from("pets")
         .insert({
           owner_id: user.id,
-          name: petName,
+          name: petName.trim(),
           species,
-          breed,
-          age,
-          color,
-          weight,
-          notes,
-          microchip_number: microchipNumber || null,
+          breed: breed.trim(),
+          age: age.trim(),
+          color: color.trim(),
+          weight: weight.trim(),
+          notes: notes.trim(),
+          microchip_number: microchipNumber.trim() || null,
           ...(showBirthDetails ? birthFormToPetPayload(birthForm) : {}),
         })
         .select()

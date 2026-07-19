@@ -11,6 +11,7 @@ import { reverseGeocode, formatCoords } from "@/lib/geo";
 import { toast } from "sonner";
 import { useVisitorGeo } from "@/contexts/VisitorGeoContext";
 import { getCountryLabel } from "@/lib/geoCountry";
+import { firstError, validateDateNotFuture, validateOptionalLength, validatePhone } from "@/lib/validation";
 
 interface ReportLostDialogProps {
   open: boolean;
@@ -74,6 +75,18 @@ const ReportLostDialog = ({ open, onOpenChange, petId, petName, onReported }: Re
 
   const handleSubmit = async () => {
     if (!user) return;
+    const validationError = firstError(
+      validateDateNotFuture(form.last_seen_date, "Date last seen", { required: true }),
+      !form.last_seen_address.trim() ? "Please enter the last seen location so people know where to look." : null,
+      validateOptionalLength(form.last_seen_address, "Last seen location", 300),
+      validateOptionalLength(form.description, "Description", 2000),
+      validateOptionalLength(form.reward, "Reward", 50),
+      validatePhone(form.contact_phone),
+    );
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
     setLoading(true);
     try {
       // Create lost report

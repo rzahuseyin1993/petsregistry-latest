@@ -16,7 +16,8 @@ import { useNavigate, useParams, Link } from "react-router-dom";
 import { useMobilePath } from "@/hooks/useIsMobileRoute";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import WebcamCaptureDialog from "@/components/WebcamCaptureDialog";
-import PetBirthFields, { birthFormToPetPayload, emptyBirthForm, petToBirthForm } from "@/components/PetBirthFields";
+import PetBirthFields, { birthFormToPetPayload, emptyBirthForm, petToBirthForm, validateBirthForm } from "@/components/PetBirthFields";
+import { firstError, validateImageFile, validateOptionalLength, validateRequired } from "@/lib/validation";
 
 const speciesOptions = ["Dog", "Cat", "Bird", "Fish", "Rabbit", "Hamster", "Reptile", "Bear", "Other"];
 
@@ -95,6 +96,10 @@ const EditPet = () => {
       return;
     }
     const arr = Array.from(files);
+    for (const f of arr) {
+      const fileError = validateImageFile(f, { maxMb: 10, label: `"${f.name}"` });
+      if (fileError) { toast.error(fileError); return; }
+    }
     setNewImageFiles((p) => [...p, ...arr]);
     setNewImagePreviews((p) => [...p, ...arr.map((f) => URL.createObjectURL(f))]);
   };
@@ -135,6 +140,24 @@ const EditPet = () => {
       toast.error("Please select a species");
       return;
     }
+    const validationError = firstError(
+      validateRequired(petName, "Pet name", { min: 1, max: 100 }),
+      validateOptionalLength(breed, "Breed", 100),
+      validateOptionalLength(age, "Age", 50),
+      validateOptionalLength(color, "Color", 100),
+      validateOptionalLength(weight, "Weight", 50),
+      validateOptionalLength(notes, "Notes", 2000),
+      microchipNumber && !/^[A-Za-z0-9\-]{5,20}$/.test(microchipNumber.trim())
+        ? "Microchip number must be 5-20 letters, digits, or dashes."
+        : null,
+      sirePhotoFile ? validateImageFile(sirePhotoFile, { maxMb: 10, label: "Sire photo" }) : null,
+      damPhotoFile ? validateImageFile(damPhotoFile, { maxMb: 10, label: "Dam photo" }) : null,
+      validateBirthForm(birthForm),
+    );
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
     setLoading(true);
     try {
       let sireUrl: string | undefined;
@@ -163,14 +186,14 @@ const EditPet = () => {
       const { error: updErr } = await supabase
         .from("pets")
         .update({
-          name: petName,
+          name: petName.trim(),
           species,
-          breed,
-          age,
-          color,
-          weight,
-          notes,
-          microchip_number: microchipNumber || null,
+          breed: breed.trim(),
+          age: age.trim(),
+          color: color.trim(),
+          weight: weight.trim(),
+          notes: notes.trim(),
+          microchip_number: microchipNumber.trim() || null,
           ...birthFormToPetPayload(birthForm, {
             sire_photo_url: sireUrl ?? pet?.sire_photo_url,
             dam_photo_url: damUrl ?? pet?.dam_photo_url,

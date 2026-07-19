@@ -13,6 +13,7 @@ import { useState, useRef, useCallback } from "react";
 import { toast } from "sonner";
 import { useMobilePath } from "@/hooks/useIsMobileRoute";
 import GoogleSignInButton from "@/components/GoogleSignInButton";
+import { firstError, validateEmail, validatePhone, validateRequired } from "@/lib/validation";
 
 const TERMS_TEXT = `Privacy Policy & Global Terms of Use
 
@@ -65,18 +66,32 @@ const Register = () => {
       toast.error("You must accept the Terms of Use to register.");
       return;
     }
+    const validationError = firstError(
+      validateRequired(name, "Full name", { min: 2, max: 100 }),
+      validateEmail(email, { required: true }),
+      validatePhone(phone),
+      validateRequired(address, "Address", { min: 3, max: 200 }),
+      validateRequired(city, "City", { min: 2, max: 100 }),
+      validateRequired(country, "Country"),
+      password.length < 6 ? "Password must be at least 6 characters." : null,
+      password.length > 72 ? "Password must be at most 72 characters." : null,
+    );
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
     setLoading(true);
     const { data: signUpData, error } = await supabase.auth.signUp({
-      email,
+      email: email.trim(),
       password,
       options: {
-        data: { full_name: name, phone },
+        data: { full_name: name.trim(), phone: phone.trim() },
         emailRedirectTo: window.location.origin,
       },
     });
     if (!error && signUpData?.user) {
       // Update profile with address fields
-      await supabase.from("profiles").update({ address, city, country }).eq("user_id", signUpData.user.id);
+      await supabase.from("profiles").update({ address: address.trim(), city: city.trim(), country }).eq("user_id", signUpData.user.id);
     }
     setLoading(false);
     if (error) toast.error(error.message);

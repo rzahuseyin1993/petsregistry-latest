@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
+import { firstError, validateEmail, validateNumberRange, validateOptionalLength, validatePhone, validateRequired, validateUrl } from "@/lib/validation";
 import CountrySelect from "@/components/CountrySelect";
 import { Plus, Pencil, Trash2, Image, Building2, Crown, Check, ArrowRight, MapPin, Loader2, Upload, Video, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -242,7 +243,33 @@ const DashboardDirectory = () => {
               <DialogHeader>
                 <DialogTitle>{editId ? "Edit Listing" : "Add Business Listing"}</DialogTitle>
               </DialogHeader>
-              <form onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(form); }} className="space-y-4">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const validationError = firstError(
+                    validateRequired(form.name, "Business name", { min: 2, max: 150 }),
+                    validateOptionalLength(form.description, "Description", 2000),
+                    validateOptionalLength(form.address, "Address", 300),
+                    validateOptionalLength(form.city, "City", 100),
+                    validatePhone(form.phone),
+                    validatePhone(form.whatsapp, { label: "WhatsApp number" }),
+                    validateEmail(form.email),
+                    validateUrl(form.website, { label: "website URL" }),
+                    validateUrl(form.video_url, { label: "video URL" }),
+                    form.lat ? validateNumberRange(form.lat, "Latitude", { min: -90, max: 90 }) : null,
+                    form.lng ? validateNumberRange(form.lng, "Longitude", { min: -180, max: 180 }) : null,
+                    (form.lat && !form.lng) || (!form.lat && form.lng)
+                      ? "Please provide both latitude and longitude, or leave both empty."
+                      : null,
+                  );
+                  if (validationError) {
+                    toast({ title: "Invalid input", description: validationError, variant: "destructive" });
+                    return;
+                  }
+                  saveMutation.mutate(form);
+                }}
+                className="space-y-4"
+              >
                 <div>
                   <Label>Business Name *</Label>
                   <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
