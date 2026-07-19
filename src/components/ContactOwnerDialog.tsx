@@ -17,9 +17,6 @@ interface ContactOwnerDialogProps {
   children?: React.ReactNode;
 }
 
-const escapeHtml = (s: string) =>
-  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-
 /** Adoption inquiry — anyone can message the owner to arrange an in-person meet-up. */
 const ContactOwnerDialog = ({ ownerId, petName, adoptionId, children }: ContactOwnerDialogProps) => {
   const { user, profile } = useAuth();
@@ -60,44 +57,19 @@ const ContactOwnerDialog = ({ ownerId, petName, adoptionId, children }: ContactO
 
     setSending(true);
     try {
-      const contactLine = [name.trim(), email.trim(), phone.trim() ? `phone: ${phone.trim()}` : null]
-        .filter(Boolean)
-        .join(" · ");
-
-      const { error: notifyErr } = await supabase.rpc("insert_system_notification", {
-        _user_id: ownerId,
-        _title: `Adoption inquiry for ${petName}`,
-        _message: `From ${contactLine}\n\n${message.trim().slice(0, 500)}`,
-        _type: "adoption",
-        _link: "/dashboard/adoption",
+      // Route through the trusted edge function (notify + email happen server-side).
+      const { data, error } = await supabase.functions.invoke("owner-messaging", {
+        body: {
+          action: "adoption_inquiry",
+          adoptionId,
+          senderName: name.trim(),
+          senderEmail: email.trim(),
+          senderPhone: phone.trim(),
+          message: message.trim(),
+        },
       });
-      if (notifyErr) throw notifyErr;
-
-      const { data: ownerProfile } = await supabase
-        .from("profiles")
-        .select("email, full_name")
-        .eq("user_id", ownerId)
-        .maybeSingle();
-
-      if (ownerProfile?.email) {
-        await supabase.functions.invoke("send-smtp-email", {
-          body: {
-            to: ownerProfile.email,
-            subject: `Someone is interested in adopting ${petName}`,
-            html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px">
-              <h2 style="color:#e11d48">🐾 Adoption inquiry for ${escapeHtml(petName)}</h2>
-              <p>Hi ${escapeHtml(ownerProfile.full_name || "Pet Owner")},</p>
-              <p>Someone would like to adopt <strong>${escapeHtml(petName)}</strong> and arrange a meet-up in person.</p>
-              <p><strong>From:</strong> ${escapeHtml(name.trim())}</p>
-              <p><strong>Email:</strong> <a href="mailto:${escapeHtml(email.trim())}">${escapeHtml(email.trim())}</a></p>
-              ${phone.trim() ? `<p><strong>Phone:</strong> ${escapeHtml(phone.trim())}</p>` : ""}
-              <div style="background:#fff1f2;border-radius:8px;padding:16px;margin:16px 0;white-space:pre-wrap">${escapeHtml(message.trim())}</div>
-              <p>Reply to them directly to arrange where and when to meet. Listing ref: ${escapeHtml(adoptionId)}</p>
-              <p style="margin-top:24px;color:#6b7280;font-size:13px">— Pets Registry</p>
-            </div>`,
-          },
-        }).catch(() => {});
-      }
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
 
       toast.success("Message sent to the pet owner!");
       setOpen(false);

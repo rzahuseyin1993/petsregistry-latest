@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -46,7 +46,7 @@ function VerifyDetail({
         {Icon && <Icon className="h-3 w-3" />}
         {label}
       </p>
-      <p className={`text-sm font-semibold text-foreground ${mono ? "font-mono" : ""}`}>{value || "—"}</p>
+      <p className={`allow-select text-sm font-semibold text-foreground ${mono ? "font-mono" : ""}`}>{value || "—"}</p>
     </div>
   );
 }
@@ -59,21 +59,33 @@ const CertificateVerify = () => {
   const [searched, setSearched] = useState(false);
   const [verifiedAt, setVerifiedAt] = useState<Date | null>(null);
 
-  const verify = async () => {
-    if (!code.trim()) return;
+  const verify = useCallback(async (value?: string) => {
+    const raw = (value ?? code).trim();
+    if (!raw) return;
+    // Codes are alphanumeric with dashes; strip anything else so user input
+    // can't inject extra PostgREST filter clauses via commas/parens.
+    const sanitized = raw.replace(/[^A-Za-z0-9-]/g, "");
+    if (!sanitized) return;
     setLoading(true);
     setSearched(true);
-    const trimmed = code.trim();
-    const upper = trimmed.toUpperCase();
+    const upper = sanitized.toUpperCase();
     const { data } = await supabase
       .from("certificate_verification" as any)
       .select("*")
-      .or(`certificate_number.eq.${upper},verification_code.eq.${trimmed.toLowerCase()},pet_code.eq.${upper}`)
+      .or(`certificate_number.eq.${upper},verification_code.eq.${sanitized.toLowerCase()},pet_code.eq.${upper}`)
       .maybeSingle();
     setResult(data);
     setVerifiedAt(data ? new Date() : null);
     setLoading(false);
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code]);
+
+  // Auto-verify when arriving with ?code= (e.g. from a certificate QR code)
+  useEffect(() => {
+    const initial = params.get("code");
+    if (initial?.trim()) verify(initial);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const certType: CertificateType = result?.certificate_type === "birth" ? "birth" : "ownership";
 
@@ -108,7 +120,7 @@ const CertificateVerify = () => {
                 onKeyDown={(e) => e.key === "Enter" && verify()}
                 className="font-mono flex-1"
               />
-              <Button onClick={verify} disabled={loading || !code.trim()} className="gap-2 shrink-0">
+              <Button onClick={() => verify()} disabled={loading || !code.trim()} className="gap-2 shrink-0">
                 <Search className="h-4 w-4" /> {loading ? "Checking…" : "Verify now"}
               </Button>
             </div>

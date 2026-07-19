@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import DashboardSidebar from "@/components/DashboardSidebar";
 import { Card, CardContent } from "@/components/ui/card";
@@ -256,6 +256,13 @@ const LostFlyerBuilder = () => {
   const [uploadName, setUploadName] = useState("");
   const [uploadDesc, setUploadDesc] = useState("");
   const [uploadFile, setUploadFile] = useState<File | null>(null);
+  // Memoise the preview blob URL (creating one inline in JSX leaks a new URL every render)
+  const uploadPreviewUrl = useMemo(() => (uploadFile ? URL.createObjectURL(uploadFile) : null), [uploadFile]);
+  useEffect(() => {
+    return () => {
+      if (uploadPreviewUrl) URL.revokeObjectURL(uploadPreviewUrl);
+    };
+  }, [uploadPreviewUrl]);
   const [uploading, setUploading] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
 
@@ -1210,7 +1217,7 @@ const LostFlyerBuilder = () => {
               <div><Label>Template Name</Label><Input value={uploadName} onChange={(e) => setUploadName(e.target.value)} placeholder="My Custom Design" /></div>
               <div><Label>Description (optional)</Label><Input value={uploadDesc} onChange={(e) => setUploadDesc(e.target.value)} placeholder="Brief description" /></div>
               <div><Label>Background Image</Label><Input type="file" accept="image/*" onChange={(e) => setUploadFile(e.target.files?.[0] || null)} /></div>
-              {uploadFile && <img src={URL.createObjectURL(uploadFile)} alt="Preview" className="h-40 w-full rounded-lg object-cover border border-border" />}
+              {uploadPreviewUrl && <img src={uploadPreviewUrl} alt="Preview" className="h-40 w-full rounded-lg object-cover border border-border" />}
               <Button className="w-full gap-2" onClick={handleUploadTemplate} disabled={uploading || !uploadFile || !uploadName.trim()}>
                 <Upload className="h-4 w-4" /> {uploading ? "Uploading..." : "Upload Template"}
               </Button>

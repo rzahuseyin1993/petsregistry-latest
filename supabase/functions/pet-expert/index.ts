@@ -45,7 +45,10 @@ serve(async (req) => {
 
     const token = authHeader.replace("Bearer ", "");
     const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
+    // Require a real signed-in user: the anon API key is also a valid JWT, so
+    // check the role/sub claims rather than just accepting any parsable token.
+    const claims = claimsData?.claims as { sub?: string; role?: string } | undefined;
+    if (claimsError || !claims?.sub || claims.role !== "authenticated") {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

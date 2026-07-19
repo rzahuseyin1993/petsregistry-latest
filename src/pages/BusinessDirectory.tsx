@@ -91,7 +91,14 @@ const BusinessDirectory = () => {
         .order("created_at", { ascending: false });
 
       if (category !== "all") query = query.eq("category", category);
-      if (search) query = query.or(`name.ilike.%${search}%,description.ilike.%${search}%,city.ilike.%${search}%`);
+      if (search) {
+        // Strip characters with special meaning in PostgREST or-filters so user
+        // input can't break or inject additional filter clauses.
+        const safe = search.replace(/[,()."\\]/g, " ").trim();
+        if (safe) {
+          query = query.or(`name.ilike.%${safe}%,description.ilike.%${safe}%,city.ilike.%${safe}%`);
+        }
+      }
 
       const { data, error } = await query;
       if (error) throw error;

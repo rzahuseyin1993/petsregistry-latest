@@ -95,7 +95,7 @@ const AdminOrders = () => {
           sender_id: user.id,
           recipient_id: userId,
           subject: `Order #${orderShortId} — Status Update: ${status.charAt(0).toUpperCase() + status.slice(1)}`,
-          message: `<p>Hello,</p><p>${statusMessages[status] || `Your order status has been updated to <strong>${status}</strong>.`}</p><p>Order ID: <strong>#${orderShortId}</strong></p><p>New Status: <strong>${status.charAt(0).toUpperCase() + status.slice(1)}</strong></p><p>If you have any questions about your order, please don't hesitate to contact us.</p><p>Best regards,<br/>Pet Palace Team</p>`,
+          message: `<p>Hello,</p><p>${statusMessages[status] || `Your order status has been updated to <strong>${status}</strong>.`}</p><p>Order ID: <strong>#${orderShortId}</strong></p><p>New Status: <strong>${status.charAt(0).toUpperCase() + status.slice(1)}</strong></p><p>If you have any questions about your order, please don't hesitate to contact us.</p><p>Best regards,<br/>Pets Registry Team</p>`,
           is_html: true,
         });
         notified = !msgError;

@@ -17,7 +17,7 @@ const ProtectedImage = React.forwardRef<HTMLDivElement, ProtectedImageProps>(
       src,
       alt,
       className,
-      watermarkText = "Pet Palace Hub",
+      watermarkText = "Pets Registry",
       loading = "lazy",
       width,
       height,

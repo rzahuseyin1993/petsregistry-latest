@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useMobilePath } from "@/hooks/useIsMobileRoute";
 
 interface CartDrawerProps {
   open?: boolean;
@@ -19,6 +20,7 @@ const CartDrawer = ({ open: controlledOpen, onOpenChange, showTrigger = true }: 
   const { items, removeItem, updateQuantity, clearCart, totalItems, totalPrice } = useCart();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const mp = useMobilePath();
   const [internalOpen, setInternalOpen] = useState(false);
   const open = controlledOpen ?? internalOpen;
   const setOpen = onOpenChange ?? setInternalOpen;
@@ -28,7 +30,7 @@ const CartDrawer = ({ open: controlledOpen, onOpenChange, showTrigger = true }: 
     if (!user) {
       toast.error("Please sign in to checkout");
       setOpen(false);
-      navigate("/login");
+      navigate(mp("/login"));
       return;
     }
 
@@ -39,46 +41,35 @@ const CartDrawer = ({ open: controlledOpen, onOpenChange, showTrigger = true }: 
 
     setProcessing(true);
     try {
-      // Create order
-      const { data: order, error: orderErr } = await supabase
-        .from("orders")
-        .insert({ user_id: user.id, total: totalPrice, status: "pending", payment_method: "pending" })
-        .select("id")
-        .single();
+      // Atomic server-side checkout: prices are recomputed from the products
+      // table and stock is verified/deducted in a single transaction.
+      const { data, error } = await supabase.rpc("place_store_order" as any, {
+        _items: items.map((item) => ({ product_id: item.id, quantity: item.quantity })),
+      });
+      if (error) throw error;
 
-      if (orderErr) throw orderErr;
+      const result = data as { order_id: string; total: number };
+      const orderShortId = result.order_id.slice(0, 8).toUpperCase();
+      const serverTotal = Number(result.total);
 
-      // Create order items
-      const orderItems = items.map((item) => ({
-        order_id: order.id,
-        product_id: item.id,
-        quantity: item.quantity,
-        price: item.price,
-      }));
-
-      const { error: itemsErr } = await supabase.from("order_items").insert(orderItems);
-      if (itemsErr) throw itemsErr;
-
-      // Deduct stock for each product
-      for (const item of items) {
-        await supabase.rpc("deduct_stock" as any, { _product_id: item.id, _quantity: item.quantity });
-      }
-
-      // Send order confirmation to member inbox
-      const orderShortId = order.id.slice(0, 8).toUpperCase();
-      const itemsList = items.map(i => `<li>${i.name} × ${i.quantity} — $${(i.price * i.quantity).toFixed(2)}</li>`).join("");
+      // Send order confirmation to member inbox (best-effort)
+      const escapeHtml = (s: string) =>
+        s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+      const itemsList = items
+        .map((i) => `<li>${escapeHtml(i.name)} × ${i.quantity}</li>`)
+        .join("");
       await supabase.from("admin_messages").insert({
         sender_id: user.id,
         recipient_id: user.id,
         subject: `Order Confirmation — #${orderShortId}`,
-        message: `<p>Thank you for your order!</p><p><strong>Order ID:</strong> #${orderShortId}</p><p><strong>Items:</strong></p><ul>${itemsList}</ul><p><strong>Total:</strong> $${totalPrice.toFixed(2)}</p><p><strong>Status:</strong> Pending</p><p>We'll notify you when your order status changes.</p><p>Best regards,<br/>Pet Palace Team</p>`,
+        message: `<p>Thank you for your order!</p><p><strong>Order ID:</strong> #${orderShortId}</p><p><strong>Items:</strong></p><ul>${itemsList}</ul><p><strong>Total:</strong> $${serverTotal.toFixed(2)}</p><p><strong>Status:</strong> Pending</p><p>We'll notify you when your order status changes.</p><p>Best regards,<br/>Pets Registry Team</p>`,
         is_html: true,
       });
 
       clearCart();
       setOpen(false);
       toast.success("Order placed successfully! Order ID: " + orderShortId);
-      navigate("/dashboard/orders");
+      navigate(mp("/dashboard/orders"));
     } catch (err: any) {
       toast.error(err.message || "Failed to place order");
     } finally {
@@ -111,7 +102,7 @@ const CartDrawer = ({ open: controlledOpen, onOpenChange, showTrigger = true }: 
           <div className="flex flex-1 flex-col items-center justify-center gap-3 text-muted-foreground">
             <ShoppingBag className="h-12 w-12" />
             <p className="text-sm">Your cart is empty</p>
-            <Button variant="outline" size="sm" onClick={() => { setOpen(false); navigate("/store"); }}>
+            <Button variant="outline" size="sm" onClick={() => { setOpen(false); navigate(mp("/store")); }}>
               Browse Store
             </Button>
           </div>

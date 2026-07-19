@@ -19,6 +19,7 @@ const MobileGuard = lazy(() => import("./components/MobileGuard"));
 
 const Login = lazy(() => import("./pages/Login"));
 const Register = lazy(() => import("./pages/Register"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 // Lazy-loaded pages — split into separate chunks to reduce initial bundle
@@ -140,12 +141,14 @@ function AppWithProviders() {
       // e.preventDefault();
     };
 
-    // Disable copy, cut, and print-screen shortcuts (skip in admin/dashboard)
+    // Disable save/view-source/print shortcuts (skip in admin/dashboard).
+    // Plain text copy (Ctrl+C/X) stays enabled everywhere so visitors can copy
+    // pet registry IDs and certificate codes; images are protected separately
+    // via the drag blocker and ProtectedImage watermarks.
     const handleKeyDown = (e: KeyboardEvent) => {
       if (isPrivileged()) return;
-      // Ctrl+C, Ctrl+X, Ctrl+U (view source), Ctrl+S (save), Ctrl+P (print)
-      if (e.ctrlKey && ['c', 'x', 'u', 's', 'p'].includes(e.key.toLowerCase())) {
-        // Allow copy/cut inside inputs and textareas
+      // Ctrl+U (view source), Ctrl+S (save), Ctrl+P (print)
+      if (e.ctrlKey && ['u', 's', 'p'].includes(e.key.toLowerCase())) {
         const target = e.target as HTMLElement;
         if (['INPUT', 'TEXTAREA'].includes(target.tagName) || target.isContentEditable) return;
         e.preventDefault();
@@ -168,18 +171,9 @@ function AppWithProviders() {
       }
     };
 
-    // Disable copy event on public pages only
-    const handleCopy = (e: ClipboardEvent) => {
-      if (isPrivileged()) return;
-      const target = e.target as HTMLElement;
-      if (['INPUT', 'TEXTAREA'].includes(target.tagName) || target.isContentEditable) return;
-      e.preventDefault();
-    };
-
     document.addEventListener('contextmenu', handleContextMenu);
     document.addEventListener('keydown', handleKeyDown);
     document.addEventListener('dragstart', handleDragStart);
-    document.addEventListener('copy', handleCopy);
 
     return () => {
       history.pushState = origPush;
@@ -188,7 +182,6 @@ function AppWithProviders() {
       document.removeEventListener('contextmenu', handleContextMenu);
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('dragstart', handleDragStart);
-      document.removeEventListener('copy', handleCopy);
     };
   }, []);
 
@@ -211,6 +204,7 @@ function AppWithProviders() {
               <Route path="/contact" element={<ContactPage />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/admin/login" element={<AdminLogin />} />
               <Route path="/admin" element={<ProtectedRoute adminOnly><AdminLayout /></ProtectedRoute>}>
                 <Route index element={<AdminPageWrapper resource="dashboard"><AdminDashboard /></AdminPageWrapper>} />
@@ -286,7 +280,7 @@ function AppWithProviders() {
                 <Route path="lost-pets" element={<MobileLostPets />} />
                 <Route path="report-lost" element={<ReportLostPage />} />
                 <Route path="directory" element={<MobileDirectory />} />
-                <Route path="pet-expert" element={<MobilePetExpert />} />
+                <Route path="pet-expert" element={<ProtectedRoute><MobilePetExpert /></ProtectedRoute>} />
                 <Route path="membership" element={<MobileMembership />} />
                 <Route path="pet/:id" element={<PetProfile />} />
                 <Route path="directory/:id" element={<BusinessProfile />} />
@@ -297,6 +291,9 @@ function AppWithProviders() {
                 <Route path="resources" element={<ResourcesPage />} />
                 <Route path="resources/:slug" element={<ResourcePost />} />
                 <Route path="pet-map" element={<PetMapPage />} />
+                <Route path="fees" element={<FeesPage />} />
+                <Route path="verify" element={<CertificateVerify />} />
+                <Route path="verify-certificate" element={<CertificateVerify />} />
                 <Route path="login" element={<Login />} />
                 <Route path="register" element={<Register />} />
                 <Route path="dashboard" element={<ProtectedRoute><MobileDashboard /></ProtectedRoute>} />
@@ -312,6 +309,7 @@ function AppWithProviders() {
                 <Route path="dashboard/settings" element={<ProtectedRoute><DashboardSettings /></ProtectedRoute>} />
                 <Route path="dashboard/orders" element={<ProtectedRoute><MobileOrders /></ProtectedRoute>} />
                 <Route path="dashboard/certificates" element={<ProtectedRoute><DashboardCertificates /></ProtectedRoute>} />
+                <Route path="dashboard/register-litter" element={<ProtectedRoute><LitterRegistration /></ProtectedRoute>} />
                 <Route path="dashboard/articles" element={<ProtectedRoute adminOnly><DashboardArticles /></ProtectedRoute>} />
                 </Route>
               </Route>

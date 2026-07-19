@@ -9,6 +9,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useCart } from "@/contexts/CartContext";
 import { useStoreEnabled } from "@/hooks/useStoreEnabled";
+import CartDrawer from "@/components/CartDrawer";
 
 const MobileStore = () => {
   const navigate = useNavigate();
@@ -51,11 +52,15 @@ const MobileStore = () => {
 
   return (
     <div className="p-4 space-y-4">
-      <div>
-        <h1 className="font-display text-lg font-bold text-foreground flex items-center gap-2">
-          <ShoppingCart className="h-5 w-5 text-emerald-500" /> Pet Store
-        </h1>
-        <p className="text-xs text-muted-foreground mt-1">{products.length} products</p>
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h1 className="font-display text-lg font-bold text-foreground flex items-center gap-2">
+            <ShoppingCart className="h-5 w-5 text-emerald-500" /> Pet Store
+          </h1>
+          <p className="text-xs text-muted-foreground mt-1">{products.length} products</p>
+        </div>
+        {/* Cart access so mobile shoppers can review and place their order */}
+        <CartDrawer />
       </div>
 
       {isLoading ? (

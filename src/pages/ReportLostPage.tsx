@@ -18,11 +18,13 @@ import WebcamCaptureDialog from "@/components/WebcamCaptureDialog";
 import { useVisitorGeo } from "@/contexts/VisitorGeoContext";
 import { getCountryLabel } from "@/lib/geoCountry";
 import { validateDateNotFuture, validateEmail, validateImageFile, validateOptionalLength, validatePhone } from "@/lib/validation";
+import { useMobilePath } from "@/hooks/useIsMobileRoute";
 
 const ReportLostPage = () => {
   const { user } = useAuth();
   const { visitorCountry } = useVisitorGeo();
   const navigate = useNavigate();
+  const mp = useMobilePath();
   const [reportType, setReportType] = useState<"lost" | "found">("lost");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
@@ -97,7 +99,10 @@ const ReportLostPage = () => {
     const fileError = validateImageFile(file, { maxMb: 10, label: "Pet photo" });
     if (fileError) { toast.error(fileError); return; }
     setPhotoFile(file);
-    setPhotoPreview(URL.createObjectURL(file));
+    setPhotoPreview((prev) => {
+      if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
     // Auto-extract GPS from photo if no location captured yet
     if (form.last_seen_lat == null) {
       const gps = await extractPhotoGps(file);
@@ -107,7 +112,10 @@ const ReportLostPage = () => {
 
   const handleWebcamCapture = async (file: File, dataUrl: string) => {
     setPhotoFile(file);
-    setPhotoPreview(dataUrl);
+    setPhotoPreview((prev) => {
+      if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
+      return dataUrl;
+    });
     if (form.last_seen_lat == null) {
       const gps = await extractPhotoGps(file);
       if (gps) await applyCoords(gps.lat, gps.lng, "photo");
@@ -237,7 +245,7 @@ const ReportLostPage = () => {
       if (reportErr) throw reportErr;
 
       toast.success(isFound ? "Found pet report submitted! Thank you for helping reunite a pet." : "Lost report submitted! Thank you for helping reunite this pet.");
-      navigate("/lost-pets");
+      navigate(mp("/lost-pets"));
     } catch (err: any) {
       console.error(err);
       toast.error(err.message || "Failed to submit report");

@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.visitor-country]
 verify_jwt = false
+
+[functions.owner-messaging]
+verify_jwt = false

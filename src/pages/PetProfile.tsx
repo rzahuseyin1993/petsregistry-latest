@@ -65,7 +65,7 @@ const PetProfile = () => {
   const [contactOpen, setContactOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
-  const { user, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const { data: siteUrl } = useQuery({
     queryKey: ["site-url"],
     queryFn: async () => {
@@ -169,8 +169,12 @@ const PetProfile = () => {
       .update({ status: "found", updated_at: new Date().toISOString() })
       .eq("id", lostReport.id);
     if (e1) { toast.error("Could not update report"); return; }
-    await supabase.from("pets").update({ status: "found" }).eq("id", resolvedId!);
-    toast.success("Marked as Found! 🎉 Thank you for the update.");
+    const { error: e2 } = await supabase.from("pets").update({ status: "found" }).eq("id", resolvedId!);
+    if (e2) {
+      toast.success("Report marked as Found. The pet's status will update shortly.");
+    } else {
+      toast.success("Marked as Found! 🎉 Thank you for the update.");
+    }
     refetchLostReport();
   };
 
@@ -179,13 +183,19 @@ const PetProfile = () => {
     if (!message.trim()) { toast.error("Please write a message"); return; }
     setSending(true);
     try {
-      await supabase.rpc("insert_system_notification", {
-        _user_id: (pet as any).owner_id,
-        _title: `Message about ${pet.name}`,
-        _message: message.trim(),
-        _type: "info",
-        _link: `/pet/${resolvedId}`,
+      // Route through the trusted edge function so it works even when the pet's
+      // owner row isn't directly readable, and notify + email happen server-side.
+      const { data, error } = await supabase.functions.invoke("owner-messaging", {
+        body: {
+          action: "pet_contact",
+          petId: resolvedId,
+          senderName: profile?.full_name || user.email || "A member",
+          senderContact: user.email || "",
+          message: message.trim(),
+        },
       });
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
       toast.success("Message sent to the owner!");
       setMessage("");
       setContactOpen(false);
@@ -244,7 +254,7 @@ const PetProfile = () => {
                 <CheckCircle className="h-4 w-4 shrink-0 text-success" />
                 <span className="text-sm font-medium text-foreground">Verified Pet Profile</span>
               </div>
-              <span className="font-mono text-sm font-semibold tracking-wide text-primary sm:text-xs">{petCode}</span>
+              <span className="allow-select font-mono text-sm font-semibold tracking-wide text-primary sm:text-xs">{petCode}</span>
             </div>
 
             <div className="grid gap-6 lg:grid-cols-3">
@@ -319,7 +329,7 @@ const PetProfile = () => {
                           <QrCode className="h-4 w-4 shrink-0 text-primary" />
                           <span>Pet ID</span>
                         </div>
-                        <span className="font-mono text-base font-semibold tracking-wide text-primary">{petCode}</span>
+                        <span className="allow-select font-mono text-base font-semibold tracking-wide text-primary">{petCode}</span>
                       </div>
                     </div>
 
@@ -411,7 +421,7 @@ const PetProfile = () => {
                       <QRCodeSVG value={profileUrl} size={160} />
                     </div>
                     <p className="mt-3 text-center text-xs text-muted-foreground">Scan to view this pet's profile</p>
-                    <p className="mt-1 text-center text-sm font-mono font-semibold tracking-wide text-primary">{petCode}</p>
+                    <p className="allow-select mt-1 text-center text-sm font-mono font-semibold tracking-wide text-primary">{petCode}</p>
                     {!authLoading && (pet as any)?.canDownloadQr && (
                       <div className="mt-4 w-full space-y-2">
                         <p className="text-center text-xs font-medium text-muted-foreground">Download for pet tag</p>

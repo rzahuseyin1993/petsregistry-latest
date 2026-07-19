@@ -29,20 +29,50 @@ const MembershipPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [billingInterval, setBillingInterval] = useState<BillingInterval>("yearly");
 
-  // Handle return from the payment gateway (legacy return URLs point here)
+  // Handle return from the payment gateway (legacy return URLs point here).
+  // Don't trust ?success alone — poll the server until the membership actually
+  // shows up as active (webhooks can take a few seconds).
   useEffect(() => {
     const success = searchParams.get("success");
     const canceled = searchParams.get("canceled");
     if (!success && !canceled) return;
     if (success === "true") {
-      toast({ title: "Payment received!", description: "Your membership will activate within a minute." });
-      queryClient.invalidateQueries({ queryKey: ["my-memberships"] });
-    } else if (canceled === "true") {
+      toast({ title: "Payment received!", description: "Confirming your membership..." });
+      let attempts = 0;
+      const timer = setInterval(async () => {
+        attempts += 1;
+        if (!user || attempts > 10) {
+          clearInterval(timer);
+          if (attempts > 10) {
+            toast({
+              title: "Still processing",
+              description: "Your payment was received but activation is taking longer than usual. It will appear shortly.",
+            });
+          }
+          return;
+        }
+        const { data } = await supabase
+          .from("memberships")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("status", "active")
+          .gte("expires_at", new Date().toISOString())
+          .limit(1);
+        if (data && data.length > 0) {
+          clearInterval(timer);
+          queryClient.invalidateQueries({ queryKey: ["my-memberships"] });
+          toast({ title: "Membership activated! 🎉", description: "Welcome aboard." });
+        }
+      }, 3000);
+      setSearchParams({}, { replace: true });
+      return () => clearInterval(timer);
+    }
+    if (canceled === "true") {
       toast({ title: "Payment cancelled", description: "You were not charged.", variant: "destructive" });
     }
     setSearchParams({}, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+  }, [searchParams, user]);
 
   const { data: discountPercent } = useQuery({
     queryKey: ["yearly-discount"],
@@ -122,7 +152,7 @@ const MembershipPage = () => {
       if (!plan) throw new Error("Plan not found");
 
       const { data, error } = await supabase.functions.invoke("membership-checkout", {
-        body: { planId, userId: user.id, billingInterval, provider },
+        body: { planId, billingInterval, provider },
       });
 
       if (error) throw new Error(await parseFunctionError(error));

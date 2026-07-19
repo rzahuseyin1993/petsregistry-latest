@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -32,6 +33,7 @@ const packageIcons: Record<string, typeof Heart> = {
 
 const DonatePage = () => {
   const { user, profile } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedPackage, setSelectedPackage] = useState<string | null>(null);
   const [customAmount, setCustomAmount] = useState("");
   const [donorName, setDonorName] = useState("");
@@ -39,6 +41,17 @@ const DonatePage = () => {
   const [message, setMessage] = useState("");
   const [providerOpen, setProviderOpen] = useState(false);
   const [pendingProvider, setPendingProvider] = useState<PaymentProvider | null>(null);
+
+  // Handle the return from the payment gateway
+  useEffect(() => {
+    if (searchParams.get("success") === "true") {
+      toast({ title: "Thank you for your donation! 🎉", description: "Your payment is being processed." });
+      setSearchParams({}, { replace: true });
+    } else if (searchParams.get("canceled") === "true") {
+      toast({ title: "Donation canceled", description: "No payment was taken. You can try again anytime." });
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const { data: packages = [], isLoading } = useQuery({
     queryKey: ["donation-packages"],
@@ -78,7 +91,6 @@ const DonatePage = () => {
           amount: finalAmount,
           donorName: user ? profile?.full_name || "" : donorName,
           donorEmail: user ? user.email : donorEmail,
-          userId: user?.id || null,
           packageId: selectedPackage,
           message,
           provider,
@@ -92,6 +104,8 @@ const DonatePage = () => {
       } else if (data?.success) {
         toast({ title: "Thank you! 🎉", description: "Your donation has been recorded." });
         setProviderOpen(false);
+      } else {
+        throw new Error("The payment provider did not return a checkout link. Please try again.");
       }
     },
     onSettled: () => setPendingProvider(null),

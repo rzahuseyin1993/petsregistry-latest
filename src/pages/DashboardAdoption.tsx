@@ -168,17 +168,11 @@ const DashboardAdoption = () => {
   };
 
   const sendTransferEmails = async (listing: any) => {
-    try {
-      const { data: ownerProfile } = await supabase.from("profiles").select("email, full_name").eq("user_id", listing.owner_id).single();
-      const { data: adopterProfile } = await supabase.from("profiles").select("email, full_name").eq("user_id", listing.adopter_id).single();
-      const petName = listing.pets?.name || "the pet";
-      if (ownerProfile?.email) {
-        await supabase.functions.invoke("send-smtp-email", { body: { to: ownerProfile.email, subject: "Pet Transfer Complete", html: `<p>Dear ${ownerProfile.full_name || "Member"},</p><p>Your pet <strong>${petName}</strong> has been successfully transferred to the new owner.</p><p>Thank you for using Pets Registry.</p>` } });
-      }
-      if (adopterProfile?.email) {
-        await supabase.functions.invoke("send-smtp-email", { body: { to: adopterProfile.email, subject: "Adoption Complete - Pet Transferred!", html: `<p>Dear ${adopterProfile.full_name || "Member"},</p><p>Congratulations! The pet <strong>${petName}</strong> has been transferred to your account.</p><p>You can now manage your new pet from your dashboard.</p><p>Thank you for using Pets Registry.</p>` } });
-      }
-    } catch (e) { console.error("Email send error:", e); }
+    // Emails are sent server-side (members can't read the counterparty's email,
+    // and send-smtp-email only accepts trusted callers).
+    await supabase.functions.invoke("owner-messaging", {
+      body: { action: "adoption_transfer_complete", adoptionId: listing.id },
+    }).catch((e) => console.error("Transfer email error:", e));
   };
 
   // Re-read the listing after confirming so the "both confirmed" decision uses

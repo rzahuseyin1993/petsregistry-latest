@@ -55,13 +55,19 @@ const FoundPetTipDialog = ({ petId, petName, lostReport, trigger }: Props) => {
       return;
     }
     setPhotoFile(file);
-    setPhotoPreview(URL.createObjectURL(file));
+    setPhotoPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
     e.target.value = "";
   };
 
   const clearPhoto = () => {
     setPhotoFile(null);
-    setPhotoPreview(null);
+    setPhotoPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
   };
 
   const submit = async () => {

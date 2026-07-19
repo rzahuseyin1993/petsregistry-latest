@@ -135,7 +135,7 @@ const DashboardMembership = () => {
       if (!plan) throw new Error("Plan not found");
 
       const { data, error } = await supabase.functions.invoke("membership-checkout", {
-        body: { planId, userId: user.id, billingInterval: effectiveBilling, provider },
+        body: { planId, billingInterval: effectiveBilling, provider },
       });
 
       if (error) throw new Error(await parseFunctionError(error));

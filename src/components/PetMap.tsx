@@ -57,12 +57,15 @@ const CATEGORY_META: Record<string, { emoji: string; color: string; label: strin
 };
 
 // Standard pin (free / OSM)
+const escapeHtml = (s: string) =>
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
 const createCategoryIcon = (category: string, emoji?: string, color?: string, iconUrl?: string) => {
   const config = CATEGORY_META[category] || CATEGORY_META.custom;
   const finalColor = color || config.color;
 
   const inner = iconUrl
-    ? `<img src="${iconUrl}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;" />`
+    ? `<img src="${escapeHtml(iconUrl)}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;" />`
     : (emoji || config.emoji);
 
   return L.divIcon({
@@ -76,9 +79,9 @@ const createCategoryIcon = (category: string, emoji?: string, color?: string, ic
 
 // Premium pin: business logo + name label on top
 const createPaidBusinessIcon = (name: string, logoUrl?: string | null) => {
-  const safeName = name.replace(/"/g, '&quot;').replace(/</g, "&lt;");
+  const safeName = escapeHtml(name);
   const inner = logoUrl
-    ? `<img src="${logoUrl}" style="width:32px;height:32px;border-radius:9999px;object-fit:cover;border:3px solid #f59e0b;box-shadow:0 2px 8px rgba(0,0,0,0.3);background:white;" />`
+    ? `<img src="${escapeHtml(logoUrl)}" style="width:32px;height:32px;border-radius:9999px;object-fit:cover;border:3px solid #f59e0b;box-shadow:0 2px 8px rgba(0,0,0,0.3);background:white;" />`
     : `<div style="width:32px;height:32px;border-radius:9999px;background:#f59e0b;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;font-size:16px;color:white;font-weight:700;">${(name[0] || "?").toUpperCase()}</div>`;
 
   return L.divIcon({
@@ -425,9 +428,9 @@ const PetMap = () => {
         : "";
       marker.bindPopup(`
         <div style="min-width:160px; font-family: system-ui, sans-serif;">
-          <p style="margin:0; font-weight:600; font-size:14px; color:#111827;">${place.name}${place.isPaid ? ' <span style="color:#f59e0b;">★</span>' : ""}</p>
-          <p style="margin:4px 0 0; font-size:12px; color:#6b7280;">${catLabel}${place.isPaid ? " • Verified Partner" : ""}</p>
-          ${place.address ? `<p style="margin:6px 0 0; font-size:12px; color:#111827;">${place.address}</p>` : ""}
+          <p style="margin:0; font-weight:600; font-size:14px; color:#111827;">${escapeHtml(place.name)}${place.isPaid ? ' <span style="color:#f59e0b;">★</span>' : ""}</p>
+          <p style="margin:4px 0 0; font-size:12px; color:#6b7280;">${escapeHtml(catLabel)}${place.isPaid ? " • Verified Partner" : ""}</p>
+          ${place.address ? `<p style="margin:6px 0 0; font-size:12px; color:#111827;">${escapeHtml(place.address)}</p>` : ""}
           ${profileLink}
         </div>
       `);

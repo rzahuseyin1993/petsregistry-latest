@@ -25,9 +25,18 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { amount, donorName, donorEmail, userId, packageId, message, provider = "airwallex" } = await req.json();
+    const { amount, donorName, donorEmail, packageId, message, provider = "airwallex" } = await req.json();
 
-    if (!amount || amount <= 0) throw new Error("Invalid donation amount");
+    if (!amount || amount <= 0 || amount > 100000) throw new Error("Invalid donation amount");
+
+    // Derive the user from the JWT instead of trusting a client-supplied id
+    // (donations from anonymous visitors simply have no user attached).
+    let userId: string | null = null;
+    const token = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+    if (token && token !== Deno.env.get("SUPABASE_ANON_KEY")) {
+      const { data: userData } = await supabase.auth.getUser(token);
+      userId = userData?.user?.id ?? null;
+    }
 
     // Get the requested gateway
     const { data: paymentSettings } = await supabase

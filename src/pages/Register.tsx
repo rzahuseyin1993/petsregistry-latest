@@ -89,15 +89,31 @@ const Register = () => {
         emailRedirectTo: window.location.origin,
       },
     });
-    if (!error && signUpData?.user) {
-      // Update profile with address fields
-      await supabase.from("profiles").update({ address: address.trim(), city: city.trim(), country }).eq("user_id", signUpData.user.id);
+    if (error) {
+      setLoading(false);
+      toast.error(error.message);
+      return;
     }
-    setLoading(false);
-    if (error) toast.error(error.message);
-    else {
-      toast.success("Account created! Check your email to confirm.");
+
+    if (signUpData?.session && signUpData.user) {
+      // Signed in immediately — save the address fields to the profile now.
+      const { error: profileErr } = await supabase
+        .from("profiles")
+        .update({ address: address.trim(), city: city.trim(), country })
+        .eq("user_id", signUpData.user.id);
+      setLoading(false);
+      if (profileErr) {
+        toast.warning("Account created, but we couldn't save your address. You can add it in Settings.");
+      } else {
+        toast.success("Account created! Welcome to Pets Registry.");
+      }
       navigate(mp("/dashboard"));
+    } else {
+      // Email confirmation required — there is no session yet, so the profile
+      // can't be updated now; the complete-profile prompt will collect it later.
+      setLoading(false);
+      toast.success("Account created! Check your email to confirm, then sign in.");
+      navigate(mp("/login"));
     }
   };
 
@@ -114,7 +130,18 @@ const Register = () => {
             <p className="text-sm text-muted-foreground">Register to start adding your pets</p>
           </CardHeader>
           <CardContent>
-            <GoogleSignInButton label="Sign up with Google" />
+            {/* Google signup must also accept the Terms below */}
+            <div
+              onClickCapture={(e) => {
+                if (!termsAccepted) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  toast.error("Please read and accept the Terms of Use below before signing up with Google.");
+                }
+              }}
+            >
+              <GoogleSignInButton label="Sign up with Google" />
+            </div>
             <div className="my-5 flex items-center gap-3">
               <div className="h-px flex-1 bg-border" />
               <span className="text-xs uppercase tracking-wide text-muted-foreground">or</span>

@@ -28,11 +28,30 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [captcha, setCaptcha] = useState(generateCaptcha);
   const [captchaInput, setCaptchaInput] = useState("");
+  const [resetSending, setResetSending] = useState(false);
 
   const refreshCaptcha = useCallback(() => {
     setCaptcha(generateCaptcha());
     setCaptchaInput("");
   }, []);
+
+  const handleForgotPassword = async () => {
+    const target = email.trim();
+    if (!EMAIL_REGEX.test(target)) {
+      toast.error("Enter your email above first, then click Forgot password.");
+      return;
+    }
+    setResetSending(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(target, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setResetSending(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success("Password reset email sent. Check your inbox for the link.");
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,7 +109,17 @@ const Login = () => {
                 <Input id="email" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required className="rounded-lg" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password">Password</Label>
+                  <button
+                    type="button"
+                    onClick={handleForgotPassword}
+                    disabled={resetSending}
+                    className="text-xs font-medium text-primary hover:underline disabled:opacity-50"
+                  >
+                    {resetSending ? "Sending..." : "Forgot password?"}
+                  </button>
+                </div>
                 <Input id="password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required className="rounded-lg" />
               </div>
 

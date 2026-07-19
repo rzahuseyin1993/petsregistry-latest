@@ -35,10 +35,10 @@ const SearchPage = () => {
       setShowScanner(false);
       const petIdMatch = scannedText.match(/\/pet\/([a-f0-9-]+)/i);
       if (petIdMatch) {
-        toast.success("Pet found! Redirecting...");
+        toast.success("QR code scanned — opening pet profile...");
         navigate(`/pet/${petIdMatch[1]}`);
       } else if (scannedText.match(/^[a-f0-9-]{36}$/i)) {
-        toast.success("Pet found! Redirecting...");
+        toast.success("QR code scanned — opening pet profile...");
         navigate(`/pet/${scannedText}`);
       } else {
         setQuery(scannedText);

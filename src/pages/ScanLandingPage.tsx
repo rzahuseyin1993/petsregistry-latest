@@ -77,35 +77,19 @@ const ScanLandingPage = () => {
     }
     setSending(true);
     try {
-      const { data: petRow } = await supabase.from("pets").select("owner_id, name").eq("id", petId).maybeSingle();
-      if (!petRow) throw new Error("Pet not found");
-
-      await supabase.rpc("insert_system_notification", {
-        _user_id: petRow.owner_id,
-        _title: `📩 Someone found ${petRow.name}!`,
-        _message: `From ${senderName} (${senderContact}): ${msg.slice(0, 200)}`,
-        _type: "scan",
-        _link: `/pet/${petId}`,
+      // Route through the trusted edge function: it resolves the owner, sends the
+      // in-app notification and email server-side (finders are usually anonymous).
+      const { data, error } = await supabase.functions.invoke("owner-messaging", {
+        body: {
+          action: "pet_contact",
+          petId,
+          senderName: senderName.trim(),
+          senderContact: contact,
+          message: msg.trim(),
+        },
       });
-
-      // Email the owner via SMTP function
-      const { data: ownerProfile } = await supabase
-        .from("profiles").select("email, full_name").eq("user_id", petRow.owner_id).maybeSingle();
-      if (ownerProfile?.email) {
-        await supabase.functions.invoke("send-smtp-email", {
-          body: {
-            to: ownerProfile.email,
-            subject: `🐾 Someone found ${petRow.name}!`,
-            html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px">
-              <h2 style="color:#dc2626">Someone scanned ${petRow.name}'s tag and wants to contact you</h2>
-              <p><strong>Name:</strong> ${senderName}</p>
-              <p><strong>Contact:</strong> ${senderContact}</p>
-              <div style="background:#f9fafb;border-radius:8px;padding:16px;margin:16px 0;white-space:pre-wrap">${msg.trim()}</div>
-              <p style="color:#6b7280;font-size:13px;margin-top:24px">— Pets Registry</p>
-            </div>`,
-          },
-        }).catch(() => {});
-      }
+      if (error) throw new Error(error.message || "Failed to contact owner");
+      if (data?.error) throw new Error(data.error);
 
       toast.success("Owner has been notified — thank you!");
       setContactOpen(false);

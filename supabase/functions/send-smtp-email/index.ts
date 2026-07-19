@@ -15,6 +15,26 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Authorization: only trusted callers may send mail. Either the service role
+    // (internal calls from other edge functions) or an authenticated admin user.
+    // This prevents the endpoint from being abused as an open mail relay.
+    const token = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+    let authorized = token === supabaseServiceKey;
+    if (!authorized && token) {
+      const { data: userData } = await supabase.auth.getUser(token);
+      const uid = userData?.user?.id;
+      if (uid) {
+        const { data: isAdmin } = await supabase.rpc("has_role", { _user_id: uid, _role: "admin" });
+        authorized = !!isAdmin;
+      }
+    }
+    if (!authorized) {
+      return new Response(
+        JSON.stringify({ error: "Not authorized to send email" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Get SMTP settings from site_settings
     const { data: settings, error: settingsError } = await supabase
       .from("site_settings")

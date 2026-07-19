@@ -47,50 +47,16 @@ const MobileAdopt = () => {
       toast.error("An active membership is required to adopt and receive the pet transfer");
       return;
     }
-    const listing = adoptions.find((l: any) => l.id === adoptionId);
     const { error } = await supabase
       .from("pet_adoptions")
       .update({ adopter_id: user.id, status: "pending" })
-      .eq("id", adoptionId);
+      .eq("id", adoptionId)
+      .eq("status", "available");
     if (error) { toast.error("Failed to send adoption request"); return; }
 
-    if (listing) {
-      const petName = listing.pets?.name || "your pet";
-      await supabase.rpc("insert_system_notification", {
-        _user_id: listing.owner_id,
-        _title: "New Adoption Request",
-        _message: `Someone has requested to adopt ${petName}. Go to your Adoption Manager to review and confirm.`,
-        _type: "adoption",
-        _link: "/dashboard/adoption",
-      });
-
-      try {
-        const { data: ownerProfile } = await supabase
-          .from("profiles")
-          .select("email, full_name")
-          .eq("user_id", listing.owner_id)
-          .single();
-        if (ownerProfile?.email) {
-          await supabase.functions.invoke("send-smtp-email", {
-            body: {
-              to: ownerProfile.email,
-              subject: `New Adoption Request for ${petName}`,
-              html: `
-                <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px">
-                  <h2 style="color:#e11d48">🐾 New Adoption Request</h2>
-                  <p>Hi ${ownerProfile.full_name || "Pet Owner"},</p>
-                  <p>Someone has requested to adopt <strong>${petName}</strong>.</p>
-                  <p>Please log in to your <strong>Adoption Manager</strong> dashboard to review and respond.</p>
-                  <p style="margin-top:24px;color:#6b7280;font-size:13px">— Pet Registry Team</p>
-                </div>
-              `,
-            },
-          });
-        }
-      } catch (emailErr) {
-        console.warn("Email notification failed (non-blocking):", emailErr);
-      }
-    }
+    await supabase.functions.invoke("owner-messaging", {
+      body: { action: "adoption_request", adoptionId },
+    }).catch(() => {});
 
     toast.success("Adoption request sent! The owner will review it.");
     refetch();
