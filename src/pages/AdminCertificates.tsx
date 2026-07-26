@@ -24,6 +24,7 @@ import { uploadImage } from "@/lib/imageUpload";
 import { certificateTemplates, type CertificateTemplate } from "@/lib/certificateTemplates";
 import AdminCertificateCreditsManager from "@/components/AdminCertificateCreditsManager";
 import { useAuth } from "@/contexts/AuthContext";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 
 /* ─── Canvas Element Types (matching flyer editor) ─── */
 interface CanvasElement {
@@ -171,6 +172,7 @@ const CERT_QUICK_ELEMENTS = [
 /* ─── Main Admin Page ─── */
 const AdminCertificates = () => {
   const queryClient = useQueryClient();
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [search, setSearch] = useState("");
   const [viewCert, setViewCert] = useState<any>(null);
   const [activeTab, setActiveTab] = useState("certificates");
@@ -249,7 +251,11 @@ const AdminCertificates = () => {
   };
 
   const deleteCert = async (id: string) => {
-    if (!confirm("Delete this certificate permanently?")) return;
+    const ok = await confirm({
+      title: "Delete this certificate?",
+      description: "This certificate will be permanently deleted. This action cannot be undone.",
+    });
+    if (!ok) return;
     const { error } = await supabase.from("pet_certificates").delete().eq("id", id);
     if (error) return toast.error(error.message);
     queryClient.invalidateQueries({ queryKey: ["admin-certificates"] });
@@ -448,7 +454,11 @@ const AdminCertificates = () => {
   };
 
   const deleteTemplate = async (id: string) => {
-    if (!confirm("Delete this template?")) return;
+    const ok = await confirm({
+      title: "Delete this template?",
+      description: "This certificate template will be permanently deleted. This action cannot be undone.",
+    });
+    if (!ok) return;
     const { error } = await supabase.from("certificate_templates").delete().eq("id", id);
     if (error) return toast.error(error.message);
     queryClient.invalidateQueries({ queryKey: ["certificate-templates"] });
@@ -830,6 +840,7 @@ const AdminCertificates = () => {
             <DialogFooter><Button variant="outline" onClick={() => setShowFeeDialog(false)}>Cancel</Button><Button onClick={saveFee}>Save</Button></DialogFooter>
           </DialogContent>
         </Dialog>
+        {confirmDialog}
       </main>
   );
 };

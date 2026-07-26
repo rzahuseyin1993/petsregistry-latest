@@ -15,6 +15,7 @@ import { Search } from "lucide-react";
 import { toast } from "sonner";
 import { Pencil, Trash2, Download } from "lucide-react";
 import { exportToCsv } from "@/lib/exportCsv";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 
 const statusStyles: Record<string, string> = {
   registered: "bg-success text-success-foreground",
@@ -26,6 +27,7 @@ const speciesOptions = ["Dog", "Cat", "Bird", "Fish", "Rabbit", "Hamster", "Rept
 
 const AdminPets = () => {
   const queryClient = useQueryClient();
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [editPet, setEditPet] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -65,7 +67,11 @@ const AdminPets = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Delete this pet permanently?")) return;
+    const ok = await confirm({
+      title: "Delete this pet?",
+      description: "This pet will be permanently deleted. This action cannot be undone.",
+    });
+    if (!ok) return;
     const { error } = await supabase.from("pets").delete().eq("id", id);
     if (error) toast.error("Failed to delete");
     else { toast.success("Pet deleted"); queryClient.invalidateQueries({ queryKey: ["admin-pets"] }); }
@@ -200,6 +206,7 @@ const AdminPets = () => {
             )}
           </DialogContent>
         </Dialog>
+        {confirmDialog}
       </main>
   );
 };

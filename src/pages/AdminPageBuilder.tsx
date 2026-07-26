@@ -21,6 +21,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { getCmsStarterTemplate } from "@/lib/cmsStarterTemplates";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 
 const AdminPageBuilder = () => {
   const editorRef = useRef<Editor | null>(null);
@@ -32,6 +33,7 @@ const AdminPageBuilder = () => {
   const [previewMode, setPreviewMode] = useState(false);
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
   const queryClient = useQueryClient();
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
 
   const { data: pages = [], isLoading } = useQuery({
     queryKey: ["cms-pages-admin"],
@@ -643,8 +645,12 @@ const AdminPageBuilder = () => {
                 {selectedPage.is_published ? "Published" : "Draft"}
               </Badge>
             )}
-            <Button variant="destructive" size="sm" className="h-8 text-xs gap-1" onClick={() => {
-              if (confirm("Delete this page?")) deletePage.mutate();
+            <Button variant="destructive" size="sm" className="h-8 text-xs gap-1" onClick={async () => {
+              if (!(await confirm({
+                title: "Delete this page?",
+                description: "This page will be permanently deleted. This action cannot be undone.",
+              }))) return;
+              deletePage.mutate();
             }}>
               <Trash2 className="h-3 w-3" />
             </Button>
@@ -686,6 +692,7 @@ const AdminPageBuilder = () => {
         .gjs-cv-canvas { background-color: hsl(var(--muted)) !important; }
         .gjs-frame-wrapper { box-shadow: 0 4px 20px rgba(0,0,0,0.1) !important; border-radius: 4px !important; }
       `}</style>
+      {confirmDialog}
     </div>
   );
 };

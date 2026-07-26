@@ -16,10 +16,12 @@ import { toast } from "sonner";
 import { firstError, validateOptionalLength, validatePhone } from "@/lib/validation";
 import { Pencil, Trash2, AlertTriangle, Plus } from "lucide-react";
 import ReportLostDialog from "@/components/ReportLostDialog";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 
 const DashboardLostReports = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [editReport, setEditReport] = useState<any>(null);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [selectedPet, setSelectedPet] = useState<{ id: string; name: string } | null>(null);
@@ -73,7 +75,12 @@ const DashboardLostReports = () => {
   };
 
   const handleDelete = async (report: any) => {
-    if (!confirm("Are you sure you want to delete this report?")) return;
+    const petName = report.pets?.name || "this pet";
+    const ok = await confirm({
+      title: "Delete this report?",
+      description: `The lost report for ${petName} will be permanently deleted. This action cannot be undone.`,
+    });
+    if (!ok) return;
     const { error } = await supabase.from("lost_reports").delete().eq("id", report.id);
     if (error) { toast.error(error.message || "Failed to delete"); return; }
     // If this was the active report, the pet is no longer "lost"
@@ -247,6 +254,7 @@ const DashboardLostReports = () => {
             onReported={handleReported}
           />
         )}
+        {confirmDialog}
       </main>
     </div>
   );

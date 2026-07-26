@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { firstError, validateNumberRange, validateOptionalLength } from "@/lib/validation";
 import { useState } from "react";
 import { Heart, Plus, CheckCircle, XCircle, Clock, ArrowRightLeft, Trash2, Pencil, ShieldCheck, UserCheck, History } from "lucide-react";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 
 const statusColors: Record<string, string> = {
   available: "bg-emerald-100 text-emerald-700",
@@ -44,6 +45,7 @@ const sendAdoptionNotification = async (recipientId: string, title: string, mess
 const DashboardAdoption = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedPetId, setSelectedPetId] = useState("");
   const [fee, setFee] = useState("");
@@ -247,7 +249,11 @@ const DashboardAdoption = () => {
   };
 
   const handleDeleteListing = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this listing?")) return;
+    const ok = await confirm({
+      title: "Delete this listing?",
+      description: "This adoption listing will be permanently deleted. This action cannot be undone.",
+    });
+    if (!ok) return;
     // Note: history rows cascade-delete with the listing, so no point logging here
     const { error } = await supabase.from("pet_adoptions").delete().eq("id", id);
     if (error) toast.error(error.message || "Failed to delete listing");
@@ -579,6 +585,7 @@ const DashboardAdoption = () => {
             )}
           </DialogContent>
         </Dialog>
+        {confirmDialog}
       </main>
     </div>
   );

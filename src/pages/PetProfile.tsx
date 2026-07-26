@@ -18,6 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 
 const QR_DOWNLOAD_SIZES = [
   { label: "1cm × 1cm", cmSize: 1, pxSize: 118 },
@@ -66,6 +67,7 @@ const PetProfile = () => {
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const { user, profile, loading: authLoading } = useAuth();
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const { data: siteUrl } = useQuery({
     queryKey: ["site-url"],
     queryFn: async () => {
@@ -163,7 +165,13 @@ const PetProfile = () => {
 
   const handleMarkFound = async () => {
     if (!lostReport) return;
-    if (!confirm("Mark this pet as FOUND? It will stay visible as 'Found' for a few days then be auto-removed.")) return;
+    const ok = await confirm({
+      title: "Mark this pet as FOUND?",
+      description: "It will stay visible as 'Found' for a few days then be auto-removed.",
+      variant: "default",
+      confirmLabel: "Mark as Found",
+    });
+    if (!ok) return;
     const { error: e1 } = await supabase
       .from("lost_reports")
       .update({ status: "found", updated_at: new Date().toISOString() })
@@ -569,6 +577,7 @@ const PetProfile = () => {
           </motion.div>
         </div>
       </main>
+      {confirmDialog}
       {!isMobile && <Footer />}
     </div>
   );

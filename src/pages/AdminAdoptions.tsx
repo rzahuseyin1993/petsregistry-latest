@@ -13,6 +13,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { CheckCircle, XCircle, Pencil, Heart, Download, Trash2, EyeOff, Eye, Search, ArrowRightLeft, ShieldCheck, Clock } from "lucide-react";
 import { exportToCsv } from "@/lib/exportCsv";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 
 const statusColors: Record<string, string> = {
   available: "bg-emerald-100 text-emerald-700",
@@ -23,6 +24,7 @@ const statusColors: Record<string, string> = {
 
 const AdminAdoptions = () => {
   const queryClient = useQueryClient();
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [editListing, setEditListing] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -52,7 +54,11 @@ const AdminAdoptions = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Permanently delete this adoption listing?")) return;
+    const ok = await confirm({
+      title: "Delete this listing?",
+      description: "This adoption listing will be permanently deleted. This action cannot be undone.",
+    });
+    if (!ok) return;
     const { error } = await supabase.from("pet_adoptions").delete().eq("id", id);
     if (error) toast.error("Failed to delete");
     else { toast.success("Listing deleted"); queryClient.invalidateQueries({ queryKey: ["admin-adoptions"] }); }
@@ -60,7 +66,13 @@ const AdminAdoptions = () => {
 
   const handleOwnerTransfer = async (listing: any) => {
     if (!listing.adopter_id) { toast.error("No adopter assigned"); return; }
-    if (!confirm("Complete this owner transfer? The pet will be moved to the adopter's account immediately.")) return;
+    const ok = await confirm({
+      title: "Complete this owner transfer?",
+      description: "The pet will be moved to the adopter's account immediately.",
+      variant: "default",
+      confirmLabel: "Transfer",
+    });
+    if (!ok) return;
     const { error: petErr } = await supabase.from("pets").update({ owner_id: listing.adopter_id }).eq("id", listing.pet_id);
     if (petErr) { toast.error("Failed to transfer pet"); return; }
     const { error } = await supabase.from("pet_adoptions").update({
@@ -263,6 +275,7 @@ const AdminAdoptions = () => {
             )}
           </DialogContent>
         </Dialog>
+        {confirmDialog}
       </main>
   );
 };

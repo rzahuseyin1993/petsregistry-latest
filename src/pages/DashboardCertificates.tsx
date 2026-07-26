@@ -34,10 +34,12 @@ import {
   getUniversalCredits,
 } from "@/lib/certificateTypes";
 import { resizeImage, uploadRaw } from "@/lib/imageUpload";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 
 const DashboardCertificates = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [searchParams, setSearchParams] = useSearchParams();
   const paymentConfirmRef = useRef(false);
   const [showNewDialog, setShowNewDialog] = useState(false);
@@ -265,7 +267,11 @@ const DashboardCertificates = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Delete this unpaid certificate?")) return;
+    const ok = await confirm({
+      title: "Delete this certificate?",
+      description: "This unpaid certificate will be permanently deleted. This action cannot be undone.",
+    });
+    if (!ok) return;
     const { error } = await supabase.from("pet_certificates").delete().eq("id", id);
     if (error) return toast.error(error.message);
     await queryClient.invalidateQueries({ queryKey: ["my-certificates", user?.id] });
@@ -644,6 +650,7 @@ const DashboardCertificates = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        {confirmDialog}
       </main>
     </div>
   );

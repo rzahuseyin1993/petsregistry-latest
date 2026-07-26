@@ -15,6 +15,7 @@ import { Plus, Pencil, Trash2, Eye, EyeOff, Image as ImageIcon, ExternalLink, St
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import DOMPurify from "dompurify";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 
 type BlogPost = {
   id: string;
@@ -90,6 +91,7 @@ const CategoryPicker = ({ selected, onChange }: { selected: string[]; onChange: 
 const AdminBlog = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [editing, setEditing] = useState<BlogPost | null>(null);
   const [form, setForm] = useState(emptyPost);
   const [open, setOpen] = useState(false);
@@ -426,8 +428,12 @@ const AdminBlog = () => {
                           size="sm"
                           variant="ghost"
                           className="text-destructive"
-                          onClick={() => {
-                            if (confirm("Delete this post?")) deleteMutation.mutate(post.id);
+                          onClick={async () => {
+                            if (!(await confirm({
+                              title: "Delete this post?",
+                              description: "This blog post will be permanently deleted. This action cannot be undone.",
+                            }))) return;
+                            deleteMutation.mutate(post.id);
                           }}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -780,6 +786,7 @@ const AdminBlog = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        {confirmDialog}
     </main>
   );
 };

@@ -23,6 +23,7 @@ import {
   Wand2, Loader2, ImagePlus, Download
 } from "lucide-react";
 import { flyerTemplates, type FlyerTemplate } from "@/lib/flyerTemplates";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
@@ -202,6 +203,7 @@ interface CustomTemplate {
 const LostFlyerBuilder = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [searchParams, setSearchParams] = useSearchParams();
   const reportId = searchParams.get("report");
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -629,7 +631,11 @@ const LostFlyerBuilder = () => {
   };
 
   const handleDeleteTemplate = async (id: string) => {
-    if (!confirm("Delete this saved design?")) return;
+    const ok = await confirm({
+      title: "Delete this design?",
+      description: "This saved design will be permanently deleted. This action cannot be undone.",
+    });
+    if (!ok) return;
     const { error } = await supabase.from("flyer_templates" as any).delete().eq("id", id);
     if (error) toast.error("Failed to delete");
     else { toast.success("Design deleted"); queryClient.invalidateQueries({ queryKey: ["custom-flyer-templates"] }); queryClient.invalidateQueries({ queryKey: ["my-flyer-designs"] }); }
@@ -1367,6 +1373,7 @@ const LostFlyerBuilder = () => {
             )}
           </DialogContent>
         </Dialog>
+        {confirmDialog}
       </main>
     </div>
   );

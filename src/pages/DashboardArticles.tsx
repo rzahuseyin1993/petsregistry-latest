@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Plus, Pencil, Trash2, Eye, EyeOff, Image as ImageIcon, Star, Sparkles, Crown, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 
 const emptyPost = {
   title: "",
@@ -66,6 +67,7 @@ const CategoryPicker = ({ selected, onChange }: { selected: string[]; onChange: 
 const DashboardArticles = () => {
   const { user, membership } = useAuth();
   const queryClient = useQueryClient();
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState(emptyPost);
   const [open, setOpen] = useState(false);
@@ -337,7 +339,13 @@ const DashboardArticles = () => {
                         </Button>
                         <Button
                           size="sm" variant="ghost" className="text-destructive"
-                          onClick={() => { if (confirm("Delete this article?")) deleteMutation.mutate(post.id); }}
+                          onClick={async () => {
+                            if (!(await confirm({
+                              title: "Delete this article?",
+                              description: "This article will be permanently deleted. This action cannot be undone.",
+                            }))) return;
+                            deleteMutation.mutate(post.id);
+                          }}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
@@ -439,6 +447,7 @@ const DashboardArticles = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        {confirmDialog}
       </main>
     </div>
   );

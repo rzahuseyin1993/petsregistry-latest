@@ -6,6 +6,7 @@ import { Bot, Send, Undo2, Loader2, X, Sparkles, History, FileText, Trash2 } fro
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Editor } from "grapesjs";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 
 interface HistoryEntry {
   html: string;
@@ -36,6 +37,7 @@ const AiSiteEditorPanel = ({ editor, onClose }: AiSiteEditorPanelProps) => {
   const [showHistory, setShowHistory] = useState(false);
   const [mode, setMode] = useState<Mode>("edit");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -233,12 +235,16 @@ const AiSiteEditorPanel = ({ editor, onClose }: AiSiteEditorPanelProps) => {
                 variant="ghost"
                 size="sm"
                 className="h-6 text-[10px] text-destructive hover:text-destructive"
-                onClick={() => {
-                  if (confirm("Clear all AI edit history?")) {
-                    setHistory([]);
-                    setMessages([]);
-                    toast.success("History cleared");
-                  }
+                onClick={async () => {
+                  if (!(await confirm({
+                    title: "Clear all AI edit history?",
+                    description: "All AI edit history and chat messages for this session will be cleared.",
+                    variant: "default",
+                    confirmLabel: "Clear",
+                  }))) return;
+                  setHistory([]);
+                  setMessages([]);
+                  toast.success("History cleared");
                 }}
               >
                 <Trash2 className="h-3 w-3 mr-1" /> Clear All
@@ -360,6 +366,7 @@ const AiSiteEditorPanel = ({ editor, onClose }: AiSiteEditorPanelProps) => {
           </div>
         </>
       )}
+      {confirmDialog}
     </div>
   );
 };

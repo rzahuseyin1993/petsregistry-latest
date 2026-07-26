@@ -12,6 +12,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Save, MapPin, Plus, Trash2, ToggleLeft, Navigation, Pencil, Upload, Image as ImageIcon } from "lucide-react";
 import { uploadImage } from "@/lib/imageUpload";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 
 /* ─── Preset Pin Designs ─── */
 const PRESET_PINS = [
@@ -50,6 +51,7 @@ const PRESET_COLORS = [
 
 const AdminMapSettings = () => {
   const queryClient = useQueryClient();
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [saving, setSaving] = useState(false);
   const [values, setValues] = useState<Record<string, string>>({});
   const [showPinDialog, setShowPinDialog] = useState(false);
@@ -151,7 +153,11 @@ const AdminMapSettings = () => {
   };
 
   const handleDeletePin = async (id: string) => {
-    if (!confirm("Delete this pin?")) return;
+    const ok = await confirm({
+      title: "Delete this pin?",
+      description: "This map pin will be permanently deleted. This action cannot be undone.",
+    });
+    if (!ok) return;
     const { error } = await supabase.from("map_custom_pins").delete().eq("id", id);
     if (error) toast.error(error.message);
     else {
@@ -471,6 +477,7 @@ const AdminMapSettings = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        {confirmDialog}
       </main>
   );
 };

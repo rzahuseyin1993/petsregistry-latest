@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { exportToCsv } from "@/lib/exportCsv";
 import { useAuth } from "@/contexts/AuthContext";
 import RichMessageComposer from "@/components/RichMessageComposer";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 
 type Attachment = { name: string; url: string; type: string; size: number };
 
@@ -28,6 +29,7 @@ const statusColors: Record<string, string> = {
 const AdminLostReports = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [editReport, setEditReport] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -72,7 +74,11 @@ const AdminLostReports = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Permanently delete this lost report?")) return;
+    const ok = await confirm({
+      title: "Delete this report?",
+      description: "This lost report will be permanently deleted. This action cannot be undone.",
+    });
+    if (!ok) return;
     const { error } = await supabase.from("lost_reports").delete().eq("id", id);
     if (error) toast.error("Failed to delete");
     else { toast.success("Report deleted"); queryClient.invalidateQueries({ queryKey: ["admin-lost-reports"] }); }
@@ -438,6 +444,7 @@ const AdminLostReports = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        {confirmDialog}
       </main>
   );
 };

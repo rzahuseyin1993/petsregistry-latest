@@ -16,6 +16,7 @@ import { toast } from "@/hooks/use-toast";
 import CountrySelect from "@/components/CountrySelect";
 import { Star, Trash2, Crown, Download, Pencil, EyeOff, Eye, Search, Upload, Loader2, X, Video } from "lucide-react";
 import { exportToCsv } from "@/lib/exportCsv";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 
 const categories = [
   { value: "pet_shop", label: "Pet Shop" },
@@ -31,6 +32,7 @@ const MAX_IMAGES = 3;
 
 const AdminDirectory = () => {
   const queryClient = useQueryClient();
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [editListing, setEditListing] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -131,8 +133,12 @@ const AdminDirectory = () => {
     setEditListing(null);
   };
 
-  const handleDelete = (id: string) => {
-    if (!confirm("Permanently delete this business listing?")) return;
+  const handleDelete = async (id: string) => {
+    const ok = await confirm({
+      title: "Delete this listing?",
+      description: "This business listing will be permanently deleted. This action cannot be undone.",
+    });
+    if (!ok) return;
     deleteMutation.mutate(id);
   };
 
@@ -424,6 +430,7 @@ const AdminDirectory = () => {
             )}
           </DialogContent>
         </Dialog>
+        {confirmDialog}
       </main>
   );
 };

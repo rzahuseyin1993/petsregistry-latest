@@ -18,11 +18,13 @@ import { FileText, Plus, Trash2, Upload, Eye, EyeOff, Pencil, Paintbrush, Palett
 import jsPDF from "jspdf";
 import { flyerTemplates } from "@/lib/flyerTemplates";
 import { Textarea } from "@/components/ui/textarea";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 
 const AdminFlyerTemplates = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [showUpload, setShowUpload] = useState(false);
   const [uploadName, setUploadName] = useState("");
   const [uploadDesc, setUploadDesc] = useState("");
@@ -81,7 +83,11 @@ const AdminFlyerTemplates = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Delete this template permanently?")) return;
+    const ok = await confirm({
+      title: "Delete this template?",
+      description: "This flyer template will be permanently deleted. This action cannot be undone.",
+    });
+    if (!ok) return;
     const { error } = await supabase.from("flyer_templates" as any).delete().eq("id", id);
     if (error) toast.error("Failed to delete");
     else { toast.success("Template deleted"); queryClient.invalidateQueries({ queryKey: ["admin-flyer-templates"] }); }
@@ -410,6 +416,7 @@ const AdminFlyerTemplates = () => {
             </div>
           </DialogContent>
         </Dialog>
+        {confirmDialog}
       </main>
   );
 };
