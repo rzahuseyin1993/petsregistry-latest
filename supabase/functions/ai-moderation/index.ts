@@ -1,5 +1,6 @@
 // AI Moderation worker — scans pending items in moderation_queue with AI.
-// Runs in real-time (called from DB trigger via pg_net) and also on cron schedule.
+// Supports text + vision (pet/lost-report/business photos) to catch fake or
+// AI-generated images and photo/description mismatches.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { chatCompletionJson } from "../_shared/aiClient.ts";
 
@@ -48,29 +49,94 @@ You MUST flag the following violations:
    - Generic templates that look mass-produced
    - Identical content across multiple fields
 
+7. FAKE / AI-GENERATED / MISMATCHED PHOTOS (when images are attached)
+   Flag when any attached photo shows:
+   - AI-generated or heavily synthetic imagery (unnatural textures, warped anatomy,
+     melted fur, impossible lighting, extra limbs, garbled background text)
+   - Not a real live pet photo (cartoon, drawing, meme, screenshot of a website,
+     product packaging, human-only photo with no pet, empty room)
+   - Clear species/breed/color mismatch vs the declared text fields
+     (e.g. listed as "golden retriever dog" but photo is a black cat)
+   - Obvious stock-photo watermark / "shutterstock" / Getty-style overlays
+   - Adult / violent / inappropriate imagery involving animals
+   Do NOT flag normal phone photos, slightly blurry real pets, or casual snapshots.
+   When unsure whether a photo is AI-generated, prefer MEDIUM severity over HIGH.
+
 SEVERITY GUIDE:
-- HIGH (auto-pause): clearly fake gibberish, obvious spam, scams, abusive content, fake addresses
-- MEDIUM: suspicious patterns, low-effort content, possibly fake
+- HIGH (auto-pause): clearly fake gibberish, obvious spam, scams, abusive content,
+  clearly AI-generated fake pet photo, clear species mismatch, inappropriate images
+- MEDIUM: suspicious patterns, low-effort content, possibly AI photo, possible mismatch
 - LOW: minor concerns, low confidence
 
 Be reasonably aggressive — false positives are recoverable (admin can dismiss), but missed spam damages the platform.
 
 Reply ONLY with valid JSON:
-{"is_problem": boolean, "severity": "low"|"medium"|"high", "confidence": 0.0-1.0, "reason": "short specific reason member can understand", "suggested_action": "review"|"pause"|"delete"}`;
+{
+  "is_problem": boolean,
+  "severity": "low"|"medium"|"high",
+  "confidence": 0.0-1.0,
+  "reason": "short specific reason member can understand",
+  "suggested_action": "review"|"pause"|"delete",
+  "photo_flags": string[] 
+}
+photo_flags may include any of: "ai_generated", "not_a_real_pet", "species_mismatch",
+"breed_mismatch", "color_mismatch", "stock_photo", "inappropriate", "no_pet_visible".
+Use an empty array when there are no photo concerns or no images were provided.`;
 
-async function classify(entityType: string, payload: any): Promise<any> {
-  const userPrompt = `Entity type: ${entityType}\nContent to evaluate:\n${JSON.stringify(payload, null, 2)}`;
+function collectImageUrls(payload: Record<string, unknown> | null | undefined): string[] {
+  if (!payload || typeof payload !== "object") return [];
+  const urls: string[] = [];
+  const push = (v: unknown) => {
+    if (typeof v === "string" && /^https?:\/\//i.test(v.trim())) urls.push(v.trim());
+  };
+
+  if (Array.isArray(payload.image_urls)) {
+    for (const u of payload.image_urls) push(u);
+  }
+  push(payload.image_url);
+  push(payload.new_image_url);
+  push(payload.guest_pet_photo_url);
+  push(payload.logo_url);
+
+  return [...new Set(urls)].slice(0, 3);
+}
+
+async function classify(entityType: string, payload: Record<string, unknown>): Promise<any> {
+  const imageUrls = collectImageUrls(payload);
+  const textPrompt =
+    `Entity type: ${entityType}\n` +
+    `Content to evaluate:\n${JSON.stringify(payload, null, 2)}\n\n` +
+    (imageUrls.length
+      ? `There ${imageUrls.length === 1 ? "is 1 attached photo" : `are ${imageUrls.length} attached photos`}. ` +
+        `Visually inspect each photo for AI generation, fake/stock imagery, and mismatch with the declared pet details.`
+      : `No photos were attached — evaluate text fields only.`);
+
+  const userContent: string | unknown[] = imageUrls.length
+    ? [
+      { type: "text", text: textPrompt },
+      ...imageUrls.map((url) => ({
+        type: "image_url",
+        image_url: { url },
+      })),
+    ]
+    : textPrompt;
+
   const data = await chatCompletionJson({
     model: "google/gemini-2.5-flash",
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: userPrompt },
+      { role: "user", content: userContent },
     ],
     response_format: { type: "json_object" },
     max_tokens: 1024,
   });
+
   const content = (data.choices as any[])?.[0]?.message?.content || "{}";
-  return JSON.parse(content);
+  const verdict = JSON.parse(content);
+  // Always echo which images were inspected so the admin UI can show them
+  verdict._inspected_images = imageUrls;
+  if (!Array.isArray(verdict.photo_flags)) verdict.photo_flags = [];
+  return verdict;
 }
 
 async function pauseEntity(supabase: any, entityType: string, entityId: string) {
@@ -108,7 +174,6 @@ Deno.serve(async (req) => {
   let processed = 0, flagged = 0, paused = 0;
 
   try {
-    // Process up to 50 pending items per invocation
     const { data: jobs } = await supabase
       .from("moderation_queue")
       .select("*")
@@ -118,7 +183,6 @@ Deno.serve(async (req) => {
 
     for (const job of jobs || []) {
       try {
-        // Claim job (prevents double-processing if cron + trigger fire concurrently)
         const { data: claimed } = await supabase
           .from("moderation_queue")
           .update({ status: "processing" })
@@ -128,15 +192,14 @@ Deno.serve(async (req) => {
           .maybeSingle();
         if (!claimed) continue;
 
-        const verdict = await classify(job.entity_type, job.payload);
+        const verdict = await classify(job.entity_type, job.payload || {});
         processed++;
 
         if (verdict?.is_problem) {
           flagged++;
-          // Lost/found pet reports are intentionally allowed to be incomplete (the public reporter
-          // often doesn't know the pet's name, breed, or species). NEVER auto-pause these — flag
-          // them for human admin review only. Admins can edit, hide, or delete from the dashboard.
           const isPublicReport = job.entity_type === "lost_report";
+          const photoFlags: string[] = Array.isArray(verdict.photo_flags) ? verdict.photo_flags : [];
+          const hasPhotoIssue = photoFlags.length > 0;
           const autoPause = !isPublicReport && (
             (verdict.severity === "high" && (verdict.confidence ?? 0) >= 0.75) ||
             (verdict.severity === "medium" && (verdict.confidence ?? 0) >= 0.9)
@@ -149,7 +212,14 @@ Deno.serve(async (req) => {
             severity: verdict.severity || "low",
             confidence: verdict.confidence ?? 0,
             reason: verdict.reason || "Flagged by AI",
-            details: { payload: job.payload, verdict, public_report: isPublicReport },
+            details: {
+              payload: job.payload,
+              verdict,
+              public_report: isPublicReport,
+              photo_flags: photoFlags,
+              inspected_images: verdict._inspected_images || [],
+              has_photo_issue: hasPhotoIssue,
+            },
             suggested_action: verdict.suggested_action || "review",
             status: autoPause ? "auto_paused" : "open",
             auto_paused: autoPause,
@@ -160,17 +230,26 @@ Deno.serve(async (req) => {
             paused++;
           }
 
+          const photoHint = hasPhotoIssue ? ` · photo: ${photoFlags.join(", ")}` : "";
           await notifyAdmins(
             supabase,
-            autoPause ? `🚨 Auto-paused ${job.entity_type}` : `⚠️ ${job.entity_type} flagged for review`,
-            `${verdict.reason} (severity: ${verdict.severity}, confidence: ${Math.round((verdict.confidence ?? 0) * 100)}%)`
+            autoPause
+              ? `🚨 Auto-paused ${job.entity_type}${hasPhotoIssue ? " (photo)" : ""}`
+              : `⚠️ ${job.entity_type} flagged${hasPhotoIssue ? " (photo)" : ""}`,
+            `${verdict.reason}${photoHint} (severity: ${verdict.severity}, confidence: ${Math.round((verdict.confidence ?? 0) * 100)}%)`,
           );
         }
 
-        await supabase.from("moderation_queue").update({ status: "processed", processed_at: new Date().toISOString() }).eq("id", job.id);
+        await supabase.from("moderation_queue").update({
+          status: "processed",
+          processed_at: new Date().toISOString(),
+        }).eq("id", job.id);
       } catch (err: any) {
         console.error("Job failed", job.id, err);
-        await supabase.from("moderation_queue").update({ status: "error", error: String(err?.message || err) }).eq("id", job.id);
+        await supabase.from("moderation_queue").update({
+          status: "error",
+          error: String(err?.message || err),
+        }).eq("id", job.id);
       }
     }
 

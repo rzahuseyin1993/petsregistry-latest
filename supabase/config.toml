@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.owner-messaging]
 verify_jwt = false
+
+[functions.ai-moderation]
+verify_jwt = false
