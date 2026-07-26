@@ -196,7 +196,7 @@ function AppWithProviders() {
           <ScrollToTop />
           <VisitorGeoProvider>
           <TrackingCodeInjector />
-          <Suspense fallback={<NavigationOverlay />}>
+          <Suspense fallback={<NavigationOverlay mode="page" />}>
           <DeferredNavigation>
               {/* Desktop routes */}
               <Route path="/" element={<Index />} />

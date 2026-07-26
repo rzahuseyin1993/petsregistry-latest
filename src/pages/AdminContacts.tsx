@@ -410,7 +410,9 @@ const AdminContacts = () => {
               </CardHeader>
               <CardContent>
                 {loading ? (
-                  <p className="text-muted-foreground">Loading…</p>
+                  <div className="flex justify-center py-8">
+                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+                  </div>
                 ) : submissions.length === 0 ? (
                   <p className="text-muted-foreground">No contact submissions yet.</p>
                 ) : (() => {

@@ -253,7 +253,9 @@ const MembershipPage = () => {
 
       <div className="container max-w-4xl py-12">
         {isLoading ? (
-          <p className="text-center text-muted-foreground">Loading plans...</p>
+          <div className="flex justify-center py-16">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          </div>
         ) : (
           <div className="grid gap-6 md:grid-cols-2">
             {plans.map((plan: any) => {

@@ -232,7 +232,9 @@ const AdminDirectory = () => {
         </div>
 
         {isLoading ? (
-          <p className="text-muted-foreground">Loading...</p>
+          <div className="flex justify-center py-12">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          </div>
         ) : listings.filter((l: any) => {
           const q = searchTerm.toLowerCase();
           return !q || l.name.toLowerCase().includes(q) || l.category.toLowerCase().includes(q) || (l.city || "").toLowerCase().includes(q) || getOwnerName(l.owner_id).toLowerCase().includes(q);

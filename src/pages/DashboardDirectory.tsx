@@ -393,7 +393,9 @@ const DashboardDirectory = () => {
         )}
 
         {isLoading ? (
-          <p className="text-muted-foreground">Loading...</p>
+          <div className="flex justify-center py-12">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          </div>
         ) : listings.length === 0 ? (
           <Card>
             <CardContent className="py-16 text-center">

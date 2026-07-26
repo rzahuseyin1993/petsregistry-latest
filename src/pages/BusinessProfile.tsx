@@ -85,7 +85,9 @@ const BusinessProfile = () => {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
-        <div className="container py-20 text-center text-muted-foreground">Loading...</div>
+        <div className="container flex justify-center py-20">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+        </div>
       </div>
     );
   }

@@ -194,7 +194,11 @@ const AdminModeration = () => {
         <Card>
           <CardHeader><CardTitle>Open flags ({open.length})</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
+            {isLoading && (
+              <div className="flex justify-center py-8">
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+              </div>
+            )}
             {!isLoading && open.length === 0 && (
               <p className="text-sm text-muted-foreground">No open flags. The system is clean ✨</p>
             )}
