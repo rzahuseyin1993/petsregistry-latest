@@ -177,6 +177,11 @@ const AdminDirectory = () => {
   };
 
   const handleAdminDeleteImage = async (imageId: string) => {
+    const ok = await confirm({
+      title: "Delete this image?",
+      description: "This gallery photo will be permanently deleted. This action cannot be undone.",
+    });
+    if (!ok) return;
     await supabase.from("business_listing_images").delete().eq("id", imageId);
     refetchEditImages();
     toast({ title: "Image removed" });

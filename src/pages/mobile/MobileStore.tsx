@@ -47,7 +47,15 @@ const MobileStore = () => {
   };
 
   if (storeSettingLoading || !storeEnabled) {
-    return null;
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center p-4">
+        {storeSettingLoading ? (
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+        ) : (
+          <p className="text-sm text-muted-foreground">Store is temporarily closed.</p>
+        )}
+      </div>
+    );
   }
 
   return (

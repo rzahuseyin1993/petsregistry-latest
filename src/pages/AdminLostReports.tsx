@@ -195,6 +195,11 @@ const AdminLostReports = () => {
   };
 
   const deleteTemplate = async (id: string) => {
+    const ok = await confirm({
+      title: "Delete this template?",
+      description: "This message template will be permanently deleted. This action cannot be undone.",
+    });
+    if (!ok) return;
     const { error } = await supabase.from("message_templates" as any).delete().eq("id", id);
     if (error) { toast.error("Failed to delete"); return; }
     setTemplates(prev => prev.filter(t => t.id !== id));

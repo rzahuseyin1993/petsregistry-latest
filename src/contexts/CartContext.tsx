@@ -40,7 +40,15 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   const [items, setItems] = useState<CartItem[]>(() => {
     try {
       const stored = localStorage.getItem(CART_KEY);
-      return stored ? JSON.parse(stored) : [];
+      if (!stored) return [];
+      const parsed = JSON.parse(stored);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.map((item: CartItem) => ({
+        ...item,
+        price: Number(item.price) || 0,
+        stock: Number(item.stock) || 0,
+        quantity: Number(item.quantity) || 1,
+      }));
     } catch {
       return [];
     }
@@ -64,13 +72,14 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   }, [user]);
 
   const addItem = (item: Omit<CartItem, "quantity">) => {
+    const normalized = { ...item, price: Number(item.price) || 0, stock: Number(item.stock) || 0 };
     setItems((prev) => {
-      const existing = prev.find((i) => i.id === item.id);
+      const existing = prev.find((i) => i.id === normalized.id);
       if (existing) {
-        if (existing.quantity >= item.stock) return prev;
-        return prev.map((i) => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i);
+        if (existing.quantity >= normalized.stock) return prev;
+        return prev.map((i) => i.id === normalized.id ? { ...i, quantity: i.quantity + 1 } : i);
       }
-      return [...prev, { ...item, quantity: 1 }];
+      return [...prev, { ...normalized, quantity: 1 }];
     });
   };
 

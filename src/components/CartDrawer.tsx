@@ -114,7 +114,7 @@ const CartDrawer = ({ open: controlledOpen, onOpenChange, showTrigger = true }: 
                   <img src={item.image} alt={item.name} className="h-16 w-16 rounded-md object-cover bg-muted" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold truncate">{item.name}</p>
-                    <p className="text-sm font-bold text-primary">${item.price.toFixed(2)}</p>
+                    <p className="text-sm font-bold text-primary">${Number(item.price).toFixed(2)}</p>
                     <div className="mt-1.5 flex items-center gap-2">
                       <Button variant="outline" size="icon" className="h-7 w-7"
                         onClick={() => updateQuantity(item.id, item.quantity - 1)}>
@@ -139,7 +139,7 @@ const CartDrawer = ({ open: controlledOpen, onOpenChange, showTrigger = true }: 
             <div className="mt-4 space-y-3 border-t border-border pt-4">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Subtotal ({totalItems} items)</span>
-                <span className="text-lg font-bold text-foreground">${totalPrice.toFixed(2)}</span>
+                <span className="text-lg font-bold text-foreground">${Number(totalPrice).toFixed(2)}</span>
               </div>
               <Button className="w-full gap-2" disabled={processing} onClick={handleCheckout}>
                 {processing ? (

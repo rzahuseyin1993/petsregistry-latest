@@ -18,6 +18,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import WebcamCaptureDialog from "@/components/WebcamCaptureDialog";
 import PetBirthFields, { birthFormToPetPayload, emptyBirthForm, petToBirthForm, validateBirthForm } from "@/components/PetBirthFields";
 import { firstError, validateImageFile, validateOptionalLength, validateRequired } from "@/lib/validation";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 
 const speciesOptions = ["Dog", "Cat", "Bird", "Fish", "Rabbit", "Hamster", "Reptile", "Bear", "Other"];
 
@@ -27,6 +28,7 @@ const EditPet = () => {
   const navigate = useNavigate();
   const mp = useMobilePath();
   const queryClient = useQueryClient();
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [loading, setLoading] = useState(false);
   const [petName, setPetName] = useState("");
   const [species, setSpecies] = useState("");
@@ -124,6 +126,12 @@ const EditPet = () => {
       toast.error("Pet must have at least 1 photo");
       return;
     }
+    const ok = await confirm({
+      title: "Remove this photo?",
+      description: "This pet photo will be permanently deleted. This action cannot be undone.",
+      confirmLabel: "Remove",
+    });
+    if (!ok) return;
     const { error } = await supabase.from("pet_images").delete().eq("id", imageId);
     if (error) {
       toast.error("Failed to delete image");
@@ -404,6 +412,7 @@ const EditPet = () => {
           </form>
         </motion.div>
         <WebcamCaptureDialog open={webcamOpen} onClose={() => setWebcamOpen(false)} onCapture={handleWebcamCapture} />
+        {confirmDialog}
       </main>
     </div>
   );

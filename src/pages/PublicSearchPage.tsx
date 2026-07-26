@@ -12,7 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 import ProtectedImage from "@/components/ProtectedImage";
 import PetCard from "@/components/PetCard";
 import { useVisitorGeo } from "@/contexts/VisitorGeoContext";
-import { fetchBrowseAdoptions, fetchBrowseLostReports, searchBrowsePets } from "@/lib/geoBrowseQueries";
+import { fetchBrowseAdoptions, fetchBrowseLostReports, fetchBrowsePets, searchBrowsePets } from "@/lib/geoBrowseQueries";
 import {
   getLostReportDetailLink,
   getLostReportImageUrl,
@@ -47,8 +47,10 @@ const PublicSearchPage = () => {
 
   const { data: registeredPets = [], isLoading: petsLoading } = useQuery({
     queryKey: ["public-search-pets", trimmedQuery, countryFilter],
-    queryFn: () => searchBrowsePets(trimmedQuery, visitorCountry),
-    enabled: trimmedQuery.length > 0,
+    queryFn: async () => {
+      if (!trimmedQuery) return fetchBrowsePets(visitorCountry, 50);
+      return searchBrowsePets(trimmedQuery, visitorCountry);
+    },
   });
 
   const { data: lostReports = [] } = useQuery({
@@ -107,7 +109,7 @@ const PublicSearchPage = () => {
 
   const showLost = tab === "all" || tab === "lost";
   const showAdopt = tab === "all" || tab === "adopt";
-  const showRegisteredResults = tab === "all" && trimmedQuery.length > 0;
+  const showRegisteredResults = tab === "all";
   const hasRegistered = showRegisteredResults && filteredRegistered.length > 0;
   const hasLost = showLost && filteredLost.length > 0;
   const hasAdopt = showAdopt && filteredAdoptions.length > 0;
@@ -160,7 +162,7 @@ const PublicSearchPage = () => {
             </Button>
           </div>
 
-          {petsLoading && isSearching && (
+          {petsLoading && (
             <div className="mt-10 flex justify-center">
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
             </div>
@@ -286,7 +288,7 @@ const PublicSearchPage = () => {
             <p className="mx-auto mt-10 max-w-md text-center text-muted-foreground">
               {isSearching
                 ? "No pets match your search. Try the full Pet ID (e.g. PR-2026-100002) or microchip number."
-                : "No pets match your filters. Try clearing them or enter a Pet ID, microchip, or name to search."}
+                : "No pets found for your area yet. Try clearing filters or searching by Pet ID, microchip, or name."}
             </p>
           )}
         </div>

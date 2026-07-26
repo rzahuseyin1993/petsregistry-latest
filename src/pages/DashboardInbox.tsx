@@ -12,6 +12,7 @@ import { Mail, Eye, Paperclip, Trash2, CheckCheck } from "lucide-react";
 import { toast } from "sonner";
 import DOMPurify from "dompurify";
 import { useQueryClient } from "@tanstack/react-query";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 
 type Attachment = {
   name: string;
@@ -34,6 +35,7 @@ type AdminMessage = {
 const DashboardInbox = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const refreshUnreadBadge = () => queryClient.invalidateQueries({ queryKey: ["inbox-unread-count"] });
   const [messages, setMessages] = useState<AdminMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -86,6 +88,11 @@ const DashboardInbox = () => {
   };
 
   const deleteMessage = async (msgId: string) => {
+    const ok = await confirm({
+      title: "Delete this message?",
+      description: "This message will be permanently deleted. This action cannot be undone.",
+    });
+    if (!ok) return;
     const { error } = await supabase
       .from("admin_messages")
       .delete()
@@ -93,6 +100,10 @@ const DashboardInbox = () => {
       .eq("recipient_id", user!.id);
     if (error) { toast.error("Could not delete message"); return; }
     setMessages(prev => prev.filter(m => m.id !== msgId));
+    if (selectedMsg?.id === msgId) {
+      setViewOpen(false);
+      setSelectedMsg(null);
+    }
     refreshUnreadBadge();
     toast.success("Message deleted");
   };
@@ -191,14 +202,24 @@ const DashboardInbox = () => {
                           {new Date(msg.created_at).toLocaleDateString()}
                         </TableCell>
                         <TableCell>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 w-7 p-0"
-                            onClick={(e) => { e.stopPropagation(); openMessage(msg); }}
-                          >
-                            <Eye className="h-3.5 w-3.5" />
-                          </Button>
+                          <div className="flex items-center gap-0.5">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0"
+                              onClick={(e) => { e.stopPropagation(); openMessage(msg); }}
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0 text-destructive"
+                              onClick={(e) => { e.stopPropagation(); deleteMessage(msg.id); }}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
@@ -259,11 +280,21 @@ const DashboardInbox = () => {
                 })()}
               </div>
             )}
-            <DialogFooter>
+            <DialogFooter className="gap-2 sm:gap-0">
+              {selectedMsg && (
+                <Button
+                  variant="destructive"
+                  className="gap-2 sm:mr-auto"
+                  onClick={() => deleteMessage(selectedMsg.id)}
+                >
+                  <Trash2 className="h-4 w-4" /> Delete
+                </Button>
+              )}
               <Button variant="outline" onClick={() => setViewOpen(false)}>Close</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        {confirmDialog}
       </main>
     </div>
   );

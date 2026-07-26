@@ -17,6 +17,7 @@ interface StoreProductCardProps {
 const StoreProductCard = ({ id, name, price, image, description, stock = 99 }: StoreProductCardProps) => {
   const { addItem, items } = useCart();
   const inCart = items.find((i) => i.id === id);
+  const displayPrice = Number(price) || 0;
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -24,7 +25,7 @@ const StoreProductCard = ({ id, name, price, image, description, stock = 99 }: S
       toast.error("This product is out of stock");
       return;
     }
-    addItem({ id, name, price, image, stock });
+    addItem({ id, name, price: displayPrice, image, stock });
     toast.success(`${name} added to cart!`);
   };
 
@@ -38,7 +39,7 @@ const StoreProductCard = ({ id, name, price, image, description, stock = 99 }: S
           <h3 className="font-display text-base font-semibold text-card-foreground">{name}</h3>
           <p className="mt-1 text-sm text-muted-foreground line-clamp-2">{description}</p>
           <div className="mt-3 flex items-center justify-between">
-            <span className="font-display text-xl font-bold text-primary">${price.toFixed(2)}</span>
+            <span className="font-display text-xl font-bold text-primary">${displayPrice.toFixed(2)}</span>
             <Button
               size="sm"
               className="gap-2 rounded-lg"

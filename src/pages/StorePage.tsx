@@ -28,8 +28,34 @@ const StorePage = () => {
     },
   });
 
-  if (storeSettingLoading || !storeEnabled) {
-    return null;
+  if (storeSettingLoading) {
+    return (
+      <div className="flex min-h-screen flex-col bg-background">
+        <Navbar />
+        <main className="flex flex-1 items-center justify-center py-20">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (!storeEnabled) {
+    return (
+      <div className="flex min-h-screen flex-col bg-background">
+        <Navbar />
+        <main className="flex flex-1 items-center justify-center py-20">
+          <div className="mx-auto max-w-md px-4 text-center">
+            <ShoppingCart className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
+            <h1 className="font-display text-2xl font-bold text-foreground">Store is temporarily closed</h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              The public store is turned off in Admin → Products. Redirecting you home…
+            </p>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
   }
 
   return (
@@ -60,7 +86,7 @@ const StorePage = () => {
                   key={product.id}
                   id={product.id}
                   name={product.name}
-                  price={product.price}
+                  price={Number(product.price) || 0}
                   image={product.image_url || "/placeholder.svg"}
                   description={product.description || ""}
                   stock={product.stock}

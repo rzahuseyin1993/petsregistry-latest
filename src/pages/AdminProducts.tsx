@@ -15,6 +15,7 @@ import { Plus, Pencil, Trash2, Package, Download, Search, Upload, X, Store } fro
 import { exportToCsv } from "@/lib/exportCsv";
 import { uploadImage } from "@/lib/imageUpload";
 import { useState, useRef } from "react";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 
 interface ProductForm {
   name: string;
@@ -30,6 +31,7 @@ const emptyForm: ProductForm = { name: "", description: "", price: "", stock: "0
 
 const AdminProducts = () => {
   const queryClient = useQueryClient();
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<ProductForm>(emptyForm);
@@ -161,6 +163,15 @@ const AdminProducts = () => {
     },
     onError: (err: Error) => toast.error(err.message),
   });
+
+  const handleDelete = async (product: { id: string; name: string }) => {
+    const ok = await confirm({
+      title: "Delete this product?",
+      description: `"${product.name}" will be permanently deleted. If it appears in past orders, deletion may fail — deactivate it instead. This action cannot be undone.`,
+    });
+    if (!ok) return;
+    deleteMutation.mutate(product.id);
+  };
 
   const openEdit = (product: any) => {
     setEditingId(product.id);
@@ -305,7 +316,12 @@ const AdminProducts = () => {
                             </Button>
                           </PermissionGate>
                           <PermissionGate resource="products" action="delete">
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => deleteMutation.mutate(product.id)}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive"
+                              onClick={() => handleDelete(product)}
+                            >
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </PermissionGate>
@@ -391,6 +407,7 @@ const AdminProducts = () => {
             </form>
           </DialogContent>
         </Dialog>
+        {confirmDialog}
       </main>
   );
 };

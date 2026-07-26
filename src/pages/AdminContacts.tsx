@@ -17,6 +17,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import RichMessageComposer from "@/components/RichMessageComposer";
 import DOMPurify from "dompurify";
 import PermissionGate from "@/components/PermissionGate";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 
 type ContactSubmission = {
   id: string;
@@ -53,6 +54,7 @@ type Attachment = {
 
 const AdminContacts = () => {
   const { user } = useAuth();
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [submissions, setSubmissions] = useState<ContactSubmission[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [listings, setListings] = useState<BusinessListing[]>([]);
@@ -324,6 +326,11 @@ const AdminContacts = () => {
   };
 
   const deleteTemplate = async (id: string) => {
+    const ok = await confirm({
+      title: "Delete this template?",
+      description: "This message template will be permanently deleted. This action cannot be undone.",
+    });
+    if (!ok) return;
     const { error } = await supabase.from("message_templates" as any).delete().eq("id", id);
     if (error) { toast.error("Failed to delete template"); return; }
     setTemplates(prev => prev.filter(t => t.id !== id));
@@ -813,6 +820,7 @@ const AdminContacts = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        {confirmDialog}
       </main>
   );
 };

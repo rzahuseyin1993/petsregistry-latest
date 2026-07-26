@@ -17,6 +17,7 @@ import { firstError, validateEmail, validateNumberRange, validateOptionalLength,
 import CountrySelect from "@/components/CountrySelect";
 import { Plus, Pencil, Trash2, Image, Building2, Crown, Check, ArrowRight, MapPin, Loader2, Upload, Video, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 
 const MEMBERSHIP_UPGRADE_PATH = "/dashboard/membership#upgrade-plans";
 
@@ -36,6 +37,7 @@ const DashboardDirectory = () => {
   const { user, hasTopMembership } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", description: "", category: "pet_shop", address: "", city: "", country: "", phone: "", whatsapp: "", email: "", website: "", lat: "", lng: "", video_url: "" });
@@ -199,10 +201,25 @@ const DashboardDirectory = () => {
   };
 
   const removeLogo = async (listingId: string) => {
+    const ok = await confirm({
+      title: "Remove this logo?",
+      description: "The business logo will be removed. This action cannot be undone.",
+      confirmLabel: "Remove",
+    });
+    if (!ok) return;
     const { error } = await supabase.from("business_listings").update({ logo_url: null }).eq("id", listingId);
     if (error) { toast({ title: "Failed to remove logo", description: error.message, variant: "destructive" }); return; }
     queryClient.invalidateQueries({ queryKey: ["my-business-listings"] });
     toast({ title: "Logo removed" });
+  };
+
+  const handleDeleteListing = async (id: string) => {
+    const ok = await confirm({
+      title: "Delete this listing?",
+      description: "This business listing will be permanently deleted. This action cannot be undone.",
+    });
+    if (!ok) return;
+    deleteMutation.mutate(id);
   };
 
   const uploadGalleryImage = async (listingId: string, file: File) => {
@@ -225,6 +242,11 @@ const DashboardDirectory = () => {
   };
 
   const deleteImage = async (imageId: string) => {
+    const ok = await confirm({
+      title: "Delete this image?",
+      description: "This gallery photo will be permanently deleted. This action cannot be undone.",
+    });
+    if (!ok) return;
     const { error } = await supabase.from("business_listing_images").delete().eq("id", imageId);
     if (error) { toast({ title: "Failed to remove image", description: error.message, variant: "destructive" }); return; }
     queryClient.invalidateQueries({ queryKey: ["my-listing-images"] });
@@ -426,7 +448,7 @@ const DashboardDirectory = () => {
                       </div>
                       <div className="flex gap-2">
                         <Button variant="outline" size="icon" onClick={() => handleEdit(listing)}><Pencil className="h-4 w-4" /></Button>
-                        <Button variant="outline" size="icon" onClick={() => deleteMutation.mutate(listing.id)}><Trash2 className="h-4 w-4" /></Button>
+                        <Button variant="outline" size="icon" onClick={() => handleDeleteListing(listing.id)}><Trash2 className="h-4 w-4" /></Button>
                       </div>
                     </div>
 
@@ -473,6 +495,7 @@ const DashboardDirectory = () => {
             })}
           </div>
         )}
+        {confirmDialog}
       </main>
     </div>
   );

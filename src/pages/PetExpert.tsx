@@ -12,6 +12,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 
 type Message = { role: "user" | "assistant"; content: string; imageUrl?: string };
 type ChatSessionMeta = { id: string; title: string; created_at: string; updated_at: string };
@@ -144,6 +145,7 @@ function fileToBase64(file: File): Promise<string> {
 export default function PetExpert() {
   const { user } = useAuth();
   const isMobile = useIsMobile();
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -308,6 +310,11 @@ export default function PetExpert() {
   const handleDeleteSession = async (sessionId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!user) return;
+    const ok = await confirm({
+      title: "Delete this chat?",
+      description: "This chat will be permanently deleted. This action cannot be undone.",
+    });
+    if (!ok) return;
     try {
       await deleteSessionApi(user.id, sessionId);
       if (activeSessionId === sessionId) startNewChat();
@@ -528,6 +535,7 @@ export default function PetExpert() {
         </div>
       </main>
       <WebcamCaptureDialog open={webcamOpen} onClose={() => setWebcamOpen(false)} onCapture={handleWebcamCapture} />
+      {confirmDialog}
     </div>
   );
 }

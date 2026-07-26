@@ -12,9 +12,11 @@ import { toast } from "@/hooks/use-toast";
 import { HandHeart, DollarSign, Users, TrendingUp, Plus, Pencil, Trash2, Search } from "lucide-react";
 import { useState } from "react";
 import { Input as SearchInput } from "@/components/ui/input";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 
 const AdminDonations = () => {
   const queryClient = useQueryClient();
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [pkgDialog, setPkgDialog] = useState(false);
   const [editPkg, setEditPkg] = useState<any>(null);
   const [pkgName, setPkgName] = useState("");
@@ -82,6 +84,15 @@ const AdminDonations = () => {
       toast({ title: "Package deactivated" });
     },
   });
+
+  const handleDeletePkg = async (id: string) => {
+    const ok = await confirm({
+      title: "Delete this donation package?",
+      description: "This package will be deactivated and no longer offered. This action cannot be undone.",
+    });
+    if (!ok) return;
+    deletePkgMutation.mutate(id);
+  };
 
   const resetPkgForm = () => {
     setEditPkg(null);
@@ -182,7 +193,7 @@ const AdminDonations = () => {
                         <Button variant="outline" size="sm" onClick={() => openEdit(pkg)}><Pencil className="h-3 w-3" /></Button>
                       </PermissionGate>
                       <PermissionGate resource="donations" action="delete">
-                        <Button variant="outline" size="sm" className="text-destructive" onClick={() => deletePkgMutation.mutate(pkg.id)}><Trash2 className="h-3 w-3" /></Button>
+                        <Button variant="outline" size="sm" className="text-destructive" onClick={() => handleDeletePkg(pkg.id)}><Trash2 className="h-3 w-3" /></Button>
                       </PermissionGate>
                     </div>
                 </CardContent>
@@ -241,6 +252,7 @@ const AdminDonations = () => {
             </div>
           </Card>
         </div>
+        {confirmDialog}
       </main>
   );
 };
