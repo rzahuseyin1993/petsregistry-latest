@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,8 +10,10 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import ProtectedImage from "@/components/ProtectedImage";
 import PetCard from "@/components/PetCard";
+import { COUNTRIES } from "@/components/CountrySelect";
 import { useVisitorGeo } from "@/contexts/VisitorGeoContext";
 import { fetchBrowseAdoptions, fetchBrowseLostReports, fetchBrowsePets, searchBrowsePets } from "@/lib/geoBrowseQueries";
+import { countryMatchesRecord, countryStringToVisitor } from "@/lib/geoCountry";
 import {
   getLostReportDetailLink,
   getLostReportImageUrl,
@@ -26,12 +27,29 @@ const matches = (text: string | null | undefined, q: string) =>
 const matchesAny = (fields: (string | null | undefined)[], q: string) =>
   !q || fields.some((field) => matches(field, q));
 
+const matchesCountry = (fields: (string | null | undefined)[], country: string) => {
+  if (!country.trim()) return true;
+  const visitor = countryStringToVisitor(country);
+  return fields.some((field) => {
+    if (!field?.trim()) return false;
+    if (matches(field, country)) return true;
+    return visitor ? countryMatchesRecord(field, visitor) : false;
+  });
+};
+
+const matchesCity = (fields: (string | null | undefined)[], city: string) => {
+  if (!city.trim()) return true;
+  const needle = city.trim().toLowerCase();
+  return fields.some((field) => field?.trim().toLowerCase().includes(needle));
+};
+
 const PublicSearchPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialQuery = searchParams.get("q") || "";
   const [query, setQuery] = useState(initialQuery);
   const [breedFilter, setBreedFilter] = useState("");
-  const [locationFilter, setLocationFilter] = useState("");
+  const [countryLocationFilter, setCountryLocationFilter] = useState("");
+  const [cityFilter, setCityFilter] = useState("");
   const [tab, setTab] = useState<"all" | "lost" | "adopt">("all");
   const { visitorCountry, countryFilter } = useVisitorGeo();
 
@@ -74,12 +92,34 @@ const PublicSearchPage = () => {
     return Array.from(set).sort();
   }, [lostReports, adoptions, registeredPets]);
 
+  /** Cities that appear in results (optionally scoped to selected country). */
+  const cityOptions = useMemo(() => {
+    const rows: { city?: string | null; country?: string | null }[] = [];
+    registeredPets.forEach((p: any) => rows.push({ city: p.owner_city, country: p.owner_country }));
+    adoptions.forEach((a: any) => rows.push({ city: a.owner_city, country: a.owner_country }));
+    lostReports.forEach((r: any) => rows.push({ city: r.owner_city, country: r.owner_country }));
+
+    const set = new Set<string>();
+    rows.forEach(({ city, country }) => {
+      const c = (city || "").trim();
+      if (!c) return;
+      if (countryLocationFilter && !matchesCountry([country], countryLocationFilter)) return;
+      set.add(c);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [registeredPets, adoptions, lostReports, countryLocationFilter]);
+
+  useEffect(() => {
+    if (cityFilter && !cityOptions.includes(cityFilter)) setCityFilter("");
+  }, [cityFilter, cityOptions]);
+
   const filteredLost = lostReports.filter((r: any) => {
     const name = getLostReportPetName(r);
     const breed = r.guest_pet_breed || r.pets?.breed;
     const species = r.guest_pet_species || r.pets?.species;
     if (breedFilter && breed !== breedFilter) return false;
-    if (locationFilter && !matches(r.last_seen_address, locationFilter)) return false;
+    if (!matchesCountry([r.owner_country, r.last_seen_address], countryLocationFilter)) return false;
+    if (!matchesCity([r.owner_city, r.last_seen_address], cityFilter)) return false;
     if (
       trimmedQuery &&
       !matchesAny([name, breed, species, r.pets?.pet_code, r.pets?.name, r.id], trimmedQuery)
@@ -93,6 +133,8 @@ const PublicSearchPage = () => {
     const pet = a.pets;
     if (!pet) return false;
     if (breedFilter && pet.breed !== breedFilter) return false;
+    if (!matchesCountry([a.owner_country], countryLocationFilter)) return false;
+    if (!matchesCity([a.owner_city], cityFilter)) return false;
     if (
       trimmedQuery &&
       !matchesAny([pet.name, pet.breed, pet.species, pet.pet_code, pet.id], trimmedQuery)
@@ -104,6 +146,8 @@ const PublicSearchPage = () => {
 
   const filteredRegistered = registeredPets.filter((pet: any) => {
     if (breedFilter && pet.breed !== breedFilter) return false;
+    if (!matchesCountry([pet.owner_country], countryLocationFilter)) return false;
+    if (!matchesCity([pet.owner_city], cityFilter)) return false;
     return true;
   });
 
@@ -128,7 +172,7 @@ const PublicSearchPage = () => {
             </p>
           </div>
 
-          <div className="mx-auto mt-6 grid max-w-4xl gap-3 md:grid-cols-[1fr_220px_220px]">
+          <div className="mx-auto mt-6 grid max-w-5xl gap-3 md:grid-cols-[1fr_160px_200px_180px]">
             <div className="flex min-w-0 items-center gap-2 rounded-lg border border-border bg-card px-3 shadow-sm">
               <Search className="pointer-events-none h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
               <input
@@ -143,13 +187,40 @@ const PublicSearchPage = () => {
               />
             </div>
             <Select value={breedFilter || "all"} onValueChange={(v) => setBreedFilter(v === "all" ? "" : v)}>
-              <SelectTrigger><SelectValue placeholder="All breeds" /></SelectTrigger>
+              <SelectTrigger aria-label="Filter by breed"><SelectValue placeholder="All breeds" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All breeds</SelectItem>
                 {breeds.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Input placeholder="Location (city, area)" value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} />
+            <Select
+              value={countryLocationFilter || "all"}
+              onValueChange={(v) => {
+                setCountryLocationFilter(v === "all" ? "" : v);
+                setCityFilter("");
+              }}
+            >
+              <SelectTrigger aria-label="Filter by country"><SelectValue placeholder="All countries" /></SelectTrigger>
+              <SelectContent className="max-h-72">
+                <SelectItem value="all">All countries</SelectItem>
+                {COUNTRIES.map((c) => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={cityFilter || "all"}
+              onValueChange={(v) => setCityFilter(v === "all" ? "" : v)}
+              disabled={cityOptions.length === 0}
+            >
+              <SelectTrigger aria-label="Filter by city"><SelectValue placeholder="All cities" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All cities</SelectItem>
+                {cityOptions.map((c) => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="mx-auto mt-4 flex max-w-4xl gap-2">
