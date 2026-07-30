@@ -9,7 +9,7 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   PawPrint, Shield, QrCode, Search, Heart, ShoppingCart,
   AlertTriangle, Sparkles, BookOpen, Map, Activity,
-  ArrowRight, Globe, CheckCircle, ScanLine, X, Camera
+  ArrowRight, ScanLine, X, Camera
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
@@ -77,7 +77,6 @@ const Index = () => {
       const pets = await fetchBrowsePets(null, 500);
       return {
         pets: pets.length,
-        lost: pets.filter((p: { status?: string }) => p.status === "lost").length,
       };
     },
   });
@@ -253,34 +252,6 @@ const Index = () => {
 
       <LostPetsBanner />
 
-      <section className="py-12">
-        <div className="container">
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-            {[
-              { icon: PawPrint, value: `${stats?.pets || 0}+`, label: "Registered Pets", color: "text-primary" },
-              { icon: Search, value: `${stats?.lost || 0}`, label: "Active Searches", color: "text-amber-500" },
-              { icon: Globe, value: "6+", label: "Countries", color: "text-blue-500" },
-              { icon: CheckCircle, value: "0+", label: "Reunited", color: "text-success" },
-            ].map((stat) => {
-              const Icon = stat.icon;
-              return (
-                <Card key={stat.label} className="border-border">
-                  <CardContent className="flex items-center gap-4 p-5">
-                    <div className={`flex h-11 w-11 items-center justify-center rounded-xl bg-muted ${stat.color}`}>
-                      <Icon className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <p className="font-display text-2xl font-bold text-foreground">{stat.value}</p>
-                      <p className="text-xs text-muted-foreground">{stat.label}</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
       {/* Report Lost CTA — moved above Recently Registered */}
       <section className="pt-8">
         <div className="container">
@@ -323,6 +294,7 @@ const Index = () => {
                     species={pet.species}
                     breed={pet.breed || ""}
                     image={firstImage?.image_url || "/placeholder.svg"}
+                    petCode={(pet as any).pet_code}
                     status={pet.status as "registered" | "lost" | "found"}
                   />
                 );
