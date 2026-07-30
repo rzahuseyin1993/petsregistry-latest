@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useState } from "react";
-import { useVisitorGeo } from "@/contexts/VisitorGeoContext";
 import { useStoreEnabled } from "@/hooks/useStoreEnabled";
 import { fetchBrowseAdoptions, fetchBrowseLostReports, fetchBrowsePets } from "@/lib/geoBrowseQueries";
 import { useQuery } from "@tanstack/react-query";
@@ -32,24 +31,23 @@ const quickActions = [
 const MobileHome = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const navigate = useNavigate();
-  const { visitorCountry, countryFilter } = useVisitorGeo();
   const { storeEnabled } = useStoreEnabled();
 
   const visibleQuickActions = quickActions.filter((action) => action.to !== "/m/store" || storeEnabled);
 
   const { data: recentPets = [] } = useQuery({
-    queryKey: ["mobile-recent-pets", countryFilter],
-    queryFn: () => fetchBrowsePets(visitorCountry, 6),
+    queryKey: ["mobile-recent-pets", "worldwide"],
+    queryFn: () => fetchBrowsePets(null, 6),
   });
 
   const { data: adoptPets = [] } = useQuery({
-    queryKey: ["mobile-home-adopt", countryFilter],
-    queryFn: () => fetchBrowseAdoptions(visitorCountry, 6),
+    queryKey: ["mobile-home-adopt", "worldwide"],
+    queryFn: () => fetchBrowseAdoptions(null, 6),
   });
 
   const { data: lostPets = [] } = useQuery({
-    queryKey: ["mobile-home-lost", countryFilter],
-    queryFn: () => fetchBrowseLostReports(visitorCountry, 6),
+    queryKey: ["mobile-home-lost", "worldwide"],
+    queryFn: () => fetchBrowseLostReports(null, 6),
   });
 
   const handleSearch = (e: React.FormEvent) => {

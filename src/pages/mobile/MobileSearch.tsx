@@ -8,7 +8,6 @@ import { Search, Camera, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import BarcodeScanner from "react-qr-barcode-scanner";
-import { useVisitorGeo } from "@/contexts/VisitorGeoContext";
 import { fetchBrowsePets, searchBrowsePets } from "@/lib/geoBrowseQueries";
 
 const MobileSearch = () => {
@@ -18,7 +17,6 @@ const MobileSearch = () => {
   const [searchTerm, setSearchTerm] = useState(initialQ);
   const [showScanner, setShowScanner] = useState(false);
   const navigate = useNavigate();
-  const { visitorCountry, countryFilter } = useVisitorGeo();
 
   const handleScanResult = useCallback((err: any, result: any) => {
     if (result) {
@@ -34,16 +32,17 @@ const MobileSearch = () => {
       } else {
         setQuery(scannedText);
         setSearchTerm(scannedText);
-        toast.info("QR code scanned â€” searching...");
+        toast.info("QR code scanned — searching...");
       }
     }
   }, [navigate]);
 
+  // Worldwide browse — same as desktop "All countries" (not IP geo-limited)
   const { data: pets = [], isLoading } = useQuery({
-    queryKey: ["mobile-search", searchTerm, countryFilter],
+    queryKey: ["mobile-search", searchTerm, "worldwide"],
     queryFn: async () => {
-      if (!searchTerm.trim()) return fetchBrowsePets(visitorCountry, 50);
-      return searchBrowsePets(searchTerm, visitorCountry);
+      if (!searchTerm.trim()) return fetchBrowsePets(null, 50);
+      return searchBrowsePets(searchTerm, null);
     },
   });
 

@@ -3,14 +3,19 @@ import { filterByOwnerCountry, getVisitorCountryFilter } from "@/lib/geoCountry"
 import type { VisitorCountry } from "@/lib/geoCountry";
 import { isIdentifierPetQuery, normalizePetSearchQuery } from "@/lib/petSearch";
 
+/**
+ * @param visitor - Country scope. Pass `null` for worldwide (All countries).
+ */
 export async function fetchBrowsePets(visitor: VisitorCountry | null, limit = 50) {
+  // When geo-filtering, over-fetch then slice so local pets aren't buried under other countries.
+  const fetchLimit = getVisitorCountryFilter(visitor) ? Math.max(limit * 8, 200) : limit;
   const { data, error } = await supabase
     .from("pets_public" as any)
     .select("*, pet_images(image_url, sort_order)")
     .order("created_at", { ascending: false })
-    .limit(limit);
+    .limit(fetchLimit);
   if (error) throw error;
-  return filterByOwnerCountry((data || []) as { owner_country?: string | null }[], visitor);
+  return filterByOwnerCountry((data || []) as { owner_country?: string | null }[], visitor).slice(0, limit);
 }
 
 export async function searchBrowsePets(query: string, visitor: VisitorCountry | null) {
@@ -32,27 +37,36 @@ export async function searchBrowsePets(query: string, visitor: VisitorCountry | 
     .in("id", ids)
     .order("created_at", { ascending: false });
   if (fetchErr) throw fetchErr;
-  if (worldwide) return (results || []) as { owner_country?: string | null }[];
+  if (worldwide || !country) return (results || []) as { owner_country?: string | null }[];
   return filterByOwnerCountry((results || []) as { owner_country?: string | null }[], visitor);
 }
 
 export async function fetchBrowseLostReports(visitor: VisitorCountry | null, limit?: number) {
+  const fetchLimit = limit
+    ? getVisitorCountryFilter(visitor)
+      ? Math.max(limit * 8, 200)
+      : limit
+    : getVisitorCountryFilter(visitor)
+      ? 500
+      : undefined;
   let q = supabase
     .from("lost_reports_public" as any)
     .select("*, pets(id, name, species, breed, color, owner_id, pet_images(image_url, sort_order))")
     .order("created_at", { ascending: false });
-  if (limit) q = q.limit(limit);
+  if (fetchLimit) q = q.limit(fetchLimit);
   const { data, error } = await q;
   if (error) throw error;
-  return filterByOwnerCountry((data || []) as { owner_country?: string | null }[], visitor);
+  const filtered = filterByOwnerCountry((data || []) as { owner_country?: string | null }[], visitor);
+  return limit ? filtered.slice(0, limit) : filtered;
 }
 
 export async function fetchBrowseAdoptions(visitor: VisitorCountry | null, limit?: number) {
   let q = supabase
     .from("pet_adoptions_browse" as any)
     .select("*, pets(id, name, species, breed, age, color, pet_code, pet_images(image_url, sort_order))");
-  if (limit) q = q.limit(limit);
+  if (limit && !getVisitorCountryFilter(visitor)) q = q.limit(limit);
   const { data, error } = await q;
   if (error) throw error;
-  return filterByOwnerCountry((data || []) as { owner_country?: string | null }[], visitor);
+  const filtered = filterByOwnerCountry((data || []) as { owner_country?: string | null }[], visitor);
+  return limit ? filtered.slice(0, limit) : filtered;
 }

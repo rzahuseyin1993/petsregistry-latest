@@ -17,7 +17,6 @@ import { useState, useCallback, lazy, Suspense } from "react";
 import { toast } from "sonner";
 import PetCard from "@/components/PetCard";
 import LostPetsBanner from "@/components/LostPetsBanner";
-import { useVisitorGeo } from "@/contexts/VisitorGeoContext";
 import { useStoreEnabled } from "@/hooks/useStoreEnabled";
 import { fetchBrowseAdoptions, fetchBrowsePets } from "@/lib/geoBrowseQueries";
 
@@ -62,22 +61,20 @@ const Index = () => {
     }
   }, [navigate]);
 
-  const { visitorCountry, countryFilter } = useVisitorGeo();
-
   const { data: recentPets = [] } = useQuery({
-    queryKey: ["recent-pets", countryFilter],
-    queryFn: () => fetchBrowsePets(visitorCountry, 4),
+    queryKey: ["recent-pets", "worldwide"],
+    queryFn: () => fetchBrowsePets(null, 4),
   });
 
   const { data: adoptionPets = [] } = useQuery({
-    queryKey: ["home-adoptions", countryFilter],
-    queryFn: () => fetchBrowseAdoptions(visitorCountry, 4),
+    queryKey: ["home-adoptions", "worldwide"],
+    queryFn: () => fetchBrowseAdoptions(null, 4),
   });
 
   const { data: stats } = useQuery({
-    queryKey: ["home-stats", countryFilter],
+    queryKey: ["home-stats", "worldwide"],
     queryFn: async () => {
-      const pets = await fetchBrowsePets(visitorCountry, 500);
+      const pets = await fetchBrowsePets(null, 500);
       return {
         pets: pets.length,
         lost: pets.filter((p: { status?: string }) => p.status === "lost").length,

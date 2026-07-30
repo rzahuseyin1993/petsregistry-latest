@@ -11,7 +11,6 @@ import { useQuery } from "@tanstack/react-query";
 import ProtectedImage from "@/components/ProtectedImage";
 import PetCard from "@/components/PetCard";
 import { COUNTRIES } from "@/components/CountrySelect";
-import { useVisitorGeo } from "@/contexts/VisitorGeoContext";
 import { fetchBrowseAdoptions, fetchBrowseLostReports, fetchBrowsePets, searchBrowsePets } from "@/lib/geoBrowseQueries";
 import { countryMatchesRecord, countryStringToVisitor } from "@/lib/geoCountry";
 import {
@@ -51,7 +50,13 @@ const PublicSearchPage = () => {
   const [countryLocationFilter, setCountryLocationFilter] = useState("");
   const [cityFilter, setCityFilter] = useState("");
   const [tab, setTab] = useState<"all" | "lost" | "adopt">("all");
-  const { visitorCountry, countryFilter } = useVisitorGeo();
+
+  /** Dropdown country scope — "All countries" means worldwide (null), not visitor IP. */
+  const browseCountry = useMemo(
+    () => (countryLocationFilter ? countryStringToVisitor(countryLocationFilter) : null),
+    [countryLocationFilter],
+  );
+  const browseCountryKey = countryLocationFilter || "all";
 
   useEffect(() => {
     const next = query.trim();
@@ -64,21 +69,21 @@ const PublicSearchPage = () => {
   const trimmedQuery = query.trim();
 
   const { data: registeredPets = [], isLoading: petsLoading } = useQuery({
-    queryKey: ["public-search-pets", trimmedQuery, countryFilter],
+    queryKey: ["public-search-pets", trimmedQuery, browseCountryKey],
     queryFn: async () => {
-      if (!trimmedQuery) return fetchBrowsePets(visitorCountry, 50);
-      return searchBrowsePets(trimmedQuery, visitorCountry);
+      if (!trimmedQuery) return fetchBrowsePets(browseCountry, 50);
+      return searchBrowsePets(trimmedQuery, browseCountry);
     },
   });
 
   const { data: lostReports = [] } = useQuery({
-    queryKey: ["public-search-lost", countryFilter],
-    queryFn: () => fetchBrowseLostReports(visitorCountry, 200),
+    queryKey: ["public-search-lost", browseCountryKey],
+    queryFn: () => fetchBrowseLostReports(browseCountry, 200),
   });
 
   const { data: adoptions = [] } = useQuery({
-    queryKey: ["public-search-adoptions", countryFilter],
-    queryFn: () => fetchBrowseAdoptions(visitorCountry, 200),
+    queryKey: ["public-search-adoptions", browseCountryKey],
+    queryFn: () => fetchBrowseAdoptions(browseCountry, 200),
   });
 
   const breeds = useMemo(() => {
