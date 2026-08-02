@@ -74,7 +74,9 @@ export function getLostReportSpeciesBreed(report: LostReportRow): string {
 }
 
 export function getLostReportDetailLink(report: LostReportRow): string {
-  if (!report.is_guest && report.pets?.id) return `/pet/${report.pets.id}`;
+  // Listing-style reports (guest or logged-in without a registered pet) open the lost-pets detail.
+  if (report.is_guest || report.guest_pet_name?.trim()) return `/lost-pets?report=${report.id}`;
+  if (report.pets?.id) return `/pet/${report.pets.id}`;
   return `/lost-pets?report=${report.id}`;
 }
 

@@ -421,35 +421,37 @@ const PetProfile = () => {
 
               {/* Sidebar */}
               <div className="space-y-5">
-                {/* Public QR Code — visible to everyone so anyone can rescan/share the profile */}
-                <Card className="border-border">
-                  <CardContent className="flex flex-col items-center p-6">
-                    <h3 className="mb-4 font-display font-semibold text-foreground">Pet QR Code</h3>
-                    <div className="qr-code-container rounded-2xl border border-border bg-card p-4">
-                      <QRCodeSVG value={profileUrl} size={160} />
-                    </div>
-                    <p className="mt-3 text-center text-xs text-muted-foreground">Scan to view this pet's profile</p>
-                    <p className="allow-select mt-1 text-center text-sm font-mono font-semibold tracking-wide text-primary">{petCode}</p>
-                    {!authLoading && (pet as any)?.canDownloadQr && (
-                      <div className="mt-4 w-full space-y-2">
-                        <p className="text-center text-xs font-medium text-muted-foreground">Download for pet tag</p>
-                        <div className="flex flex-wrap justify-center gap-2">
-                          {QR_DOWNLOAD_SIZES.map((s) => (
-                            <Button
-                              key={s.label}
-                              variant="outline"
-                              size="sm"
-                              className="gap-1.5 text-xs"
-                              onClick={() => downloadQrCode(pet.name, s.pxSize, s.label)}
-                            >
-                              <Download className="h-3 w-3" /> {s.label}
-                            </Button>
-                          ))}
-                        </div>
+                {/* QR card — owner only (download tags / manage QR) */}
+                {!authLoading && (pet as any)?.isOwner && (
+                  <Card className="border-border">
+                    <CardContent className="flex flex-col items-center p-6">
+                      <h3 className="mb-4 font-display font-semibold text-foreground">Pet QR Code</h3>
+                      <div className="qr-code-container rounded-2xl border border-border bg-card p-4">
+                        <QRCodeSVG value={profileUrl} size={160} />
                       </div>
-                    )}
-                  </CardContent>
-                </Card>
+                      <p className="mt-3 text-center text-xs text-muted-foreground">Scan to view this pet's profile</p>
+                      <p className="allow-select mt-1 text-center text-sm font-mono font-semibold tracking-wide text-primary">{petCode}</p>
+                      {(pet as any)?.canDownloadQr && (
+                        <div className="mt-4 w-full space-y-2">
+                          <p className="text-center text-xs font-medium text-muted-foreground">Download for pet tag</p>
+                          <div className="flex flex-wrap justify-center gap-2">
+                            {QR_DOWNLOAD_SIZES.map((s) => (
+                              <Button
+                                key={s.label}
+                                variant="outline"
+                                size="sm"
+                                className="gap-1.5 text-xs"
+                                onClick={() => downloadQrCode(pet.name, s.pxSize, s.label)}
+                              >
+                                <Download className="h-3 w-3" /> {s.label}
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
 
                 {(pet as any)?.isOwner ? (
                   <>

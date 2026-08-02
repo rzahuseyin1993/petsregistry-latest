@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AlertTriangle, MapPin, Loader2, UserPlus, UserX, Camera, Search, HeartHandshake, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -35,13 +37,31 @@ const ReportLostPage = () => {
   const [webcamOpen, setWebcamOpen] = useState(false);
   const [locationFromPhoto, setLocationFromPhoto] = useState(false);
   const [signupForm, setSignupForm] = useState({ email: "", password: "", fullName: "" });
+  /** Optional: link an already-registered pet. Empty = listing only (no new Pet ID). */
+  const [selectedRegisteredPetId, setSelectedRegisteredPetId] = useState("");
 
   const isFound = reportType === "found";
+  const linkingRegisteredPet = !isFound && !!selectedRegisteredPetId;
+
+  const { data: myPets = [] } = useQuery({
+    queryKey: ["report-lost-my-pets", user?.id],
+    enabled: !!user && !isFound,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("pets")
+        .select("id, name, species, breed, pet_code, status")
+        .eq("owner_id", user!.id)
+        .order("name");
+      if (error) throw error;
+      return (data || []).filter((p) => p.status !== "lost");
+    },
+  });
+
   const labels = {
     heroTitle: isFound ? "Report a Found Pet" : "Report a Lost Pet",
     heroSubtitle: isFound
       ? "You spotted a pet that may be lost? Post it here so the owner can find them."
-      : "Your pet is missing? Post details so the community can help reunite you.",
+      : "Post a lost listing for the community. A Pet ID is only used if you link one of your already-registered pets.",
     petDetailsTitle: isFound ? "Pet Details (what you saw)" : "Pet Details",
     petNameLabel: isFound ? "Pet Name (if known)" : "Pet Name (optional)",
     locationLabel: isFound ? "Where you spotted them (optional)" : "Where you last saw them (optional)",
@@ -50,8 +70,8 @@ const ReportLostPage = () => {
       : "Distinguishing features, collar, behaviour...",
     contactTitle: isFound ? "Your Contact (kept private)" : "Your Contact (kept private)",
     contactNote: isFound
-      ? "Your phone & email are never shown publicly. The owner will reach you through a private 'Contact' button."
-      : "Your phone & email are never shown publicly. People who spot your pet will contact you through a button.",
+      ? "Provide at least one contact method (email or phone). Neither is shown publicly — the owner reaches you through a private Contact button."
+      : "Provide at least one contact method (email or phone). Neither is shown publicly — people who spot your pet contact you through a button.",
     submitLabel: isFound ? "Submit Found Pet Report" : "Submit Lost Report",
   };
 
@@ -77,12 +97,10 @@ const ReportLostPage = () => {
       last_seen_lng: lng,
       last_seen_address: f.last_seen_address || formatCoords(lat, lng),
     }));
-    // Try to upgrade the placeholder coords string to a real address
     const address = await reverseGeocode(lat, lng);
     if (address) {
       setForm((f) => ({
         ...f,
-        // Only overwrite if the user hasn't typed a custom address since
         last_seen_address:
           !f.last_seen_address || f.last_seen_address === formatCoords(lat, lng)
             ? address
@@ -103,7 +121,6 @@ const ReportLostPage = () => {
       if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
       return URL.createObjectURL(file);
     });
-    // Auto-extract GPS from photo if no location captured yet
     if (form.last_seen_lat == null) {
       const gps = await extractPhotoGps(file);
       if (gps) await applyCoords(gps.lat, gps.lng, "photo");
@@ -134,15 +151,37 @@ const ReportLostPage = () => {
     );
   };
 
+  const handleSelectRegisteredPet = (petId: string) => {
+    const value = petId === "none" ? "" : petId;
+    setSelectedRegisteredPetId(value);
+    if (!value) return;
+    const pet = myPets.find((p) => p.id === value);
+    if (!pet) return;
+    setForm((f) => ({
+      ...f,
+      pet_name: pet.name || f.pet_name,
+      species: pet.species || f.species,
+      breed: pet.breed || f.breed,
+    }));
+  };
+
   const validate = () => {
-    // Public-friendly: only photo + reporter contact are required.
-    // The reporter often doesn't know the pet's name/breed/species — those are optional.
-    if (!photoFile) return "A photo is required so people can recognise the pet";
+    // Listing reports need a photo. Linking a registered pet can reuse existing pet photos.
+    if (!linkingRegisteredPet && !photoFile) {
+      return "A photo is required so people can recognise the pet";
+    }
     if (!form.contact_name.trim()) return "Your name is required so we can reach you";
-    const emailError = validateEmail(form.contact_email, { required: true });
-    if (emailError) return emailError;
-    const phoneError = validatePhone(form.contact_phone);
-    if (phoneError) return phoneError;
+    const hasEmail = !!form.contact_email.trim();
+    const hasPhone = !!form.contact_phone.trim();
+    if (!hasEmail && !hasPhone) return "Enter at least one contact method: email or phone";
+    if (hasEmail) {
+      const emailError = validateEmail(form.contact_email);
+      if (emailError) return emailError;
+    }
+    if (hasPhone) {
+      const phoneError = validatePhone(form.contact_phone);
+      if (phoneError) return phoneError;
+    }
     const dateError = validateDateNotFuture(form.last_seen_date, isFound ? "Date spotted" : "Date last seen");
     if (dateError) return dateError;
     return (
@@ -160,7 +199,6 @@ const ReportLostPage = () => {
     const err = validate();
     if (err) { toast.error(err); return; }
     if (user) {
-      // Logged in — submit immediately
       submitReport(user.id, false);
     } else {
       setShowAuthChoice(true);
@@ -186,23 +224,35 @@ const ReportLostPage = () => {
         ? `[FOUND PET SIGHTING] ${form.description || ""}`.trim()
         : form.description || null;
 
-      // Guest reports do not link to a pet, so we use a placeholder pet record.
-      // For logged-in "I lost my pet" reports, we still create a stub pet under their account
-      // so they can manage it from the dashboard later.
-
       let petId: string;
+      let listingOnly = true;
 
-      if (reporterId && !isFound) {
-        const { data: petData, error: petErr } = await supabase.from("pets").insert({
-          owner_id: reporterId,
-          name: effectivePetName,
-          species: effectiveSpecies,
-          breed: form.breed || null,
-          status: "lost",
-          notes: form.description || null,
-        }).select("id").single();
+      if (linkingRegisteredPet && reporterId && selectedRegisteredPetId) {
+        // Link an already-registered pet — do NOT create a new one
+        const owned = myPets.find((p) => p.id === selectedRegisteredPetId);
+        if (!owned) throw new Error("Selected pet was not found on your account.");
+
+        const { data: existing } = await supabase
+          .from("lost_reports")
+          .select("id")
+          .eq("pet_id", selectedRegisteredPetId)
+          .eq("status", "active")
+          .limit(1)
+          .maybeSingle();
+        if (existing) {
+          throw new Error("This pet already has an active lost report.");
+        }
+
+        petId = selectedRegisteredPetId;
+        listingOnly = false;
+
+        const { error: petErr } = await supabase
+          .from("pets")
+          .update({ status: "lost" })
+          .eq("id", petId)
+          .eq("owner_id", reporterId);
         if (petErr) throw petErr;
-        petId = petData.id;
+
         if (photoUrl) {
           await supabase.from("pet_images").insert({
             pet_id: petId,
@@ -211,40 +261,47 @@ const ReportLostPage = () => {
           });
         }
       } else {
-        // Guest OR found-pet report: use the shared placeholder pet
+        // Listing-only report: no new Pet ID / not added to My Pets
         const { data: setting } = await supabase
           .from("site_settings").select("value").eq("key", "guest_lost_pet_id").maybeSingle();
         if (!setting?.value) {
-          throw new Error("Guest reporting is not yet configured. Please sign up to submit a report.");
+          throw new Error("Lost pet reporting is not yet configured. Please contact support.");
         }
         petId = setting.value;
       }
 
-      const treatAsGuestData = isGuest || isFound;
+      // Listing reports always store guest_* display fields (even if the reporter is logged in).
+      const storeListingFields = listingOnly || isFound || isGuest;
 
       const { error: reportErr } = await supabase.from("lost_reports").insert({
         pet_id: petId,
         reporter_id: reporterId,
-        is_guest: isGuest,
+        is_guest: listingOnly || isGuest,
         last_seen_address: form.last_seen_address || null,
         last_seen_lat: form.last_seen_lat,
         last_seen_lng: form.last_seen_lng,
         description: descriptionWithTag,
         reward: isFound ? null : (form.reward || null),
         contact_phone: form.contact_phone || null,
-        guest_name: treatAsGuestData ? form.contact_name : null,
-        guest_email: treatAsGuestData ? form.contact_email : null,
-        guest_phone: treatAsGuestData ? form.contact_phone : null,
-        guest_pet_name: treatAsGuestData ? effectivePetName : (form.pet_name.trim() || null),
-        guest_pet_species: treatAsGuestData ? form.species : (form.species.trim() || null),
-        guest_pet_breed: treatAsGuestData ? form.breed : (form.breed.trim() || null),
-        guest_pet_photo_url: photoUrl,
+        guest_name: storeListingFields ? form.contact_name : null,
+        guest_email: storeListingFields ? form.contact_email : null,
+        guest_phone: storeListingFields ? form.contact_phone : null,
+        guest_pet_name: storeListingFields ? effectivePetName : null,
+        guest_pet_species: storeListingFields ? (form.species.trim() || effectiveSpecies) : null,
+        guest_pet_breed: storeListingFields ? (form.breed.trim() || null) : null,
+        guest_pet_photo_url: storeListingFields ? photoUrl : null,
         last_seen_date: form.last_seen_date || null,
         reporter_country: getCountryLabel(visitorCountry),
       });
       if (reportErr) throw reportErr;
 
-      toast.success(isFound ? "Found pet report submitted! Thank you for helping reunite a pet." : "Lost report submitted! Thank you for helping reunite this pet.");
+      toast.success(
+        isFound
+          ? "Found pet report submitted! Thank you for helping reunite a pet."
+          : listingOnly
+            ? "Lost listing submitted! No Pet ID was created — this is a public lost notice only."
+            : "Lost report submitted for your registered pet.",
+      );
       navigate(mp("/lost-pets"));
     } catch (err: any) {
       console.error(err);
@@ -280,7 +337,6 @@ const ReportLostPage = () => {
       const newUserId = data.user?.id;
       if (!newUserId) throw new Error("Signup failed");
 
-      // Wait briefly for profile trigger
       await new Promise((r) => setTimeout(r, 800));
       await submitReport(newUserId, false);
     } catch (err: any) {
@@ -308,7 +364,6 @@ const ReportLostPage = () => {
             </div>
           </div>
 
-          {/* Lost / Found toggle */}
           <div className="mb-4 inline-flex rounded-lg border border-border bg-muted/40 p-1">
             <button
               type="button"
@@ -322,7 +377,10 @@ const ReportLostPage = () => {
             </button>
             <button
               type="button"
-              onClick={() => setReportType("found")}
+              onClick={() => {
+                setReportType("found");
+                setSelectedRegisteredPetId("");
+              }}
               className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition ${
                 isFound ? "bg-primary text-primary-foreground shadow" : "text-muted-foreground hover:text-foreground"
               }`}
@@ -335,8 +393,33 @@ const ReportLostPage = () => {
           <Card>
             <CardHeader><CardTitle>{labels.petDetailsTitle}</CardTitle></CardHeader>
             <CardContent className="space-y-4">
+              {!isFound && user && (
+                <div>
+                  <Label>Link a registered pet (optional)</Label>
+                  <Select
+                    value={selectedRegisteredPetId || "none"}
+                    onValueChange={handleSelectRegisteredPet}
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="Do not create a Pet ID — listing only" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No registered pet — listing only (no Pet ID)</SelectItem>
+                      {myPets.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name}{p.pet_code ? ` (${p.pet_code})` : ""} · {p.species}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Leave this as “listing only” unless you already registered this pet. Reporting lost does not register a new pet.
+                  </p>
+                </div>
+              )}
+
               <div>
-                <Label>Pet Photo</Label>
+                <Label>Pet Photo{linkingRegisteredPet ? " (optional)" : ""}</Label>
                 <div className="mt-1 flex flex-wrap items-center gap-3">
                   <div className="flex h-24 w-24 items-center justify-center rounded-lg border-2 border-dashed border-border bg-muted/40 overflow-hidden">
                     {photoPreview ? (
@@ -376,15 +459,26 @@ const ReportLostPage = () => {
                     placeholder={isFound ? "Leave blank if unknown" : ""}
                     value={form.pet_name}
                     onChange={(e) => setForm({ ...form, pet_name: e.target.value })}
+                    disabled={linkingRegisteredPet}
                   />
                 </div>
                 <div>
                   <Label>Species (optional)</Label>
-                  <Input placeholder="Dog, Cat, leave blank if unsure…" value={form.species} onChange={(e) => setForm({ ...form, species: e.target.value })} />
+                  <Input
+                    placeholder="Dog, Cat, leave blank if unsure…"
+                    value={form.species}
+                    onChange={(e) => setForm({ ...form, species: e.target.value })}
+                    disabled={linkingRegisteredPet}
+                  />
                 </div>
                 <div>
                   <Label>Breed (optional)</Label>
-                  <Input placeholder="Leave blank if unknown" value={form.breed} onChange={(e) => setForm({ ...form, breed: e.target.value })} />
+                  <Input
+                    placeholder="Leave blank if unknown"
+                    value={form.breed}
+                    onChange={(e) => setForm({ ...form, breed: e.target.value })}
+                    disabled={linkingRegisteredPet}
+                  />
                 </div>
                 {!isFound && (
                   <div>
@@ -439,23 +533,22 @@ const ReportLostPage = () => {
           <Card className="mt-4">
             <CardHeader><CardTitle>{labels.contactTitle}</CardTitle></CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-xs text-muted-foreground">
-                {labels.contactNote}
-              </p>
+              <p className="text-xs text-muted-foreground">{labels.contactNote}</p>
               <div className="grid gap-3 md:grid-cols-2">
                 <div>
                   <Label>Your Name *</Label>
                   <Input value={form.contact_name} onChange={(e) => setForm({ ...form, contact_name: e.target.value })} />
                 </div>
                 <div>
-                  <Label>Your Email *</Label>
+                  <Label>Your Email</Label>
                   <Input type="email" value={form.contact_email} onChange={(e) => setForm({ ...form, contact_email: e.target.value })} />
                 </div>
                 <div className="md:col-span-2">
-                  <Label>Phone (optional)</Label>
+                  <Label>Phone</Label>
                   <Input value={form.contact_phone} onChange={(e) => setForm({ ...form, contact_phone: e.target.value })} />
                 </div>
               </div>
+              <p className="text-xs text-muted-foreground">Enter email or phone (at least one).</p>
 
               <Button
                 size="lg"
@@ -471,7 +564,6 @@ const ReportLostPage = () => {
         </div>
       </main>
 
-      {/* Auth choice */}
       <Dialog open={showAuthChoice} onOpenChange={setShowAuthChoice}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -491,7 +583,6 @@ const ReportLostPage = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Signup */}
       <Dialog open={showSignup} onOpenChange={setShowSignup}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>Create your free account</DialogTitle></DialogHeader>
