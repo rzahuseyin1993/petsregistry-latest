@@ -39,6 +39,17 @@ const Footer = () => {
     });
   }, [storeEnabled, hasCmsContent, isLoading, html]);
 
+  // Donate is members-only — hide public donate links in CMS-authored footers.
+  useEffect(() => {
+    const root = footerRef.current;
+    if (!root) return;
+
+    root.querySelectorAll('a[href="/donate"], a[href$="/donate"], a[href="/m/donate"], a[href$="/m/donate"]').forEach((link) => {
+      const row = link.closest("li") ?? link;
+      (row as HTMLElement).style.display = "none";
+    });
+  }, [hasCmsContent, isLoading, html]);
+
   if (isMobileRoute) return null;
 
   const defaultFooter = (
@@ -75,7 +86,6 @@ const Footer = () => {
               <li><Link to="/verify" className="hover:text-primary transition-colors">Verify Certificate</Link></li>
               <li><Link to="/privacy-policy" className="hover:text-primary transition-colors">Privacy Policy</Link></li>
               <li><Link to="/resources" className="hover:text-primary transition-colors">Resources</Link></li>
-              <li><Link to="/donate" className="hover:text-primary transition-colors">Donate</Link></li>
             </ul>
           </div>
           <div className="text-center md:text-left">

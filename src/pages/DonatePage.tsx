@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
+import DashboardSidebar from "@/components/DashboardSidebar";
 import CmsRenderer from "@/components/CmsRenderer";
+import { useIsMobileRoute } from "@/hooks/useIsMobileRoute";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,8 +18,8 @@ import { Heart, Coffee, Trophy, Star, Sparkles, HandHeart, Loader2, CreditCard }
 import { motion } from "framer-motion";
 import { completeCheckout } from "@/lib/airwallexCheckout";
 import {
-  filterVisiblePaymentProviders,
   getCardProvider,
+  normalizeActivePaymentProviders,
   parseFunctionError,
   type PaymentProvider,
 } from "@/lib/paymentProviders";
@@ -33,7 +33,9 @@ const packageIcons: Record<string, typeof Heart> = {
 
 const DonatePage = () => {
   const { user, profile } = useAuth();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const isMobileRoute = useIsMobileRoute();
+  const returnPath = location.pathname.startsWith("/m/") ? "/m/dashboard/donate" : "/dashboard/donate";
   const [selectedPackage, setSelectedPackage] = useState<string | null>(null);
   const [customAmount, setCustomAmount] = useState("");
   const [donorName, setDonorName] = useState("");
@@ -41,6 +43,7 @@ const DonatePage = () => {
   const [message, setMessage] = useState("");
   const [providerOpen, setProviderOpen] = useState(false);
   const [pendingProvider, setPendingProvider] = useState<PaymentProvider | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // Handle the return from the payment gateway
   useEffect(() => {
@@ -69,11 +72,12 @@ const DonatePage = () => {
   const { data: gateways = [] } = useQuery({
     queryKey: ["payment-gateways-public"],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("payment_settings_safe")
-        .select("provider, is_active")
-        .eq("is_active", true);
-      return filterVisiblePaymentProviders((data || []).map((g: any) => g.provider));
+      const [{ data }, { data: modeRow }] = await Promise.all([
+        supabase.from("payment_settings_safe").select("provider, is_active"),
+        supabase.from("site_settings").select("value").eq("key", "airwallex_checkout_mode").maybeSingle(),
+      ]);
+      const checkoutMode = modeRow?.value === "prod" ? "prod" : "demo";
+      return normalizeActivePaymentProviders((data || []) as any[], checkoutMode);
     },
   });
 
@@ -94,6 +98,7 @@ const DonatePage = () => {
           packageId: selectedPackage,
           message,
           provider,
+          returnPath,
         },
       });
 
@@ -294,9 +299,8 @@ const DonatePage = () => {
     </>
   );
 
-  return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
+  const pageBody = (
+    <>
       <CmsRenderer slug="donate" fallback={defaultContent} />
 
       <Dialog open={providerOpen} onOpenChange={(o) => !donateMutation.isPending && setProviderOpen(o)}>
@@ -336,8 +340,17 @@ const DonatePage = () => {
           </div>
         </DialogContent>
       </Dialog>
+    </>
+  );
 
-      <Footer />
+  if (isMobileRoute) {
+    return <div className="min-h-screen bg-background">{pageBody}</div>;
+  }
+
+  return (
+    <div className="flex min-h-screen">
+      <DashboardSidebar />
+      <div className="flex-1 overflow-y-auto">{pageBody}</div>
     </div>
   );
 };

@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect } from "react";
 import NavigationOverlay from "@/components/NavigationOverlay";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route } from "react-router-dom";
+import { BrowserRouter, Navigate, Route } from "react-router-dom";
 import DeferredNavigation from "@/components/DeferredNavigation";
 import ScrollToTop from "@/components/ScrollToTop";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -252,13 +252,14 @@ function AppWithProviders() {
               <Route path="/dashboard/orders" element={<ProtectedRoute><DashboardOrders /></ProtectedRoute>} />
               <Route path="/dashboard/certificates" element={<ProtectedRoute><DashboardCertificates /></ProtectedRoute>} />
               <Route path="/dashboard/register-litter" element={<ProtectedRoute><LitterRegistration /></ProtectedRoute>} />
+              <Route path="/dashboard/donate" element={<ProtectedRoute><DonatePage /></ProtectedRoute>} />
               <Route path="/dashboard/articles" element={<ProtectedRoute adminOnly><DashboardArticles /></ProtectedRoute>} />
               
               <Route path="/adopt" element={<AdoptionPage />} />
               <Route path="/directory" element={<BusinessDirectory />} />
               <Route path="/directory/:id" element={<BusinessProfile />} />
               <Route path="/membership" element={<MembershipPage />} />
-              <Route path="/donate" element={<DonatePage />} />
+              <Route path="/donate" element={<Navigate to="/dashboard/donate" replace />} />
               <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
               <Route path="/lost-pets/country/:country" element={<LostPetsCountryFeedPage />} />
               <Route path="/lost-pets" element={<LostPetsPage />} />
@@ -284,7 +285,8 @@ function AppWithProviders() {
                 <Route path="membership" element={<MobileMembership />} />
                 <Route path="pet/:id" element={<PetProfile />} />
                 <Route path="directory/:id" element={<BusinessProfile />} />
-                <Route path="donate" element={<DonatePage />} />
+                <Route path="dashboard/donate" element={<ProtectedRoute><DonatePage /></ProtectedRoute>} />
+                <Route path="donate" element={<Navigate to="/m/dashboard/donate" replace />} />
                 <Route path="about" element={<AboutPage />} />
                 <Route path="contact" element={<ContactPage />} />
                 <Route path="privacy-policy" element={<PrivacyPolicyPage />} />

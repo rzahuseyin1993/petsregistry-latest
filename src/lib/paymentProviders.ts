@@ -28,6 +28,24 @@ export function filterVisiblePaymentProviders(providers: string[]): PaymentProvi
   );
 }
 
+/** Map stored gateway rows to checkout-visible providers (demo/prod → airwallex). */
+export function normalizeActivePaymentProviders(
+  rows: { provider: string; is_active: boolean }[],
+  checkoutMode: "demo" | "prod" = "demo",
+): PaymentProvider[] {
+  const active = new Set(rows.filter((row) => row.is_active).map((row) => row.provider));
+  const providers: PaymentProvider[] = [];
+
+  const airwallexProvider = checkoutMode === "prod" ? "airwallex_prod" : "airwallex_demo";
+  if (active.has(airwallexProvider) || active.has("airwallex")) {
+    providers.push("airwallex");
+  }
+  if (active.has("paypal")) providers.push("paypal");
+  if (active.has("stripe")) providers.push("stripe");
+
+  return filterVisiblePaymentProviders(providers);
+}
+
 export function getCardProvider(providers: PaymentProvider[]): PaymentProvider | null {
   if (providers.includes("airwallex")) return "airwallex";
   if (providers.includes("stripe")) return "stripe";

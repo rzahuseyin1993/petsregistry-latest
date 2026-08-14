@@ -68,11 +68,13 @@ serve(async (req) => {
       }
     }
 
-    if (provider === "airwallex" && is_active) {
+    const AIRWALLEX_PROVIDERS = ["airwallex", "airwallex_demo", "airwallex_prod"];
+
+    if (AIRWALLEX_PROVIDERS.includes(provider) && is_active) {
       const { data: existingRow } = await serviceClient
         .from("payment_settings")
         .select("secret_key")
-        .eq("provider", "airwallex")
+        .eq("provider", provider)
         .maybeSingle();
       const hasStoredSecret = !!(existingRow?.secret_key && existingRow.secret_key.length > 10);
       if (!publishable_key || (!secret_key && !hasStoredSecret)) {

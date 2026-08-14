@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   PawPrint, Search, Heart, ShoppingCart, AlertTriangle,
-  Sparkles, Building2, ArrowRight, Crown, Camera, MapPin, Gift, ShieldCheck, HeartHandshake
+  Sparkles, Building2, ArrowRight, Crown, Camera, MapPin, ShieldCheck, HeartHandshake
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useState } from "react";
@@ -24,7 +24,6 @@ const quickActions = [
   { icon: Building2, label: "Directory", to: "/m/directory", color: "bg-orange-100 text-orange-600" },
   { icon: Crown, label: "Plans", to: "/m/membership", color: "bg-yellow-100 text-yellow-600" },
   { icon: PawPrint, label: "Register", to: "/m/dashboard/register-pet", color: "bg-sky-100 text-sky-600" },
-  { icon: Gift, label: "Donate", to: "/m/donate", color: "bg-pink-100 text-pink-600" },
   { icon: ShieldCheck, label: "Verify", to: "/verify", color: "bg-teal-100 text-teal-600" },
 ];
 

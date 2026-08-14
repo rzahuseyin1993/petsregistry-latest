@@ -6,7 +6,7 @@ import {
   getPayPalAccessToken,
   resolvePayerEmail,
 } from "./paypal.ts";
-import { createAirwallexCheckout, getAirwallexAccessToken, getAirwallexConfig } from "./airwallex.ts";
+import { createAirwallexCheckout, getAirwallexAccessToken, resolveAirwallexConfig } from "./airwallex.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -82,12 +82,12 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    const {
-      quantity = 1,
-      provider = "airwallex",
-      credit_type = "ownership",
-      test_only = false,
-    } = await req.json();
+    const body = await req.json();
+    const quantity = body.quantity ?? 1;
+    const provider = typeof body.provider === "string" ? body.provider.trim() : "airwallex";
+    const credit_type = body.credit_type ?? "ownership";
+    const testOnly = body.test_only === true || body.test_only === "true" || body.testOnly === true;
+    const isAirwallexKeyTest = provider === "airwallex_demo" || provider === "airwallex_prod";
 
     // Derive the user from the JWT — never trust a client-supplied user id for payments
     const token = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
@@ -101,34 +101,66 @@ serve(async (req) => {
     const user_id = authData.user.id;
 
     // Dry credential check for the admin "Test Connection" button.
-    // Authenticates with the gateway but creates NO order and NO checkout session.
-    if (test_only) {
-      const { data: testSettings } = await supabase
-        .from("payment_settings")
-        .select("*")
-        .eq("provider", provider)
-        .eq("is_active", true)
-        .maybeSingle();
+    // airwallex_demo / airwallex_prod are settings rows, not checkout providers.
+    if (testOnly || isAirwallexKeyTest) {
+      if (provider === "airwallex_demo" || provider === "airwallex_prod") {
+        const env = provider === "airwallex_prod" ? "prod" : "demo";
+        const { data: testSettings } = await supabase
+          .from("payment_settings")
+          .select("*")
+          .eq("provider", provider)
+          .maybeSingle();
 
-      if (!testSettings?.secret_key) {
-        throw new Error(`${provider} is not configured or not active. Save and activate it in Payment Settings first.`);
-      }
-
-      if (provider === "airwallex") {
-        const awConfig = await getAirwallexConfig(supabase);
-        await getAirwallexAccessToken(testSettings.publishable_key, testSettings.secret_key, awConfig.env, awConfig.loginAs);
-      } else if (provider === "paypal") {
-        await getPayPalAccessToken(testSettings.publishable_key, testSettings.secret_key);
-      } else if (provider === "stripe") {
-        const res = await fetch("https://api.stripe.com/v1/balance", {
-          headers: { Authorization: `Bearer ${testSettings.secret_key}` },
-        });
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          throw new Error(body?.error?.message || "Stripe credentials are invalid.");
+        const hasStoredSecret = !!(testSettings?.secret_key && testSettings.secret_key.length > 10);
+        if (!testSettings?.publishable_key || !hasStoredSecret) {
+          throw new Error(`${provider === "airwallex_prod" ? "Airwallex Live" : "Airwallex Sandbox"} credentials are not saved yet. Save Client ID and API Key first.`);
         }
+
+        const accountKey = env === "prod" ? "airwallex_prod_account_id" : "airwallex_demo_account_id";
+        const { data: accountRow } = await supabase
+          .from("site_settings")
+          .select("value")
+          .eq("key", accountKey)
+          .maybeSingle();
+        const loginAs = accountRow?.value?.trim() || null;
+
+        await getAirwallexAccessToken(
+          testSettings.publishable_key,
+          testSettings.secret_key,
+          env,
+          loginAs,
+        );
       } else {
-        throw new Error("Unsupported provider");
+        const { data: testSettings } = await supabase
+          .from("payment_settings")
+          .select("*")
+          .eq("provider", provider)
+          .eq("is_active", true)
+          .maybeSingle();
+
+        if (!testSettings?.secret_key) {
+          throw new Error(`${provider} is not configured or not active. Save and activate it in Payment Settings first.`);
+        }
+
+        if (provider === "airwallex") {
+          const awConfig = await resolveAirwallexConfig(supabase);
+          if (!awConfig) {
+            throw new Error("Airwallex is not configured. Save and enable Demo or Live credentials in Payment Settings.");
+          }
+          await getAirwallexAccessToken(awConfig.clientId, awConfig.apiKey, awConfig.env, awConfig.loginAs);
+        } else if (provider === "paypal") {
+          await getPayPalAccessToken(testSettings.publishable_key, testSettings.secret_key);
+        } else if (provider === "stripe") {
+          const res = await fetch("https://api.stripe.com/v1/balance", {
+            headers: { Authorization: `Bearer ${testSettings.secret_key}` },
+          });
+          if (!res.ok) {
+            const bodyJson = await res.json().catch(() => ({}));
+            throw new Error(bodyJson?.error?.message || "Stripe credentials are invalid.");
+          }
+        } else {
+          throw new Error("Unsupported provider");
+        }
       }
 
       return new Response(JSON.stringify({ ok: true, test: true }), {
@@ -198,23 +230,21 @@ serve(async (req) => {
       await supabase.from("certificate_credit_orders").delete().eq("id", orderId);
     };
 
-    const { data: settings } = await supabase
-      .from("payment_settings")
-      .select("*")
-      .eq("provider", provider)
-      .eq("is_active", true)
-      .maybeSingle();
+    const { data: settings } = provider === "airwallex"
+      ? { data: null }
+      : await supabase
+        .from("payment_settings")
+        .select("*")
+        .eq("provider", provider)
+        .eq("is_active", true)
+        .maybeSingle();
 
-    if (!settings?.secret_key) {
+    if (provider !== "airwallex" && !settings?.secret_key) {
       await cleanupOrder();
       throw new Error(`${provider} is not configured. Admin must enable it in Payment Settings.`);
     }
 
-    if (provider === "airwallex" && (!settings.publishable_key || !settings.secret_key)) {
-      await cleanupOrder();
-      throw new Error("Airwallex is not configured correctly. Admin must save Client ID and API Key in Payment Settings.");
-    }
-    if (provider === "stripe" && !settings.secret_key.trim().startsWith("sk_")) {
+    if (provider === "stripe" && !settings!.secret_key.trim().startsWith("sk_")) {
       await cleanupOrder();
       throw new Error("Stripe is not configured correctly. The admin must save a valid Stripe Secret Key (starts with sk_test_ or sk_live_) in Payment Settings.");
     }
@@ -228,17 +258,22 @@ serve(async (req) => {
     const cancelUrl = `${origin}/dashboard/certificates?canceled=true&order_id=${orderId}`;
 
     if (provider === "airwallex") {
+      const awConfig = await resolveAirwallexConfig(supabase);
+      if (!awConfig) {
+        await cleanupOrder();
+        throw new Error("Airwallex is not configured. Admin must save and enable Demo or Live credentials in Payment Settings.");
+      }
+
       const { data: profile } = await supabase
         .from("profiles")
         .select("email")
         .eq("user_id", user_id)
         .maybeSingle();
 
-      const awConfig = await getAirwallexConfig(supabase);
       const payerEmail = await resolvePayerEmail(supabase, user_id, profile?.email);
       const checkout = await createAirwallexCheckout({
-        clientId: settings.publishable_key,
-        apiKey: settings.secret_key,
+        clientId: awConfig.clientId,
+        apiKey: awConfig.apiKey,
         env: awConfig.env,
         loginAs: awConfig.loginAs,
         amount: totalAmount,

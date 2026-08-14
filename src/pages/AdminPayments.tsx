@@ -13,10 +13,7 @@ import { useState, useEffect } from "react";
 
 const STRIPE_UI_ENABLED = false;
 
-const AIRWALLEX_ENV_OPTIONS = [
-  { value: "demo", label: "Demo / Sandbox" },
-  { value: "prod", label: "Production (Live)" },
-];
+type AirwallexPanelMode = "demo" | "prod";
 
 const SERVICES = [
   { key: "membership", label: "Membership Plans", description: "Guardian & Partner membership billing" },
@@ -44,11 +41,15 @@ const AdminPayments = () => {
   const [paypalClient, setPaypalClient] = useState("");
   const [paypalSecret, setPaypalSecret] = useState("");
   const [paypalActive, setPaypalActive] = useState(false);
-  const [airwallexClientId, setAirwallexClientId] = useState("");
-  const [airwallexApiKey, setAirwallexApiKey] = useState("");
-  const [airwallexActive, setAirwallexActive] = useState(false);
-  const [airwallexEnv, setAirwallexEnv] = useState("demo");
-  const [airwallexAccountId, setAirwallexAccountId] = useState("");
+  const [airwallexDemoClientId, setAirwallexDemoClientId] = useState("");
+  const [airwallexDemoApiKey, setAirwallexDemoApiKey] = useState("");
+  const [airwallexDemoAccountId, setAirwallexDemoAccountId] = useState("");
+  const [airwallexDemoActive, setAirwallexDemoActive] = useState(false);
+  const [airwallexProdClientId, setAirwallexProdClientId] = useState("");
+  const [airwallexProdApiKey, setAirwallexProdApiKey] = useState("");
+  const [airwallexProdAccountId, setAirwallexProdAccountId] = useState("");
+  const [airwallexProdActive, setAirwallexProdActive] = useState(false);
+  const [savingAirwallex, setSavingAirwallex] = useState<AirwallexPanelMode | null>(null);
   const [saving, setSaving] = useState(false);
 
   const [yearlyDiscount, setYearlyDiscount] = useState("20");
@@ -63,7 +64,7 @@ const AdminPayments = () => {
       const { data } = await supabase
         .from("site_settings")
         .select("*")
-        .or("key.like.service_billing_%,key.like.service_price_%,key.eq.yearly_discount_percent,key.eq.flyer_monthly_price,key.eq.flyer_yearly_price,key.eq.airwallex_environment,key.eq.airwallex_account_id");
+        .or("key.like.service_billing_%,key.like.service_price_%,key.eq.yearly_discount_percent,key.eq.flyer_monthly_price,key.eq.flyer_yearly_price,key.eq.airwallex_checkout_mode,key.eq.airwallex_demo_account_id,key.eq.airwallex_prod_account_id");
       return data || [];
     },
   });
@@ -75,8 +76,8 @@ const AdminPayments = () => {
     };
 
     setYearlyDiscount(getVal("yearly_discount_percent", "20"));
-    setAirwallexEnv(getVal("airwallex_environment", "demo"));
-    setAirwallexAccountId(getVal("airwallex_account_id", ""));
+    setAirwallexDemoAccountId(getVal("airwallex_demo_account_id", ""));
+    setAirwallexProdAccountId(getVal("airwallex_prod_account_id", ""));
 
     const newPricing: Record<string, { billingMode: string; monthly: string; yearly: string; one_time: string }> = {};
     for (const svc of SERVICES) {
@@ -110,7 +111,13 @@ const AdminPayments = () => {
     queryKey: ["payment-secret-status"],
     queryFn: async () => {
       const { data } = await supabase.from("payment_settings").select("provider, secret_key");
-      const result: Record<string, boolean> = { stripe: false, paypal: false, airwallex: false };
+      const result: Record<string, boolean> = {
+        stripe: false,
+        paypal: false,
+        airwallex: false,
+        airwallex_demo: false,
+        airwallex_prod: false,
+      };
       (data || []).forEach((row: any) => {
         result[row.provider] = !!(row.secret_key && row.secret_key.length > 10);
       });
@@ -120,26 +127,36 @@ const AdminPayments = () => {
 
   const stripeSettings = settings?.find((s) => s.provider === "stripe");
   const paypalSettings = settings?.find((s) => s.provider === "paypal");
-  const airwallexSettings = settings?.find((s) => s.provider === "airwallex");
-  const stripeReady = !!stripeSettings?.publishable_key && !!secretStatus?.stripe;
-  const paypalReady = !!paypalSettings?.publishable_key && !!secretStatus?.paypal;
-  const airwallexReady = !!airwallexSettings?.publishable_key && !!secretStatus?.airwallex;
+  const airwallexDemoSettings = settings?.find((s) => s.provider === "airwallex_demo");
+  const airwallexProdSettings = settings?.find((s) => s.provider === "airwallex_prod");
+  const airwallexDemoReady = !!airwallexDemoSettings?.publishable_key && !!secretStatus?.airwallex_demo;
+  const airwallexProdReady = !!airwallexProdSettings?.publishable_key && !!secretStatus?.airwallex_prod;
 
   const [testing, setTesting] = useState<string | null>(null);
-  const testGateway = async (provider: "airwallex" | "paypal" | "stripe") => {
+  const testGateway = async (provider: "airwallex_demo" | "airwallex_prod" | "paypal" | "stripe") => {
     setTesting(provider);
     try {
       const baseUrl = import.meta.env.VITE_SUPABASE_URL;
       const { data: { session } } = await supabase.auth.getSession();
-      // Dry credential check — authenticates with the gateway but creates no order or checkout
       const res = await fetch(`${baseUrl}/functions/v1/certificate-checkout`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
-        body: JSON.stringify({ user_id: session?.user?.id, provider, test_only: true }),
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token}`,
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        },
+        body: JSON.stringify({ provider, test_only: true }),
       });
       const result = await res.json();
       if (res.ok && result.ok) {
-        toast.success(`✓ ${provider === "airwallex" ? "Airwallex" : provider === "stripe" ? "Stripe" : "PayPal"} connection works!`);
+        const label = provider === "airwallex_demo"
+          ? "Airwallex Sandbox"
+          : provider === "airwallex_prod"
+            ? "Airwallex Live"
+            : provider === "stripe"
+              ? "Stripe"
+              : "PayPal";
+        toast.success(`✓ ${label} connection works!`);
       } else {
         toast.error(result.error || `${provider} test failed`);
       }
@@ -150,16 +167,100 @@ const AdminPayments = () => {
     }
   };
 
+  const stripeReady = !!stripeSettings?.publishable_key && !!secretStatus?.stripe;
+  const paypalReady = !!paypalSettings?.publishable_key && !!secretStatus?.paypal;
+
   useEffect(() => {
     if (settings) {
       const stripe = settings.find((s) => s.provider === "stripe");
       const paypal = settings.find((s) => s.provider === "paypal");
       if (stripe) { setStripePublishable(stripe.publishable_key || ""); setStripeActive(stripe.is_active); }
       if (paypal) { setPaypalClient(paypal.publishable_key || ""); setPaypalActive(paypal.is_active); }
-      const airwallex = settings.find((s) => s.provider === "airwallex");
-      if (airwallex) { setAirwallexClientId(airwallex.publishable_key || ""); setAirwallexActive(airwallex.is_active); }
+      const demo = settings.find((s) => s.provider === "airwallex_demo");
+      const prod = settings.find((s) => s.provider === "airwallex_prod");
+      if (demo) {
+        setAirwallexDemoClientId(demo.publishable_key || "");
+        setAirwallexDemoActive(demo.is_active);
+      }
+      if (prod) {
+        setAirwallexProdClientId(prod.publishable_key || "");
+        setAirwallexProdActive(prod.is_active);
+      }
     }
   }, [settings]);
+
+  const upsertSiteSetting = async (key: string, value: string, description: string) => {
+    const { data: existing } = await supabase.from("site_settings").select("id").eq("key", key).maybeSingle();
+    if (existing) {
+      await supabase.from("site_settings").update({ value }).eq("key", key);
+    } else {
+      await supabase.from("site_settings").insert({ key, value, description });
+    }
+  };
+
+  const saveAirwallexPanel = async (mode: AirwallexPanelMode) => {
+    setSavingAirwallex(mode);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const baseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const provider = mode === "demo" ? "airwallex_demo" : "airwallex_prod";
+      const clientId = (mode === "demo" ? airwallexDemoClientId : airwallexProdClientId).trim();
+      const apiKey = (mode === "demo" ? airwallexDemoApiKey : airwallexProdApiKey).trim();
+      const accountId = (mode === "demo" ? airwallexDemoAccountId : airwallexProdAccountId).trim();
+      const isActive = mode === "demo" ? airwallexDemoActive : airwallexProdActive;
+
+      const response = await fetch(`${baseUrl}/functions/v1/save-payment-settings`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({
+          provider,
+          publishable_key: clientId,
+          secret_key: apiKey,
+          is_active: isActive,
+        }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(result.error || `Failed to save Airwallex ${mode === "demo" ? "Sandbox" : "Live"} settings`);
+      }
+
+      if (isActive) {
+        const otherProvider = mode === "demo" ? "airwallex_prod" : "airwallex_demo";
+        await fetch(`${baseUrl}/functions/v1/save-payment-settings`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+          body: JSON.stringify({
+            provider: otherProvider,
+            publishable_key: mode === "demo" ? airwallexProdClientId.trim() : airwallexDemoClientId.trim(),
+            secret_key: "",
+            is_active: false,
+          }),
+        });
+        if (mode === "demo") setAirwallexProdActive(false);
+        else setAirwallexDemoActive(false);
+
+        await upsertSiteSetting("airwallex_checkout_mode", mode, "Active Airwallex checkout mode");
+      }
+
+      await upsertSiteSetting(
+        mode === "demo" ? "airwallex_demo_account_id" : "airwallex_prod_account_id",
+        accountId,
+        `Airwallex ${mode === "demo" ? "sandbox" : "live"} x-login-as account ID (optional)`,
+      );
+
+      if (mode === "demo") setAirwallexDemoApiKey("");
+      else setAirwallexProdApiKey("");
+
+      queryClient.invalidateQueries({ queryKey: ["payment-settings"] });
+      queryClient.invalidateQueries({ queryKey: ["payment-secret-status"] });
+      queryClient.invalidateQueries({ queryKey: ["all-payment-settings"] });
+      toast.success(`✓ Airwallex ${mode === "demo" ? "Sandbox" : "Live"} settings saved!`);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to save Airwallex settings");
+    } finally {
+      setSavingAirwallex(null);
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -171,8 +272,6 @@ const AdminPayments = () => {
       const normalizedStripeSecret = stripeSecret.trim();
       const normalizedPaypalClient = paypalClient.trim();
       const normalizedPaypalSecret = paypalSecret.trim();
-      const normalizedAirwallexClientId = airwallexClientId.trim();
-      const normalizedAirwallexApiKey = airwallexApiKey.trim();
 
       if (STRIPE_UI_ENABLED) {
         if (normalizedStripePublishable && !normalizedStripePublishable.startsWith("pk_")) {
@@ -197,33 +296,6 @@ const AdminPayments = () => {
         }
       }
 
-      const airwallexResponse = await fetch(`${baseUrl}/functions/v1/save-payment-settings`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
-        body: JSON.stringify({
-          provider: "airwallex",
-          publishable_key: normalizedAirwallexClientId,
-          secret_key: normalizedAirwallexApiKey,
-          is_active: airwallexActive,
-        }),
-      });
-      const airwallexResult = await airwallexResponse.json().catch(() => ({}));
-      if (!airwallexResponse.ok) {
-        throw new Error(airwallexResult.error || "Failed to save Airwallex settings");
-      }
-
-      for (const row of [
-        { key: "airwallex_environment", value: airwallexEnv, description: "Airwallex API environment" },
-        { key: "airwallex_account_id", value: airwallexAccountId.trim(), description: "Airwallex x-login-as account ID (optional)" },
-      ]) {
-        const { data: existing } = await supabase.from("site_settings").select("id").eq("key", row.key).maybeSingle();
-        if (existing) {
-          await supabase.from("site_settings").update({ value: row.value }).eq("key", row.key);
-        } else {
-          await supabase.from("site_settings").insert(row);
-        }
-      }
-
       const paypalResponse = await fetch(`${baseUrl}/functions/v1/save-payment-settings`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
@@ -241,7 +313,6 @@ const AdminPayments = () => {
 
       setStripeSecret("");
       setPaypalSecret("");
-      setAirwallexApiKey("");
       queryClient.invalidateQueries({ queryKey: ["payment-settings"] });
       queryClient.invalidateQueries({ queryKey: ["payment-secret-status"] });
       toast.success("✓ Payment settings saved! Use the Test buttons to verify the connection.");
@@ -313,56 +384,117 @@ const AdminPayments = () => {
 
         {/* Payment Gateway Section */}
         <form onSubmit={handleSave} className="mt-8 max-w-2xl space-y-6">
-          <Card>
+          <Card className="border-amber-200/60">
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  <CreditCard className="h-5 w-5 text-primary" />Airwallex Integration
-                  {airwallexReady ? (
+              <div className="flex items-center justify-between gap-4">
+                <CardTitle className="flex flex-wrap items-center gap-2">
+                  <CreditCard className="h-5 w-5 text-amber-600" />
+                  Airwallex Sandbox (Testing)
+                  {airwallexDemoReady ? (
                     <Badge className="bg-green-600 text-white gap-1"><CheckCircle2 className="h-3 w-3" /> Saved</Badge>
                   ) : (
                     <Badge variant="outline" className="text-amber-600 border-amber-400 gap-1"><AlertCircle className="h-3 w-3" /> Not configured</Badge>
                   )}
-                  {airwallexSettings?.is_active && <Badge variant="secondary" className="text-xs">Active</Badge>}
+                  {airwallexDemoActive && <Badge variant="secondary" className="text-xs">Active for checkout</Badge>}
                 </CardTitle>
-                <Switch checked={airwallexActive} onCheckedChange={setAirwallexActive} />
+                <Switch
+                  checked={airwallexDemoActive}
+                  onCheckedChange={(checked) => {
+                    setAirwallexDemoActive(checked);
+                    if (checked) setAirwallexProdActive(false);
+                  }}
+                />
               </div>
-              {airwallexSettings?.updated_at && (
-                <p className="text-xs text-muted-foreground">Last saved: {new Date(airwallexSettings.updated_at).toLocaleString()}</p>
+              {airwallexDemoSettings?.updated_at && (
+                <p className="text-xs text-muted-foreground">Last saved: {new Date(airwallexDemoSettings.updated_at).toLocaleString()}</p>
               )}
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Primary card payments for PetsRegistry. Funds settle to your company Airwallex account.
+                Use keys from <strong>demo.airwallex.com</strong> for safe testing. Test cards only — real cards do not work here.
               </p>
               <div className="space-y-2">
-                <Label>Environment</Label>
-                <Select value={airwallexEnv} onValueChange={setAirwallexEnv}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {AIRWALLEX_ENV_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>Client ID</Label>
+                <Input type="text" placeholder="Sandbox Client ID" value={airwallexDemoClientId} onChange={(e) => setAirwallexDemoClientId(e.target.value)} />
               </div>
-              <div className="space-y-2"><Label>Client ID</Label><Input type="text" placeholder="Your Airwallex Client ID" value={airwallexClientId} onChange={(e) => setAirwallexClientId(e.target.value)} /></div>
               <div className="space-y-2">
-                <Label>API Key {secretStatus?.airwallex && <span className="text-xs text-green-600 ml-1">✓ stored</span>}</Label>
-                <Input type="password" placeholder={secretStatus?.airwallex ? "•••••••• (saved — enter new value to replace)" : "Your Airwallex API Key"} value={airwallexApiKey} onChange={(e) => setAirwallexApiKey(e.target.value)} />
+                <Label>API Key {secretStatus?.airwallex_demo && <span className="text-xs text-green-600 ml-1">✓ stored</span>}</Label>
+                <Input type="password" placeholder={secretStatus?.airwallex_demo ? "•••••••• (saved — enter new value to replace)" : "Sandbox API Key"} value={airwallexDemoApiKey} onChange={(e) => setAirwallexDemoApiKey(e.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label>Account ID (optional)</Label>
-                <Input type="text" placeholder="x-login-as account ID if your API key spans multiple accounts" value={airwallexAccountId} onChange={(e) => setAirwallexAccountId(e.target.value)} />
+                <Input type="text" placeholder="x-login-as account ID for sandbox" value={airwallexDemoAccountId} onChange={(e) => setAirwallexDemoAccountId(e.target.value)} />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Decline test: card <code className="rounded bg-muted px-1">5307837360544518</code> with amount <code className="rounded bg-muted px-1">$80.51</code>
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {airwallexDemoReady && (
+                  <Button type="button" variant="outline" size="sm" disabled={testing === "airwallex_demo"} onClick={() => testGateway("airwallex_demo")}>
+                    {testing === "airwallex_demo" ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Testing…</> : "Test Sandbox Connection"}
+                  </Button>
+                )}
+                <Button type="button" size="sm" disabled={savingAirwallex === "demo"} onClick={() => saveAirwallexPanel("demo")}>
+                  {savingAirwallex === "demo" ? "Saving…" : "Save Sandbox Settings"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-red-200/60">
+            <CardHeader>
+              <div className="flex items-center justify-between gap-4">
+                <CardTitle className="flex flex-wrap items-center gap-2">
+                  <CreditCard className="h-5 w-5 text-red-600" />
+                  Airwallex Live (Production)
+                  {airwallexProdReady ? (
+                    <Badge className="bg-green-600 text-white gap-1"><CheckCircle2 className="h-3 w-3" /> Saved</Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-amber-600 border-amber-400 gap-1"><AlertCircle className="h-3 w-3" /> Not configured</Badge>
+                  )}
+                  {airwallexProdActive && <Badge variant="secondary" className="text-xs">Active for checkout</Badge>}
+                </CardTitle>
+                <Switch
+                  checked={airwallexProdActive}
+                  onCheckedChange={(checked) => {
+                    setAirwallexProdActive(checked);
+                    if (checked) setAirwallexDemoActive(false);
+                  }}
+                />
+              </div>
+              {airwallexProdSettings?.updated_at && (
+                <p className="text-xs text-muted-foreground">Last saved: {new Date(airwallexProdSettings.updated_at).toLocaleString()}</p>
+              )}
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Use keys from your live YEPEE LLP Airwallex account. Payments must be enabled under Airwallex → Payments before this works.
+              </p>
+              <div className="space-y-2">
+                <Label>Client ID</Label>
+                <Input type="text" placeholder="Live Client ID" value={airwallexProdClientId} onChange={(e) => setAirwallexProdClientId(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>API Key {secretStatus?.airwallex_prod && <span className="text-xs text-green-600 ml-1">✓ stored</span>}</Label>
+                <Input type="password" placeholder={secretStatus?.airwallex_prod ? "•••••••• (saved — enter new value to replace)" : "Live Scoped API Key"} value={airwallexProdApiKey} onChange={(e) => setAirwallexProdApiKey(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Account ID (optional)</Label>
+                <Input type="text" placeholder="x-login-as account ID for live account" value={airwallexProdAccountId} onChange={(e) => setAirwallexProdAccountId(e.target.value)} />
               </div>
               <p className="text-xs text-muted-foreground">
                 Webhook URL: <code className="rounded bg-muted px-1">{import.meta.env.VITE_SUPABASE_URL}/functions/v1/airwallex-webhook</code>
               </p>
-              {airwallexReady && (
-                <Button type="button" variant="outline" size="sm" disabled={testing === "airwallex"} onClick={() => testGateway("airwallex")}>
-                  {testing === "airwallex" ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Testing…</> : "Test Airwallex Connection"}
+              <div className="flex flex-wrap gap-2">
+                {airwallexProdReady && (
+                  <Button type="button" variant="outline" size="sm" disabled={testing === "airwallex_prod"} onClick={() => testGateway("airwallex_prod")}>
+                    {testing === "airwallex_prod" ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Testing…</> : "Test Live Connection"}
+                  </Button>
+                )}
+                <Button type="button" size="sm" disabled={savingAirwallex === "prod"} onClick={() => saveAirwallexPanel("prod")}>
+                  {savingAirwallex === "prod" ? "Saving…" : "Save Live Settings"}
                 </Button>
-              )}
+              </div>
             </CardContent>
           </Card>
 
@@ -434,7 +566,7 @@ const AdminPayments = () => {
             </CardContent>
           </Card>
 
-          <Button type="submit" size="lg" disabled={saving}>{saving ? "Saving..." : "Save Payment Settings"}</Button>
+          <Button type="submit" size="lg" disabled={saving}>{saving ? "Saving..." : "Save PayPal Settings"}</Button>
         </form>
 
         {/* Service Pricing Configuration */}

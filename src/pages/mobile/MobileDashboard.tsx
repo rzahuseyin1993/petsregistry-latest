@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   PlusCircle, PawPrint, Mail, Heart, AlertTriangle,
   Building2, Crown, Settings, LogOut, Activity, ShoppingBag,
-  FileText, Award, MapPin, Pencil, HeartHandshake
+  FileText, Award, MapPin, Pencil, HeartHandshake, HandHeart
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,6 +25,7 @@ const menuItems = [
   { to: "/m/dashboard/directory", label: "My Listings", icon: Building2, color: "text-orange-500" },
   { to: "/m/pet-map", label: "Pet Map", icon: MapPin, color: "text-teal-500" },
   { to: "/m/dashboard/membership", label: "Membership", icon: Crown, color: "text-yellow-500" },
+  { to: "/m/dashboard/donate", label: "Donate", icon: HandHeart, color: "text-pink-500" },
   { to: "/m/dashboard/settings", label: "Settings", icon: Settings, color: "text-muted-foreground" },
 ];
 

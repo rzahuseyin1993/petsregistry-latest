@@ -17,6 +17,7 @@ import {
   filterVisiblePaymentProviders,
   getCardProvider,
   getPaymentProviderLabel,
+  normalizeActivePaymentProviders,
   parseFunctionError,
   type PaymentProvider,
 } from "@/lib/paymentProviders";
@@ -133,12 +134,12 @@ const MembershipPage = () => {
   const { data: activeGateways = [] } = useQuery({
     queryKey: ["active-payment-gateways"],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("payment_settings_safe" as any)
-        .select("provider, is_active") as any;
-      return filterVisiblePaymentProviders(
-        ((data || []) as any[]).filter((s) => s.is_active).map((s) => s.provider),
-      );
+      const [{ data }, { data: modeRow }] = await Promise.all([
+        supabase.from("payment_settings_safe" as any).select("provider, is_active") as any,
+        supabase.from("site_settings").select("value").eq("key", "airwallex_checkout_mode").maybeSingle(),
+      ]);
+      const checkoutMode = modeRow?.value === "prod" ? "prod" : "demo";
+      return normalizeActivePaymentProviders((data || []) as any[], checkoutMode);
     },
   });
 

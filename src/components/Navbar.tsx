@@ -20,7 +20,6 @@ import {
   Heart,
   AlertTriangle,
   Building2,
-  HandHeart,
   ShieldCheck,
   Tag,
   Bell,
@@ -64,7 +63,6 @@ const navLinks = [
   { to: "/lost-pets", label: "Lost Pets", icon: AlertTriangle },
   { to: "/directory", label: "Directory", icon: Building2 },
   { to: "/fees", label: "Fees", icon: Tag },
-  { to: "/donate", label: "Donate", icon: HandHeart },
   { to: "/verify", label: "Verify", icon: ShieldCheck },
 ];
 

@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { PawPrint, LayoutDashboard, PlusCircle, Settings, Store, LogOut, Heart, Activity, AlertTriangle, FileText, Building2, Crown, Mail, ShoppingBag, Award, MapPin, Baby } from "lucide-react";
+import { PawPrint, LayoutDashboard, PlusCircle, Settings, Store, LogOut, Heart, Activity, AlertTriangle, FileText, Building2, Crown, Mail, ShoppingBag, Award, MapPin, Baby, HandHeart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import MembershipBadge from "@/components/MembershipBadge";
 import NotificationBell from "@/components/NotificationBell";
@@ -24,6 +24,7 @@ const sidebarLinks = [
   
   { to: "/pet-map", label: "Pet Map", icon: MapPin },
   { to: "/dashboard/membership", label: "Membership", icon: Crown },
+  { to: "/dashboard/donate", label: "Donate", icon: HandHeart },
   { to: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 

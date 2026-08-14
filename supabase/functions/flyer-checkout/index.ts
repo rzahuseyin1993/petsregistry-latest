@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { createAirwallexCheckout, getAirwallexConfig } from "./airwallex.ts";
+import { createAirwallexCheckout, resolveAirwallexConfig } from "./airwallex.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -45,15 +45,9 @@ serve(async (req) => {
       });
     }
 
-    const { data: paymentSettings } = await supabase
-      .from("payment_settings")
-      .select("secret_key, publishable_key")
-      .eq("provider", "airwallex")
-      .eq("is_active", true)
-      .maybeSingle();
-
-    if (!paymentSettings?.publishable_key || !paymentSettings?.secret_key) {
-      return new Response(JSON.stringify({ error: "Airwallex is not configured. Please contact admin." }), {
+    const awConfig = await resolveAirwallexConfig(supabase);
+    if (!awConfig) {
+      return new Response(JSON.stringify({ error: "Airwallex is not configured. Admin must save and enable Demo or Live credentials in Payment Settings." }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -97,10 +91,9 @@ serve(async (req) => {
       origin = (siteRow?.value as string)?.trim() || "http://localhost:5173";
     }
 
-    const awConfig = await getAirwallexConfig(supabase);
     const checkout = await createAirwallexCheckout({
-      clientId: paymentSettings.publishable_key,
-      apiKey: paymentSettings.secret_key,
+      clientId: awConfig.clientId,
+      apiKey: awConfig.apiKey,
       env: awConfig.env,
       loginAs: awConfig.loginAs,
       amount: price,

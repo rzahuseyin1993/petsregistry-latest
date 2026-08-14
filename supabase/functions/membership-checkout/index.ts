@@ -6,7 +6,7 @@ import {
   getPayPalAccessToken,
   resolvePayerEmail,
 } from "./paypal.ts";
-import { createAirwallexCheckout, getAirwallexConfig } from "./airwallex.ts";
+import { createAirwallexCheckout, resolveAirwallexConfig } from "./airwallex.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -113,17 +113,17 @@ serve(async (req) => {
 
     // ─── AIRWALLEX FLOW ─────────────────────────────────────
     if (provider === "airwallex") {
-      if (!paymentSettings?.publishable_key || !paymentSettings?.secret_key) {
-        return new Response(JSON.stringify({ error: "Airwallex is not configured. Admin must save Client ID and API Key in Payment Settings." }), {
+      const awConfig = await resolveAirwallexConfig(supabase);
+      if (!awConfig) {
+        return new Response(JSON.stringify({ error: "Airwallex is not configured. Admin must save and enable Demo or Live credentials in Payment Settings." }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      const awConfig = await getAirwallexConfig(supabase);
       const payerEmail = await resolvePayerEmail(supabase, userId, profile?.email);
       const checkout = await createAirwallexCheckout({
-        clientId: paymentSettings.publishable_key,
-        apiKey: paymentSettings.secret_key,
+        clientId: awConfig.clientId,
+        apiKey: awConfig.apiKey,
         env: awConfig.env,
         loginAs: awConfig.loginAs,
         amount: price,

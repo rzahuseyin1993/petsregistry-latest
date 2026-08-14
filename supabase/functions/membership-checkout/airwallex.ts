@@ -120,27 +120,101 @@ export async function createAirwallexCheckout(options: {
   };
 }
 
-export async function getAirwallexConfig(
+export type ResolvedAirwallexConfig = {
+  env: AirwallexEnv;
+  loginAs: string | null;
+  clientId: string;
+  apiKey: string;
+  providerKey: "airwallex_demo" | "airwallex_prod" | "airwallex";
+};
+
+/** Loads the active Airwallex demo or prod credentials for checkout. */
+export async function resolveAirwallexConfig(
   supabase: {
     from: (table: string) => {
       select: (cols: string) => {
         eq: (col: string, val: string) => {
-          maybeSingle: () => Promise<{ data: { value?: string | null } | null }>;
-          single: () => Promise<{ data: { value?: string | null } | null }>;
+          maybeSingle: () => Promise<{
+            data: {
+              publishable_key?: string | null;
+              secret_key?: string | null;
+              is_active?: boolean;
+            } | null;
+          }>;
         };
         in: (col: string, vals: string[]) => Promise<{ data: { key?: string; value?: string | null }[] | null }>;
       };
     };
   },
+): Promise<ResolvedAirwallexConfig | null> {
+  const { data: settings } = await supabase
+    .from("site_settings")
+    .select("key, value")
+    .in("key", [
+      "airwallex_checkout_mode",
+      "airwallex_environment",
+      "airwallex_demo_account_id",
+      "airwallex_prod_account_id",
+      "airwallex_account_id",
+    ]);
+
+  const map = Object.fromEntries((settings || []).map((r) => [r.key, r.value]));
+  const env = normalizeAirwallexEnv(map.airwallex_checkout_mode || map.airwallex_environment);
+  const providerKey = env === "prod" ? "airwallex_prod" : "airwallex_demo";
+  const accountKey = env === "prod" ? "airwallex_prod_account_id" : "airwallex_demo_account_id";
+  const loginAs = map[accountKey]?.trim() || map.airwallex_account_id?.trim() || null;
+
+  const { data: row } = await supabase
+    .from("payment_settings")
+    .select("publishable_key, secret_key, is_active")
+    .eq("provider", providerKey)
+    .maybeSingle();
+
+  if (row?.is_active && row.publishable_key && row.secret_key) {
+    return {
+      env,
+      loginAs,
+      clientId: row.publishable_key,
+      apiKey: row.secret_key,
+      providerKey,
+    };
+  }
+
+  // Legacy single-row fallback
+  const { data: legacy } = await supabase
+    .from("payment_settings")
+    .select("publishable_key, secret_key, is_active")
+    .eq("provider", "airwallex")
+    .maybeSingle();
+
+  if (legacy?.is_active && legacy.publishable_key && legacy.secret_key) {
+    return {
+      env,
+      loginAs,
+      clientId: legacy.publishable_key,
+      apiKey: legacy.secret_key,
+      providerKey: "airwallex",
+    };
+  }
+
+  return null;
+}
+
+/** @deprecated Use resolveAirwallexConfig */
+export async function getAirwallexConfig(
+  supabase: Parameters<typeof resolveAirwallexConfig>[0],
 ): Promise<{ env: AirwallexEnv; loginAs: string | null }> {
+  const resolved = await resolveAirwallexConfig(supabase);
+  if (resolved) return { env: resolved.env, loginAs: resolved.loginAs };
+
   const { data } = await supabase
     .from("site_settings")
     .select("key, value")
-    .in("key", ["airwallex_environment", "airwallex_account_id"]);
+    .in("key", ["airwallex_checkout_mode", "airwallex_environment", "airwallex_account_id"]);
 
   const map = Object.fromEntries((data || []).map((r) => [r.key, r.value]));
   return {
-    env: normalizeAirwallexEnv(map.airwallex_environment),
+    env: normalizeAirwallexEnv(map.airwallex_checkout_mode || map.airwallex_environment),
     loginAs: map.airwallex_account_id?.trim() || null,
   };
 }

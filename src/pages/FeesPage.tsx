@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
-import { Crown, FileText, Megaphone, Building2, ShieldCheck, Check, HandHeart } from "lucide-react";
+import { Crown, FileText, Megaphone, Building2, ShieldCheck, Check } from "lucide-react";
 
 const FeesPage = () => {
   const { data: settings = {} } = useQuery({
@@ -113,7 +113,6 @@ const FeesPage = () => {
             </p>
             <div className="mt-6 flex flex-wrap justify-center gap-3">
               <Link to="/membership"><Button size="lg" className="gap-2 shadow-sm"><Crown className="h-4 w-4" /> View Memberships</Button></Link>
-              <Link to="/donate"><Button size="lg" variant="outline" className="gap-2 border-primary/30 bg-card hover:bg-primary/10"><HandHeart className="h-4 w-4" /> Support Us</Button></Link>
             </div>
           </div>
         </section>

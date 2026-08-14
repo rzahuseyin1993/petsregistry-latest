@@ -8,7 +8,7 @@ import {
   buildPayPalCustomId,
   sanitizePayPalDescription,
 } from "./paypal.ts";
-import { createAirwallexCheckout, getAirwallexConfig } from "./airwallex.ts";
+import { createAirwallexCheckout, resolveAirwallexConfig } from "./airwallex.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -25,7 +25,7 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { amount, donorName, donorEmail, packageId, message, provider = "airwallex" } = await req.json();
+    const { amount, donorName, donorEmail, packageId, message, provider = "airwallex", returnPath } = await req.json();
 
     if (!amount || amount <= 0 || amount > 100000) throw new Error("Invalid donation amount");
 
@@ -47,6 +47,7 @@ serve(async (req) => {
       .maybeSingle();
 
     const origin = req.headers.get("origin") || "http://localhost:5173";
+    const donatePath = typeof returnPath === "string" && returnPath.startsWith("/") ? returnPath : "/dashboard/donate";
 
     const { data: pendingDonation, error: pendingErr } = await supabase
       .from("donations")
@@ -73,24 +74,24 @@ serve(async (req) => {
 
     // ─── AIRWALLEX FLOW ─────────────────────────────────────
     if (provider === "airwallex") {
-      if (!paymentSettings?.publishable_key || !paymentSettings?.secret_key) {
+      const awConfig = await resolveAirwallexConfig(supabase);
+      if (!awConfig) {
         await supabase.from("donations").delete().eq("id", donationRowId);
-        return new Response(JSON.stringify({ error: "Airwallex is not configured. Admin must save Client ID and API Key in Payment Settings." }), {
+        return new Response(JSON.stringify({ error: "Airwallex is not configured. Admin must save and enable Demo or Live credentials in Payment Settings." }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      const awConfig = await getAirwallexConfig(supabase);
       const payerEmail = await resolvePayerEmail(supabase, userId, null, donorEmail);
       const checkout = await createAirwallexCheckout({
-        clientId: paymentSettings.publishable_key,
-        apiKey: paymentSettings.secret_key,
+        clientId: awConfig.clientId,
+        apiKey: awConfig.apiKey,
         env: awConfig.env,
         loginAs: awConfig.loginAs,
         amount: Number(amount),
         merchantOrderId: `donation_${donationRowId}`,
-        returnUrl: `${origin}/donate?success=true&provider=airwallex`,
-        cancelUrl: `${origin}/donate?canceled=true`,
+        returnUrl: `${origin}${donatePath}?success=true&provider=airwallex`,
+        cancelUrl: `${origin}${donatePath}?canceled=true`,
         descriptor: "PetsRegistry Donation",
         metadata: {
           type: "donation",
@@ -125,8 +126,8 @@ serve(async (req) => {
         },
         body: new URLSearchParams({
           "mode": "payment",
-          "success_url": `${origin}/donate?success=true`,
-          "cancel_url": `${origin}/donate?canceled=true`,
+          "success_url": `${origin}${donatePath}?success=true`,
+          "cancel_url": `${origin}${donatePath}?canceled=true`,
           "line_items[0][price_data][currency]": "usd",
           "line_items[0][price_data][unit_amount]": String(Math.round(amount * 100)),
           "line_items[0][price_data][product_data][name]": `Donation to PetsRegistry`,
@@ -183,8 +184,8 @@ serve(async (req) => {
       const payerEmail = await resolvePayerEmail(supabase, userId, null, donorEmail);
 
       const orderBody = buildPayPalOrderBody({
-        returnUrl: `${origin}/donate?success=true&provider=paypal`,
-        cancelUrl: `${origin}/donate?canceled=true`,
+        returnUrl: `${origin}${donatePath}?success=true&provider=paypal`,
+        cancelUrl: `${origin}${donatePath}?canceled=true`,
         payerEmail,
         purchase_units: [{
           reference_id: `donation_${donationRowId}`.slice(0, 127),
