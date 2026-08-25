@@ -6,7 +6,6 @@ import {
   getPayPalAccessToken,
   resolvePayerEmail,
 } from "./paypal.ts";
-import { createAirwallexCheckout, resolveAirwallexConfig } from "./airwallex.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,7 +22,7 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { planId, billingInterval = "yearly", provider = "airwallex" } = await req.json();
+    const { planId, billingInterval = "yearly", provider = "stripe" } = await req.json();
 
     if (!planId) {
       return new Response(JSON.stringify({ error: "Missing planId" }), {
@@ -111,41 +110,13 @@ serve(async (req) => {
       .eq("user_id", userId)
       .single();
 
-    // ─── AIRWALLEX FLOW ─────────────────────────────────────
     if (provider === "airwallex") {
-      const awConfig = await resolveAirwallexConfig(supabase);
-      if (!awConfig) {
-        return new Response(JSON.stringify({ error: "Airwallex is not configured. Admin must save and enable Demo or Live credentials in Payment Settings." }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      const payerEmail = await resolvePayerEmail(supabase, userId, profile?.email);
-      const checkout = await createAirwallexCheckout({
-        clientId: awConfig.clientId,
-        apiKey: awConfig.apiKey,
-        env: awConfig.env,
-        loginAs: awConfig.loginAs,
-        amount: price,
-        merchantOrderId: `membership_${planId}_${userId}_${Date.now()}`,
-        returnUrl: `${origin}/dashboard/membership?success=true&provider=airwallex&plan=${planId}`,
-        cancelUrl: `${origin}/dashboard/membership?canceled=true`,
-        descriptor: `PetsRegistry ${plan.name}`,
-        metadata: {
-          type: "membership",
-          user_id: userId,
-          plan_id: planId,
-          billing_interval: billingInterval,
-        },
-        customerEmail: payerEmail,
-      });
-
-      return new Response(JSON.stringify({ checkout }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      return new Response(JSON.stringify({ error: "Airwallex is no longer available. Please pay with Card (Stripe) or PayPal." }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // ─── STRIPE FLOW (disabled in admin UI — kept for future use) ───
+    // ─── STRIPE FLOW ─────────────────────────────────────
     if (provider === "stripe") {
       if (!paymentSettings?.secret_key) {
         return new Response(JSON.stringify({ error: "Stripe is not configured. Please ask the admin to enable it." }), {
@@ -240,7 +211,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         error:
-          "Unsupported or inactive payment provider. Choose Airwallex or PayPal and ensure it is configured in Payment Settings.",
+          "Unsupported or inactive payment provider. Choose Stripe or PayPal and ensure it is configured in Payment Settings.",
       }),
       {
         status: 400,

@@ -8,7 +8,6 @@ import {
   buildPayPalCustomId,
   sanitizePayPalDescription,
 } from "./paypal.ts";
-import { createAirwallexCheckout, resolveAirwallexConfig } from "./airwallex.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -25,7 +24,7 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { amount, donorName, donorEmail, packageId, message, provider = "airwallex", returnPath } = await req.json();
+    const { amount, donorName, donorEmail, packageId, message, provider = "stripe", returnPath } = await req.json();
 
     if (!amount || amount <= 0 || amount > 100000) throw new Error("Invalid donation amount");
 
@@ -72,44 +71,15 @@ serve(async (req) => {
 
     const donationRowId = pendingDonation.id as string;
 
-    // ─── AIRWALLEX FLOW ─────────────────────────────────────
+    // ─── AIRWALLEX REMOVED (YEPEE LLP Payments rejected) ───
     if (provider === "airwallex") {
-      const awConfig = await resolveAirwallexConfig(supabase);
-      if (!awConfig) {
-        await supabase.from("donations").delete().eq("id", donationRowId);
-        return new Response(JSON.stringify({ error: "Airwallex is not configured. Admin must save and enable Demo or Live credentials in Payment Settings." }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      const payerEmail = await resolvePayerEmail(supabase, userId, null, donorEmail);
-      const checkout = await createAirwallexCheckout({
-        clientId: awConfig.clientId,
-        apiKey: awConfig.apiKey,
-        env: awConfig.env,
-        loginAs: awConfig.loginAs,
-        amount: Number(amount),
-        merchantOrderId: `donation_${donationRowId}`,
-        returnUrl: `${origin}${donatePath}?success=true&provider=airwallex`,
-        cancelUrl: `${origin}${donatePath}?canceled=true`,
-        descriptor: "PetsRegistry Donation",
-        metadata: {
-          type: "donation",
-          donation_id: donationRowId,
-          user_id: userId || "",
-          package_id: packageId || "",
-        },
-        customerEmail: payerEmail,
-      });
-
-      await supabase.from("donations").update({ payment_id: checkout.intent_id }).eq("id", donationRowId);
-
-      return new Response(JSON.stringify({ checkout }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      await supabase.from("donations").delete().eq("id", donationRowId);
+      return new Response(JSON.stringify({ error: "Airwallex is no longer available. Please pay with Card (Stripe) or PayPal." }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // ─── STRIPE FLOW (disabled in admin UI — kept for future use) ───
+    // ─── STRIPE FLOW ─────────────────────────────────────
     if (provider === "stripe") {
       if (!paymentSettings?.secret_key || !paymentSettings.secret_key.trim().startsWith("sk_")) {
         await supabase.from("donations").delete().eq("id", donationRowId);

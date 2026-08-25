@@ -72,12 +72,8 @@ const DonatePage = () => {
   const { data: gateways = [] } = useQuery({
     queryKey: ["payment-gateways-public"],
     queryFn: async () => {
-      const [{ data }, { data: modeRow }] = await Promise.all([
-        supabase.from("payment_settings_safe").select("provider, is_active"),
-        supabase.from("site_settings").select("value").eq("key", "airwallex_checkout_mode").maybeSingle(),
-      ]);
-      const checkoutMode = modeRow?.value === "prod" ? "prod" : "demo";
-      return normalizeActivePaymentProviders((data || []) as any[], checkoutMode);
+      const { data } = await supabase.from("payment_settings_safe").select("provider, is_active");
+      return normalizeActivePaymentProviders((data || []) as any[]);
     },
   });
 
@@ -292,7 +288,7 @@ const DonatePage = () => {
               : "Select an amount to donate"}
           </Button>
           <p className="mt-2 text-center text-xs text-muted-foreground">
-            Payments processed securely via Airwallex or PayPal
+            Payments processed securely via Stripe or PayPal
           </p>
         </div>
       </div>
@@ -322,7 +318,7 @@ const DonatePage = () => {
                 onClick={() => donateMutation.mutate(cardProvider)}
               >
                 {pendingProvider === cardProvider ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-5 w-5" />}
-                Pay with Card (Airwallex)
+                Pay with Card (Stripe)
               </Button>
             )}
             {gateways.includes("paypal") && (

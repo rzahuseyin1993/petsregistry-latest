@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { createAirwallexCheckout, resolveAirwallexConfig } from "./airwallex.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -17,9 +16,8 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { billing_interval = "yearly" } = await req.json();
+    const { billing_interval = "yearly", provider = "stripe" } = await req.json();
 
-    // Derive the user from the JWT — never trust a client-supplied user id for payments
     const token = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
     const { data: authData, error: authErr } = await supabase.auth.getUser(token);
     if (authErr || !authData?.user) {
@@ -29,6 +27,13 @@ serve(async (req) => {
       });
     }
     const user_id = authData.user.id;
+
+    if (provider === "airwallex") {
+      return new Response(JSON.stringify({ error: "Airwallex is no longer available. Please pay with Card (Stripe)." }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const { data: existing } = await supabase
       .from("flyer_subscriptions")
@@ -45,9 +50,15 @@ serve(async (req) => {
       });
     }
 
-    const awConfig = await resolveAirwallexConfig(supabase);
-    if (!awConfig) {
-      return new Response(JSON.stringify({ error: "Airwallex is not configured. Admin must save and enable Demo or Live credentials in Payment Settings." }), {
+    const { data: paymentSettings } = await supabase
+      .from("payment_settings")
+      .select("secret_key, publishable_key")
+      .eq("provider", "stripe")
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (!paymentSettings?.secret_key?.trim().startsWith("sk_")) {
+      return new Response(JSON.stringify({ error: "Stripe is not configured. Admin must save and activate Stripe in Payment Settings." }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -91,38 +102,62 @@ serve(async (req) => {
       origin = (siteRow?.value as string)?.trim() || "http://localhost:5173";
     }
 
-    const checkout = await createAirwallexCheckout({
-      clientId: awConfig.clientId,
-      apiKey: awConfig.apiKey,
-      env: awConfig.env,
-      loginAs: awConfig.loginAs,
-      amount: price,
-      merchantOrderId: `flyer_${user_id}_${Date.now()}`,
-      returnUrl: `${origin}/dashboard/flyer-builder?success=true&provider=airwallex`,
-      cancelUrl: `${origin}/dashboard/flyer-builder?canceled=true`,
-      descriptor: productName.slice(0, 32),
-      metadata: {
-        type: "flyer_subscription",
-        user_id,
-        billing_interval,
-      },
-      customerEmail: profile?.email || null,
-    });
-
     const durationDays = isOneTime ? 36500 : billing_interval === "monthly" ? 30 : 365;
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + durationDays);
 
-    await supabase.from("flyer_subscriptions").insert({
+    const { data: pendingSub, error: pendingErr } = await supabase.from("flyer_subscriptions").insert({
       user_id,
       status: "pending",
       billing_interval,
       price,
       expires_at: expiresAt.toISOString(),
-      payment_id: checkout.intent_id,
+      payment_id: null,
+    }).select("id").single();
+
+    if (pendingErr || !pendingSub) {
+      throw new Error("Could not start flyer checkout");
+    }
+
+    const params = new URLSearchParams({
+      mode: isOneTime ? "payment" : "subscription",
+      success_url: `${origin}/dashboard/flyer-builder?success=true&provider=stripe`,
+      cancel_url: `${origin}/dashboard/flyer-builder?canceled=true`,
+      "line_items[0][price_data][currency]": "usd",
+      "line_items[0][price_data][unit_amount]": String(Math.round(price * 100)),
+      "line_items[0][price_data][product_data][name]": productName,
+      "line_items[0][quantity]": "1",
+      "metadata[type]": "flyer_subscription",
+      "metadata[user_id]": user_id,
+      "metadata[billing_interval]": billing_interval,
+      "metadata[flyer_sub_id]": pendingSub.id,
     });
 
-    return new Response(JSON.stringify({ checkout }), {
+    if (!isOneTime) {
+      params.set("line_items[0][price_data][recurring][interval]", billing_interval === "monthly" ? "month" : "year");
+      params.set("subscription_data[metadata][type]", "flyer_subscription");
+      params.set("subscription_data[metadata][user_id]", user_id);
+      params.set("subscription_data[metadata][billing_interval]", billing_interval);
+    }
+    if (profile?.email) params.set("customer_email", profile.email);
+
+    const stripeRes = await fetch("https://api.stripe.com/v1/checkout/sessions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${paymentSettings.secret_key}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: params,
+    });
+    const session = await stripeRes.json();
+    if (session.error || !session.url) {
+      await supabase.from("flyer_subscriptions").delete().eq("id", pendingSub.id);
+      throw new Error(session.error?.message || "Failed to create Stripe checkout");
+    }
+
+    await supabase.from("flyer_subscriptions").update({ payment_id: session.id }).eq("id", pendingSub.id);
+
+    return new Response(JSON.stringify({ url: session.url }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {

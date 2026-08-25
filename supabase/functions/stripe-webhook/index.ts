@@ -86,15 +86,31 @@ serve(async (req) => {
             }).eq("id", existing.id);
           }
         } else if (type === "flyer_subscription") {
-          // Update existing flyer subscription with Stripe IDs
-          await supabase
-            .from("flyer_subscriptions")
-            .update({
+          const flyerSubId = metadata.flyer_sub_id;
+          const durationDays = billingInterval === "monthly" ? 30 : billingInterval === "one_time" ? 36500 : 365;
+          const expiresAt = new Date();
+          expiresAt.setDate(expiresAt.getDate() + durationDays);
+
+          if (flyerSubId) {
+            await supabase.from("flyer_subscriptions").update({
+              status: "active",
+              payment_id: session.id,
               stripe_subscription_id: subscriptionId,
               stripe_customer_id: customerId,
-            })
-            .eq("user_id", userId)
-            .eq("payment_id", session.id);
+              expires_at: expiresAt.toISOString(),
+            }).eq("id", flyerSubId);
+          } else {
+            await supabase
+              .from("flyer_subscriptions")
+              .update({
+                status: "active",
+                stripe_subscription_id: subscriptionId,
+                stripe_customer_id: customerId,
+                expires_at: expiresAt.toISOString(),
+              })
+              .eq("user_id", userId)
+              .eq("payment_id", session.id);
+          }
         } else if (type === "certificate_credit") {
           const qty = parseInt(metadata.quantity || "1");
           const orderId = metadata.order_id;

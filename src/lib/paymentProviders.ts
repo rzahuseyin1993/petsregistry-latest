@@ -1,7 +1,7 @@
 export type PaymentProvider = "airwallex" | "paypal" | "stripe";
 
-/** Stripe is kept in code but hidden/disabled in the UI for now. */
-export const HIDDEN_PAYMENT_PROVIDERS: PaymentProvider[] = ["stripe"];
+/** Airwallex Payments rejected for YEPEE LLP — hide from checkout UI. */
+export const HIDDEN_PAYMENT_PROVIDERS: PaymentProvider[] = ["airwallex"];
 
 export type AirwallexCheckoutPayload = {
   provider: "airwallex";
@@ -28,32 +28,26 @@ export function filterVisiblePaymentProviders(providers: string[]): PaymentProvi
   );
 }
 
-/** Map stored gateway rows to checkout-visible providers (demo/prod → airwallex). */
+/** Map stored gateway rows to checkout-visible providers. */
 export function normalizeActivePaymentProviders(
   rows: { provider: string; is_active: boolean }[],
-  checkoutMode: "demo" | "prod" = "demo",
 ): PaymentProvider[] {
   const active = new Set(rows.filter((row) => row.is_active).map((row) => row.provider));
   const providers: PaymentProvider[] = [];
 
-  const airwallexProvider = checkoutMode === "prod" ? "airwallex_prod" : "airwallex_demo";
-  if (active.has(airwallexProvider) || active.has("airwallex")) {
-    providers.push("airwallex");
-  }
-  if (active.has("paypal")) providers.push("paypal");
   if (active.has("stripe")) providers.push("stripe");
+  if (active.has("paypal")) providers.push("paypal");
 
   return filterVisiblePaymentProviders(providers);
 }
 
 export function getCardProvider(providers: PaymentProvider[]): PaymentProvider | null {
-  if (providers.includes("airwallex")) return "airwallex";
   if (providers.includes("stripe")) return "stripe";
   return null;
 }
 
 export function getPaymentProviderLabel(provider: PaymentProvider): string {
-  if (provider === "airwallex") return "Airwallex";
+  if (provider === "stripe") return "Card (Stripe)";
   if (provider === "paypal") return "PayPal";
   return "Card";
 }

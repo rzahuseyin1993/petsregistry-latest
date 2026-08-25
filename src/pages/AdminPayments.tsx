@@ -11,10 +11,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 
-const STRIPE_UI_ENABLED = false;
-
-type AirwallexPanelMode = "demo" | "prod";
-
 const SERVICES = [
   { key: "membership", label: "Membership Plans", description: "Guardian & Partner membership billing" },
   { key: "flyer", label: "Flyer Builder", description: "Lost pet flyer design service" },
@@ -22,7 +18,6 @@ const SERVICES = [
   { key: "directory", label: "Directory Listing", description: "Business directory listing fee" },
 ];
 
-// Each option describes exactly which billing types are enabled
 const BILLING_MODE_OPTIONS = [
   { value: "one_time", label: "One-Time Fee Only", types: ["one_time"] },
   { value: "monthly", label: "Monthly Subscription Only", types: ["monthly"] },
@@ -41,22 +36,11 @@ const AdminPayments = () => {
   const [paypalClient, setPaypalClient] = useState("");
   const [paypalSecret, setPaypalSecret] = useState("");
   const [paypalActive, setPaypalActive] = useState(false);
-  const [airwallexDemoClientId, setAirwallexDemoClientId] = useState("");
-  const [airwallexDemoApiKey, setAirwallexDemoApiKey] = useState("");
-  const [airwallexDemoAccountId, setAirwallexDemoAccountId] = useState("");
-  const [airwallexDemoActive, setAirwallexDemoActive] = useState(false);
-  const [airwallexProdClientId, setAirwallexProdClientId] = useState("");
-  const [airwallexProdApiKey, setAirwallexProdApiKey] = useState("");
-  const [airwallexProdAccountId, setAirwallexProdAccountId] = useState("");
-  const [airwallexProdActive, setAirwallexProdActive] = useState(false);
-  const [savingAirwallex, setSavingAirwallex] = useState<AirwallexPanelMode | null>(null);
   const [saving, setSaving] = useState(false);
-
   const [yearlyDiscount, setYearlyDiscount] = useState("20");
   const [savingServices, setSavingServices] = useState(false);
-
-  // Per-service state: billing mode string + prices
   const [servicePricing, setServicePricing] = useState<Record<string, { billingMode: string; monthly: string; yearly: string; one_time: string }>>({});
+  const [testing, setTesting] = useState<string | null>(null);
 
   const { data: allSettings = [] } = useQuery({
     queryKey: ["all-payment-settings"],
@@ -64,7 +48,7 @@ const AdminPayments = () => {
       const { data } = await supabase
         .from("site_settings")
         .select("*")
-        .or("key.like.service_billing_%,key.like.service_price_%,key.eq.yearly_discount_percent,key.eq.flyer_monthly_price,key.eq.flyer_yearly_price,key.eq.airwallex_checkout_mode,key.eq.airwallex_demo_account_id,key.eq.airwallex_prod_account_id");
+        .or("key.like.service_billing_%,key.like.service_price_%,key.eq.yearly_discount_percent,key.eq.flyer_monthly_price,key.eq.flyer_yearly_price");
       return data || [];
     },
   });
@@ -76,8 +60,6 @@ const AdminPayments = () => {
     };
 
     setYearlyDiscount(getVal("yearly_discount_percent", "20"));
-    setAirwallexDemoAccountId(getVal("airwallex_demo_account_id", ""));
-    setAirwallexProdAccountId(getVal("airwallex_prod_account_id", ""));
 
     const newPricing: Record<string, { billingMode: string; monthly: string; yearly: string; one_time: string }> = {};
     for (const svc of SERVICES) {
@@ -106,18 +88,11 @@ const AdminPayments = () => {
     },
   });
 
-  // Check if a real secret is saved (not just the publishable key)
   const { data: secretStatus } = useQuery({
     queryKey: ["payment-secret-status"],
     queryFn: async () => {
       const { data } = await supabase.from("payment_settings").select("provider, secret_key");
-      const result: Record<string, boolean> = {
-        stripe: false,
-        paypal: false,
-        airwallex: false,
-        airwallex_demo: false,
-        airwallex_prod: false,
-      };
+      const result: Record<string, boolean> = { stripe: false, paypal: false };
       (data || []).forEach((row: any) => {
         result[row.provider] = !!(row.secret_key && row.secret_key.length > 10);
       });
@@ -127,13 +102,10 @@ const AdminPayments = () => {
 
   const stripeSettings = settings?.find((s) => s.provider === "stripe");
   const paypalSettings = settings?.find((s) => s.provider === "paypal");
-  const airwallexDemoSettings = settings?.find((s) => s.provider === "airwallex_demo");
-  const airwallexProdSettings = settings?.find((s) => s.provider === "airwallex_prod");
-  const airwallexDemoReady = !!airwallexDemoSettings?.publishable_key && !!secretStatus?.airwallex_demo;
-  const airwallexProdReady = !!airwallexProdSettings?.publishable_key && !!secretStatus?.airwallex_prod;
+  const stripeReady = !!stripeSettings?.publishable_key && !!secretStatus?.stripe;
+  const paypalReady = !!paypalSettings?.publishable_key && !!secretStatus?.paypal;
 
-  const [testing, setTesting] = useState<string | null>(null);
-  const testGateway = async (provider: "airwallex_demo" | "airwallex_prod" | "paypal" | "stripe") => {
+  const testGateway = async (provider: "paypal" | "stripe") => {
     setTesting(provider);
     try {
       const baseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -149,14 +121,7 @@ const AdminPayments = () => {
       });
       const result = await res.json();
       if (res.ok && result.ok) {
-        const label = provider === "airwallex_demo"
-          ? "Airwallex Sandbox"
-          : provider === "airwallex_prod"
-            ? "Airwallex Live"
-            : provider === "stripe"
-              ? "Stripe"
-              : "PayPal";
-        toast.success(`✓ ${label} connection works!`);
+        toast.success(`✓ ${provider === "stripe" ? "Stripe" : "PayPal"} connection works!`);
       } else {
         toast.error(result.error || `${provider} test failed`);
       }
@@ -167,100 +132,20 @@ const AdminPayments = () => {
     }
   };
 
-  const stripeReady = !!stripeSettings?.publishable_key && !!secretStatus?.stripe;
-  const paypalReady = !!paypalSettings?.publishable_key && !!secretStatus?.paypal;
-
   useEffect(() => {
     if (settings) {
       const stripe = settings.find((s) => s.provider === "stripe");
       const paypal = settings.find((s) => s.provider === "paypal");
-      if (stripe) { setStripePublishable(stripe.publishable_key || ""); setStripeActive(stripe.is_active); }
-      if (paypal) { setPaypalClient(paypal.publishable_key || ""); setPaypalActive(paypal.is_active); }
-      const demo = settings.find((s) => s.provider === "airwallex_demo");
-      const prod = settings.find((s) => s.provider === "airwallex_prod");
-      if (demo) {
-        setAirwallexDemoClientId(demo.publishable_key || "");
-        setAirwallexDemoActive(demo.is_active);
+      if (stripe) {
+        setStripePublishable(stripe.publishable_key || "");
+        setStripeActive(stripe.is_active);
       }
-      if (prod) {
-        setAirwallexProdClientId(prod.publishable_key || "");
-        setAirwallexProdActive(prod.is_active);
+      if (paypal) {
+        setPaypalClient(paypal.publishable_key || "");
+        setPaypalActive(paypal.is_active);
       }
     }
   }, [settings]);
-
-  const upsertSiteSetting = async (key: string, value: string, description: string) => {
-    const { data: existing } = await supabase.from("site_settings").select("id").eq("key", key).maybeSingle();
-    if (existing) {
-      await supabase.from("site_settings").update({ value }).eq("key", key);
-    } else {
-      await supabase.from("site_settings").insert({ key, value, description });
-    }
-  };
-
-  const saveAirwallexPanel = async (mode: AirwallexPanelMode) => {
-    setSavingAirwallex(mode);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const baseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const provider = mode === "demo" ? "airwallex_demo" : "airwallex_prod";
-      const clientId = (mode === "demo" ? airwallexDemoClientId : airwallexProdClientId).trim();
-      const apiKey = (mode === "demo" ? airwallexDemoApiKey : airwallexProdApiKey).trim();
-      const accountId = (mode === "demo" ? airwallexDemoAccountId : airwallexProdAccountId).trim();
-      const isActive = mode === "demo" ? airwallexDemoActive : airwallexProdActive;
-
-      const response = await fetch(`${baseUrl}/functions/v1/save-payment-settings`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
-        body: JSON.stringify({
-          provider,
-          publishable_key: clientId,
-          secret_key: apiKey,
-          is_active: isActive,
-        }),
-      });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(result.error || `Failed to save Airwallex ${mode === "demo" ? "Sandbox" : "Live"} settings`);
-      }
-
-      if (isActive) {
-        const otherProvider = mode === "demo" ? "airwallex_prod" : "airwallex_demo";
-        await fetch(`${baseUrl}/functions/v1/save-payment-settings`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
-          body: JSON.stringify({
-            provider: otherProvider,
-            publishable_key: mode === "demo" ? airwallexProdClientId.trim() : airwallexDemoClientId.trim(),
-            secret_key: "",
-            is_active: false,
-          }),
-        });
-        if (mode === "demo") setAirwallexProdActive(false);
-        else setAirwallexDemoActive(false);
-
-        await upsertSiteSetting("airwallex_checkout_mode", mode, "Active Airwallex checkout mode");
-      }
-
-      await upsertSiteSetting(
-        mode === "demo" ? "airwallex_demo_account_id" : "airwallex_prod_account_id",
-        accountId,
-        `Airwallex ${mode === "demo" ? "sandbox" : "live"} x-login-as account ID (optional)`,
-      );
-
-      if (mode === "demo") setAirwallexDemoApiKey("");
-      else setAirwallexProdApiKey("");
-
-      queryClient.invalidateQueries({ queryKey: ["payment-settings"] });
-      queryClient.invalidateQueries({ queryKey: ["payment-secret-status"] });
-      queryClient.invalidateQueries({ queryKey: ["all-payment-settings"] });
-      toast.success(`✓ Airwallex ${mode === "demo" ? "Sandbox" : "Live"} settings saved!`);
-    } catch (error: any) {
-      toast.error(error.message || "Failed to save Airwallex settings");
-    } finally {
-      setSavingAirwallex(null);
-    }
-  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -273,27 +158,40 @@ const AdminPayments = () => {
       const normalizedPaypalClient = paypalClient.trim();
       const normalizedPaypalSecret = paypalSecret.trim();
 
-      if (STRIPE_UI_ENABLED) {
-        if (normalizedStripePublishable && !normalizedStripePublishable.startsWith("pk_")) {
-          throw new Error("Stripe publishable key must start with pk_.");
-        }
-        if (normalizedStripeSecret && !normalizedStripeSecret.startsWith("sk_")) {
-          throw new Error("Stripe secret key must start with sk_.");
-        }
-        const stripeResponse = await fetch(`${baseUrl}/functions/v1/save-payment-settings`, {
+      if (normalizedStripePublishable && !normalizedStripePublishable.startsWith("pk_")) {
+        throw new Error("Stripe publishable key must start with pk_.");
+      }
+      if (normalizedStripeSecret && !normalizedStripeSecret.startsWith("sk_")) {
+        throw new Error("Stripe secret key must start with sk_.");
+      }
+
+      const stripeResponse = await fetch(`${baseUrl}/functions/v1/save-payment-settings`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({
+          provider: "stripe",
+          publishable_key: normalizedStripePublishable,
+          secret_key: normalizedStripeSecret,
+          is_active: stripeActive,
+        }),
+      });
+      const stripeResult = await stripeResponse.json().catch(() => ({}));
+      if (!stripeResponse.ok) {
+        throw new Error(stripeResult.error || "Failed to save Stripe settings");
+      }
+
+      // Ensure Airwallex rows stay inactive (Payments rejected for YEPEE LLP)
+      for (const awProvider of ["airwallex", "airwallex_demo", "airwallex_prod"]) {
+        await fetch(`${baseUrl}/functions/v1/save-payment-settings`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
           body: JSON.stringify({
-            provider: "stripe",
-            publishable_key: normalizedStripePublishable,
-            secret_key: normalizedStripeSecret,
-            is_active: stripeActive,
+            provider: awProvider,
+            publishable_key: "",
+            secret_key: "",
+            is_active: false,
           }),
-        });
-        const stripeResult = await stripeResponse.json().catch(() => ({}));
-        if (!stripeResponse.ok) {
-          throw new Error(stripeResult.error || "Failed to save Stripe settings");
-        }
+        }).catch(() => null);
       }
 
       const paypalResponse = await fetch(`${baseUrl}/functions/v1/save-payment-settings`, {
@@ -341,7 +239,6 @@ const AdminPayments = () => {
           { key: `service_price_${svc.key}_yearly`, value: pricing.yearly, description: `Yearly price for ${svc.label}` },
           { key: `service_price_${svc.key}_one_time`, value: pricing.one_time, description: `One-time price for ${svc.label}` },
         );
-        // Sync legacy keys for backward compatibility
         if (svc.key === "flyer") {
           upserts.push(
             { key: "flyer_monthly_price", value: pricing.monthly, description: "Flyer monthly price" },
@@ -378,323 +275,217 @@ const AdminPayments = () => {
   };
 
   return (
-          <main className="flex-1 bg-background p-6 md:p-8 overflow-y-auto">
-        <h1 className="font-display text-2xl font-bold text-foreground">Payment Settings</h1>
-        <p className="text-sm text-muted-foreground">Configure payment gateways, billing modes, and service pricing</p>
+    <main className="flex-1 bg-background p-6 md:p-8 overflow-y-auto">
+      <h1 className="font-display text-2xl font-bold text-foreground">Payment Settings</h1>
+      <p className="text-sm text-muted-foreground">Configure payment gateways, billing modes, and service pricing</p>
 
-        {/* Payment Gateway Section */}
-        <form onSubmit={handleSave} className="mt-8 max-w-2xl space-y-6">
-          <Card className="border-amber-200/60">
-            <CardHeader>
-              <div className="flex items-center justify-between gap-4">
-                <CardTitle className="flex flex-wrap items-center gap-2">
-                  <CreditCard className="h-5 w-5 text-amber-600" />
-                  Airwallex Sandbox (Testing)
-                  {airwallexDemoReady ? (
-                    <Badge className="bg-green-600 text-white gap-1"><CheckCircle2 className="h-3 w-3" /> Saved</Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-amber-600 border-amber-400 gap-1"><AlertCircle className="h-3 w-3" /> Not configured</Badge>
-                  )}
-                  {airwallexDemoActive && <Badge variant="secondary" className="text-xs">Active for checkout</Badge>}
-                </CardTitle>
-                <Switch
-                  checked={airwallexDemoActive}
-                  onCheckedChange={(checked) => {
-                    setAirwallexDemoActive(checked);
-                    if (checked) setAirwallexProdActive(false);
-                  }}
-                />
-              </div>
-              {airwallexDemoSettings?.updated_at && (
-                <p className="text-xs text-muted-foreground">Last saved: {new Date(airwallexDemoSettings.updated_at).toLocaleString()}</p>
-              )}
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Use keys from <strong>demo.airwallex.com</strong> for safe testing. Test cards only — real cards do not work here.
-              </p>
-              <div className="space-y-2">
-                <Label>Client ID</Label>
-                <Input type="text" placeholder="Sandbox Client ID" value={airwallexDemoClientId} onChange={(e) => setAirwallexDemoClientId(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>API Key {secretStatus?.airwallex_demo && <span className="text-xs text-green-600 ml-1">✓ stored</span>}</Label>
-                <Input type="password" placeholder={secretStatus?.airwallex_demo ? "•••••••• (saved — enter new value to replace)" : "Sandbox API Key"} value={airwallexDemoApiKey} onChange={(e) => setAirwallexDemoApiKey(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>Account ID (optional)</Label>
-                <Input type="text" placeholder="x-login-as account ID for sandbox" value={airwallexDemoAccountId} onChange={(e) => setAirwallexDemoAccountId(e.target.value)} />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Decline test: card <code className="rounded bg-muted px-1">5307837360544518</code> with amount <code className="rounded bg-muted px-1">$80.51</code>
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {airwallexDemoReady && (
-                  <Button type="button" variant="outline" size="sm" disabled={testing === "airwallex_demo"} onClick={() => testGateway("airwallex_demo")}>
-                    {testing === "airwallex_demo" ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Testing…</> : "Test Sandbox Connection"}
-                  </Button>
+      <div className="mt-4 max-w-2xl rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+        Airwallex Payments was rejected for YEPEE LLP and has been removed. Use <strong>Stripe</strong> for credit cards and optionally <strong>PayPal</strong>.
+      </div>
+
+      <form onSubmit={handleSave} className="mt-8 max-w-2xl space-y-6">
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <CreditCard className="h-5 w-5 text-primary" />Stripe (Credit / Debit Cards)
+                {stripeReady ? (
+                  <Badge className="bg-green-600 text-white gap-1"><CheckCircle2 className="h-3 w-3" /> Saved</Badge>
+                ) : (
+                  <Badge variant="outline" className="text-amber-600 border-amber-400 gap-1"><AlertCircle className="h-3 w-3" /> Not configured</Badge>
                 )}
-                <Button type="button" size="sm" disabled={savingAirwallex === "demo"} onClick={() => saveAirwallexPanel("demo")}>
-                  {savingAirwallex === "demo" ? "Saving…" : "Save Sandbox Settings"}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-red-200/60">
-            <CardHeader>
-              <div className="flex items-center justify-between gap-4">
-                <CardTitle className="flex flex-wrap items-center gap-2">
-                  <CreditCard className="h-5 w-5 text-red-600" />
-                  Airwallex Live (Production)
-                  {airwallexProdReady ? (
-                    <Badge className="bg-green-600 text-white gap-1"><CheckCircle2 className="h-3 w-3" /> Saved</Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-amber-600 border-amber-400 gap-1"><AlertCircle className="h-3 w-3" /> Not configured</Badge>
-                  )}
-                  {airwallexProdActive && <Badge variant="secondary" className="text-xs">Active for checkout</Badge>}
-                </CardTitle>
-                <Switch
-                  checked={airwallexProdActive}
-                  onCheckedChange={(checked) => {
-                    setAirwallexProdActive(checked);
-                    if (checked) setAirwallexDemoActive(false);
-                  }}
-                />
-              </div>
-              {airwallexProdSettings?.updated_at && (
-                <p className="text-xs text-muted-foreground">Last saved: {new Date(airwallexProdSettings.updated_at).toLocaleString()}</p>
-              )}
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Use keys from your live YEPEE LLP Airwallex account. Payments must be enabled under Airwallex → Payments before this works.
-              </p>
-              <div className="space-y-2">
-                <Label>Client ID</Label>
-                <Input type="text" placeholder="Live Client ID" value={airwallexProdClientId} onChange={(e) => setAirwallexProdClientId(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>API Key {secretStatus?.airwallex_prod && <span className="text-xs text-green-600 ml-1">✓ stored</span>}</Label>
-                <Input type="password" placeholder={secretStatus?.airwallex_prod ? "•••••••• (saved — enter new value to replace)" : "Live Scoped API Key"} value={airwallexProdApiKey} onChange={(e) => setAirwallexProdApiKey(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>Account ID (optional)</Label>
-                <Input type="text" placeholder="x-login-as account ID for live account" value={airwallexProdAccountId} onChange={(e) => setAirwallexProdAccountId(e.target.value)} />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Webhook URL: <code className="rounded bg-muted px-1">{import.meta.env.VITE_SUPABASE_URL}/functions/v1/airwallex-webhook</code>
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {airwallexProdReady && (
-                  <Button type="button" variant="outline" size="sm" disabled={testing === "airwallex_prod"} onClick={() => testGateway("airwallex_prod")}>
-                    {testing === "airwallex_prod" ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Testing…</> : "Test Live Connection"}
-                  </Button>
-                )}
-                <Button type="button" size="sm" disabled={savingAirwallex === "prod"} onClick={() => saveAirwallexPanel("prod")}>
-                  {savingAirwallex === "prod" ? "Saving…" : "Save Live Settings"}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {STRIPE_UI_ENABLED && (
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  <CreditCard className="h-5 w-5 text-muted-foreground" />Stripe Integration (legacy)
-                  {stripeReady ? (
-                    <Badge className="bg-green-600 text-white gap-1"><CheckCircle2 className="h-3 w-3" /> Saved</Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-amber-600 border-amber-400 gap-1"><AlertCircle className="h-3 w-3" /> Not configured</Badge>
-                  )}
-                  {stripeSettings?.is_active && <Badge variant="secondary" className="text-xs">Active</Badge>}
-                </CardTitle>
-                <Switch checked={stripeActive} onCheckedChange={setStripeActive} />
-              </div>
-              {stripeSettings?.updated_at && (
-                <p className="text-xs text-muted-foreground">Last saved: {new Date(stripeSettings.updated_at).toLocaleString()}</p>
-              )}
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2"><Label>Publishable Key</Label><Input type="text" placeholder="pk_live_..." value={stripePublishable} onChange={(e) => setStripePublishable(e.target.value)} /></div>
-              <div className="space-y-2">
-                <Label>Secret Key {secretStatus?.stripe && <span className="text-xs text-green-600 ml-1">✓ stored</span>}</Label>
-                <Input type="password" placeholder={secretStatus?.stripe ? "•••••••• (saved — enter new value to replace)" : "sk_live_... or sk_test_..."} value={stripeSecret} onChange={(e) => setStripeSecret(e.target.value)} />
-                <p className="text-xs text-muted-foreground">Secret keys are write-only for security. Leave blank to keep existing.</p>
-              </div>
-              {stripeReady && (
-                <Button type="button" variant="outline" size="sm" disabled={testing === "stripe"} onClick={() => testGateway("stripe")}>
-                  {testing === "stripe" ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Testing…</> : "Test Stripe Connection"}
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-          )}
-
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  <CreditCard className="h-5 w-5 text-accent" />PayPal Integration
-                  {paypalReady ? (
-                    <Badge className="bg-green-600 text-white gap-1"><CheckCircle2 className="h-3 w-3" /> Saved</Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-amber-600 border-amber-400 gap-1"><AlertCircle className="h-3 w-3" /> Not configured</Badge>
-                  )}
-                  {paypalSettings?.is_active && <Badge variant="secondary" className="text-xs">Active</Badge>}
-                </CardTitle>
-                <Switch checked={paypalActive} onCheckedChange={setPaypalActive} />
-              </div>
-              {paypalSettings?.updated_at && (
-                <p className="text-xs text-muted-foreground">Last saved: {new Date(paypalSettings.updated_at).toLocaleString()}</p>
-              )}
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2"><Label>Client ID</Label><Input type="text" placeholder="Your PayPal Client ID" value={paypalClient} onChange={(e) => setPaypalClient(e.target.value)} /></div>
-              <div className="space-y-2">
-                <Label>Client Secret {secretStatus?.paypal && <span className="text-xs text-green-600 ml-1">✓ stored</span>}</Label>
-                <Input type="password" placeholder={secretStatus?.paypal ? "•••••••• (saved — enter new value to replace)" : "Your PayPal Client Secret"} value={paypalSecret} onChange={(e) => setPaypalSecret(e.target.value)} />
-                <p className="text-xs text-muted-foreground">Secrets are write-only for security. Leave blank to keep existing.</p>
-              </div>
-              {paypalReady && (
-                <Button type="button" variant="outline" size="sm" disabled={testing === "paypal"} onClick={() => testGateway("paypal")}>
-                  {testing === "paypal" ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Testing…</> : "Test PayPal Connection"}
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-
-          <Button type="submit" size="lg" disabled={saving}>{saving ? "Saving..." : "Save PayPal Settings"}</Button>
-        </form>
-
-        {/* Service Pricing Configuration */}
-        <div className="mt-10 max-w-3xl">
-          <h2 className="font-display text-xl font-bold text-foreground mb-2 flex items-center gap-2">
-            <Settings2 className="h-5 w-5 text-primary" /> Service Pricing & Billing Modes
-          </h2>
-          <p className="text-sm text-muted-foreground mb-4">Choose how you want to charge for each service. Pick a billing mode, then set the price. You can change this anytime.</p>
-
-          {/* Global yearly discount */}
-          <Card className="mb-4">
-            <CardContent className="p-5">
-              <div className="flex items-center gap-4">
-                <Percent className="h-5 w-5 text-primary shrink-0" />
-                <div className="flex-1">
-                  <Label className="font-semibold">Yearly Discount (%)</Label>
-                  <p className="text-xs text-muted-foreground">Discount shown when yearly is available alongside monthly</p>
-                </div>
-                <Input type="number" min="0" max="100" className="w-24" value={yearlyDiscount} onChange={(e) => setYearlyDiscount(e.target.value)} />
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="space-y-4">
-            {SERVICES.map(svc => {
-              const pricing = servicePricing[svc.key];
-              if (!pricing) return null;
-              const activeTypes = getActiveTypes(pricing.billingMode);
-              const showMonthly = activeTypes.includes("monthly");
-              const showYearly = activeTypes.includes("yearly");
-              const showOneTime = activeTypes.includes("one_time");
-
-              return (
-                <Card key={svc.key}>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <DollarSign className="h-4 w-4 text-primary" />
-                      {svc.label}
-                    </CardTitle>
-                    <p className="text-xs text-muted-foreground">{svc.description}</p>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {/* Billing Mode Dropdown */}
-                    <div>
-                      <Label className="text-sm font-medium mb-2 block">How do you want to charge?</Label>
-                      <Select
-                        value={pricing.billingMode}
-                        onValueChange={(val) =>
-                          setServicePricing(prev => ({
-                            ...prev,
-                            [svc.key]: { ...prev[svc.key], billingMode: val },
-                          }))
-                        }
-                      >
-                        <SelectTrigger className="w-full max-w-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {BILLING_MODE_OPTIONS.map(opt => (
-                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Price Inputs — only for the selected billing types */}
-                    <div className="grid grid-cols-3 gap-3">
-                      {showMonthly && (
-                        <div className="space-y-1">
-                          <Label className="text-xs">Monthly Price ($)</Label>
-                          <Input
-                            type="number" step="0.01" min="0"
-                            value={pricing.monthly}
-                            onChange={(e) => setServicePricing(prev => ({ ...prev, [svc.key]: { ...prev[svc.key], monthly: e.target.value } }))}
-                          />
-                        </div>
-                      )}
-                      {showYearly && (
-                        <div className="space-y-1">
-                          <Label className="text-xs">Yearly Price ($)</Label>
-                          <Input
-                            type="number" step="0.01" min="0"
-                            value={pricing.yearly}
-                            onChange={(e) => setServicePricing(prev => ({ ...prev, [svc.key]: { ...prev[svc.key], yearly: e.target.value } }))}
-                          />
-                        </div>
-                      )}
-                      {showOneTime && (
-                        <div className="space-y-1">
-                          <Label className="text-xs">One-Time Fee ($)</Label>
-                          <Input
-                            type="number" step="0.01" min="0"
-                            value={pricing.one_time}
-                            onChange={(e) => setServicePricing(prev => ({ ...prev, [svc.key]: { ...prev[svc.key], one_time: e.target.value } }))}
-                          />
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Summary badges */}
-                    <div className="flex flex-wrap gap-2">
-                      {showMonthly && <Badge variant="outline" className="text-xs">Monthly: ${pricing.monthly}</Badge>}
-                      {showYearly && <Badge variant="outline" className="text-xs">Yearly: ${pricing.yearly}</Badge>}
-                      {showOneTime && <Badge variant="outline" className="text-xs">One-Time: ${pricing.one_time}</Badge>}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-
-          <div className="mt-4 rounded-lg bg-muted/50 p-3">
-            <p className="text-xs text-muted-foreground">
-              <strong>How it works:</strong> Monthly & Yearly memberships are paid via Airwallex (one payment per period).
-              One-Time uses a single Airwallex checkout. PayPal remains available if enabled.
+                {stripeSettings?.is_active && <Badge variant="secondary" className="text-xs">Active</Badge>}
+              </CardTitle>
+              <Switch checked={stripeActive} onCheckedChange={setStripeActive} />
+            </div>
+            {stripeSettings?.updated_at && (
+              <p className="text-xs text-muted-foreground">Last saved: {new Date(stripeSettings.updated_at).toLocaleString()}</p>
+            )}
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Primary card payments for membership, donations, certificates, and flyer. Use test keys (<code className="rounded bg-muted px-1">pk_test_</code> / <code className="rounded bg-muted px-1">sk_test_</code>) first.
             </p>
-          </div>
+            <div className="space-y-2">
+              <Label>Publishable Key</Label>
+              <Input type="text" placeholder="pk_test_... or pk_live_..." value={stripePublishable} onChange={(e) => setStripePublishable(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Secret Key {secretStatus?.stripe && <span className="text-xs text-green-600 ml-1">✓ stored</span>}</Label>
+              <Input type="password" placeholder={secretStatus?.stripe ? "•••••••• (saved — enter new value to replace)" : "sk_test_... or sk_live_..."} value={stripeSecret} onChange={(e) => setStripeSecret(e.target.value)} />
+              <p className="text-xs text-muted-foreground">Secret keys are write-only. Leave blank to keep existing.</p>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Webhook URL: <code className="rounded bg-muted px-1">{import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-webhook</code>
+            </p>
+            {stripeReady && (
+              <Button type="button" variant="outline" size="sm" disabled={testing === "stripe"} onClick={() => testGateway("stripe")}>
+                {testing === "stripe" ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Testing…</> : "Test Stripe Connection"}
+              </Button>
+            )}
+          </CardContent>
+        </Card>
 
-          <Button
-            onClick={handleSaveServicePricing}
-            disabled={savingServices}
-            size="lg"
-            className="mt-4"
-          >
-            {savingServices ? "Saving..." : "Save All Service Pricing"}
-          </Button>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <CreditCard className="h-5 w-5 text-accent" />PayPal Integration
+                {paypalReady ? (
+                  <Badge className="bg-green-600 text-white gap-1"><CheckCircle2 className="h-3 w-3" /> Saved</Badge>
+                ) : (
+                  <Badge variant="outline" className="text-amber-600 border-amber-400 gap-1"><AlertCircle className="h-3 w-3" /> Not configured</Badge>
+                )}
+                {paypalSettings?.is_active && <Badge variant="secondary" className="text-xs">Active</Badge>}
+              </CardTitle>
+              <Switch checked={paypalActive} onCheckedChange={setPaypalActive} />
+            </div>
+            {paypalSettings?.updated_at && (
+              <p className="text-xs text-muted-foreground">Last saved: {new Date(paypalSettings.updated_at).toLocaleString()}</p>
+            )}
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Client ID</Label>
+              <Input type="text" placeholder="Your PayPal Client ID" value={paypalClient} onChange={(e) => setPaypalClient(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Client Secret {secretStatus?.paypal && <span className="text-xs text-green-600 ml-1">✓ stored</span>}</Label>
+              <Input type="password" placeholder={secretStatus?.paypal ? "•••••••• (saved — enter new value to replace)" : "Your PayPal Client Secret"} value={paypalSecret} onChange={(e) => setPaypalSecret(e.target.value)} />
+              <p className="text-xs text-muted-foreground">Secrets are write-only. Leave blank to keep existing.</p>
+            </div>
+            {paypalReady && (
+              <Button type="button" variant="outline" size="sm" disabled={testing === "paypal"} onClick={() => testGateway("paypal")}>
+                {testing === "paypal" ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Testing…</> : "Test PayPal Connection"}
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+
+        <Button type="submit" size="lg" disabled={saving}>{saving ? "Saving..." : "Save Payment Settings"}</Button>
+      </form>
+
+      <div className="mt-10 max-w-3xl">
+        <h2 className="font-display text-xl font-bold text-foreground mb-2 flex items-center gap-2">
+          <Settings2 className="h-5 w-5 text-primary" /> Service Pricing & Billing Modes
+        </h2>
+        <p className="text-sm text-muted-foreground mb-4">Choose how you want to charge for each service. Pick a billing mode, then set the price.</p>
+
+        <Card className="mb-4">
+          <CardContent className="p-5">
+            <div className="flex items-center gap-4">
+              <Percent className="h-5 w-5 text-primary shrink-0" />
+              <div className="flex-1">
+                <Label className="font-semibold">Yearly Discount (%)</Label>
+                <p className="text-xs text-muted-foreground">Discount shown when yearly is available alongside monthly</p>
+              </div>
+              <Input type="number" min="0" max="100" className="w-24" value={yearlyDiscount} onChange={(e) => setYearlyDiscount(e.target.value)} />
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="space-y-4">
+          {SERVICES.map((svc) => {
+            const pricing = servicePricing[svc.key];
+            if (!pricing) return null;
+            const activeTypes = getActiveTypes(pricing.billingMode);
+            const showMonthly = activeTypes.includes("monthly");
+            const showYearly = activeTypes.includes("yearly");
+            const showOneTime = activeTypes.includes("one_time");
+
+            return (
+              <Card key={svc.key}>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <DollarSign className="h-4 w-4 text-primary" />
+                    {svc.label}
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground">{svc.description}</p>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label className="text-sm font-medium mb-2 block">How do you want to charge?</Label>
+                    <Select
+                      value={pricing.billingMode}
+                      onValueChange={(val) =>
+                        setServicePricing((prev) => ({
+                          ...prev,
+                          [svc.key]: { ...prev[svc.key], billingMode: val },
+                        }))
+                      }
+                    >
+                      <SelectTrigger className="w-full max-w-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {BILLING_MODE_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3">
+                    {showMonthly && (
+                      <div className="space-y-1">
+                        <Label className="text-xs">Monthly Price ($)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={pricing.monthly}
+                          onChange={(e) => setServicePricing((prev) => ({ ...prev, [svc.key]: { ...prev[svc.key], monthly: e.target.value } }))}
+                        />
+                      </div>
+                    )}
+                    {showYearly && (
+                      <div className="space-y-1">
+                        <Label className="text-xs">Yearly Price ($)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={pricing.yearly}
+                          onChange={(e) => setServicePricing((prev) => ({ ...prev, [svc.key]: { ...prev[svc.key], yearly: e.target.value } }))}
+                        />
+                      </div>
+                    )}
+                    {showOneTime && (
+                      <div className="space-y-1">
+                        <Label className="text-xs">One-Time Fee ($)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={pricing.one_time}
+                          onChange={(e) => setServicePricing((prev) => ({ ...prev, [svc.key]: { ...prev[svc.key], one_time: e.target.value } }))}
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {showMonthly && <Badge variant="outline" className="text-xs">Monthly: ${pricing.monthly}</Badge>}
+                    {showYearly && <Badge variant="outline" className="text-xs">Yearly: ${pricing.yearly}</Badge>}
+                    {showOneTime && <Badge variant="outline" className="text-xs">One-Time: ${pricing.one_time}</Badge>}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
-      </main>
+
+        <div className="mt-4 rounded-lg bg-muted/50 p-3">
+          <p className="text-xs text-muted-foreground">
+            <strong>How it works:</strong> Card payments go through Stripe. PayPal remains available if enabled.
+          </p>
+        </div>
+
+        <Button onClick={handleSaveServicePricing} disabled={savingServices} size="lg" className="mt-4">
+          {savingServices ? "Saving..." : "Save All Service Pricing"}
+        </Button>
+      </div>
+    </main>
   );
 };
 

@@ -8,7 +8,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { completeCheckout } from "@/lib/airwallexCheckout";
 import {
-  filterVisiblePaymentProviders,
   getCardProvider,
   getPaymentProviderLabel,
   normalizeActivePaymentProviders,
@@ -105,12 +104,8 @@ const CertificateCreditsCard = () => {
   const { data: gateways = [] } = useQuery({
     queryKey: ["active-payment-gateways"],
     queryFn: async () => {
-      const [{ data }, { data: modeRow }] = await Promise.all([
-        supabase.from("payment_settings_safe" as any).select("provider, is_active") as any,
-        supabase.from("site_settings").select("value").eq("key", "airwallex_checkout_mode").maybeSingle(),
-      ]);
-      const checkoutMode = modeRow?.value === "prod" ? "prod" : "demo";
-      return normalizeActivePaymentProviders((data || []) as any[], checkoutMode);
+      const { data } = await supabase.from("payment_settings_safe" as any).select("provider, is_active") as any;
+      return normalizeActivePaymentProviders((data || []) as any[]);
     },
   });
 
